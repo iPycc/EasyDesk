@@ -1,5 +1,7 @@
 #include "config/application_config.hpp"
+#include "devices/device_repository.hpp"
 #include "net/http_listener.hpp"
+#include "storage/sqlite_database.hpp"
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/address.hpp>
@@ -7,6 +9,7 @@
 
 #include <algorithm>
 #include <exception>
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <thread>
@@ -15,6 +18,15 @@
 int main() {
     try {
         const auto config = easydesk::config::ApplicationConfig::fromEnvironment();
+        const std::filesystem::path databasePath(config.databasePath);
+        if (databasePath.has_parent_path()) {
+            std::filesystem::create_directories(databasePath.parent_path());
+        }
+
+        easydesk::storage::SqliteDatabase database(config.databasePath);
+        easydesk::devices::DeviceRepository devices(database);
+        devices.migrate();
+
         boost::asio::io_context context(static_cast<int>(config.workerThreads));
 
         const auto address = boost::asio::ip::make_address(config.bindAddress);
@@ -25,7 +37,8 @@ int main() {
         signals.async_wait([&context](const boost::system::error_code&, int) { context.stop(); });
 
         std::cout << "EasyDesk signaling listening on " << config.bindAddress << ':' << config.port
-                  << " with " << config.workerThreads << " workers\n";
+                  << " with " << config.workerThreads << " workers and " << devices.deviceCount()
+                  << " registered devices\n";
 
         std::vector<std::thread> workers;
         workers.reserve(config.workerThreads - 1);

@@ -42,6 +42,7 @@ ApplicationConfig ApplicationConfig::fromEnvironment() {
     const auto hardwareThreads = std::max(1U, std::thread::hardware_concurrency());
     return {
         .bindAddress = readString("EASYDESK_BIND_ADDRESS", "0.0.0.0"),
+        .databasePath = readString("EASYDESK_DATABASE_PATH", "data/easydesk.sqlite3"),
         .port = readNumber<std::uint16_t>("EASYDESK_PORT", 8080, 1, 65535),
         .workerThreads = readNumber<std::size_t>(
             "EASYDESK_WORKER_THREADS", std::min<std::size_t>(hardwareThreads, 8), 1, 64),

@@ -8,6 +8,7 @@ namespace easydesk::config {
 
 struct ApplicationConfig {
     std::string bindAddress;
+    std::string databasePath;
     std::uint16_t port;
     std::size_t workerThreads;
 
