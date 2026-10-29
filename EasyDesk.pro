@@ -10,7 +10,8 @@ INCLUDEPATH += \
     $$PWD/src/client/domain \
     $$PWD/src/client/infrastructure \
     $$PWD/src/client/platform/windows \
-    $$PWD/src/client/presentation
+    $$PWD/src/client/presentation \
+    $$PWD/src/media/bridge/include
 SOURCES += \
     src/client/application/app/application_context.cpp \
     src/client/application/app/main.cpp \
@@ -26,6 +27,7 @@ SOURCES += \
     src/client/platform/windows/input/send_input_executor.cpp \
     src/client/platform/windows/input/windows_input_controller.cpp \
     src/client/platform/windows/media/capture/dxgi_desktop_capture.cpp \
+    src/client/platform/windows/media/webrtc/media_runtime_library.cpp \
     src/client/presentation/ui/components/controls.cpp \
     src/client/presentation/ui/components/desktop_view.cpp \
     src/client/presentation/ui/components/device_list.cpp \
@@ -71,6 +73,8 @@ HEADERS += \
     src/client/platform/windows/input/windows_input_controller.h \
     src/client/platform/windows/media/capture/desktop_capture_frame.h \
     src/client/platform/windows/media/capture/dxgi_desktop_capture.h \
+    src/client/platform/windows/media/webrtc/media_runtime_library.h \
+    src/media/bridge/include/easydesk_media_abi.h \
     src/client/presentation/ui/components/controls.h \
     src/client/presentation/ui/components/desktop_view.h \
     src/client/presentation/ui/components/device_list.h \

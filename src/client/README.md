@@ -15,6 +15,7 @@
 | `infrastructure/data/local/` | 设置持久化和未连接会话状态 |
 | `platform/windows/data/local/` | Windows 系统信息读取 |
 | `platform/windows/media/capture/` | DXGI 桌面纹理、变更区域与光标采集 |
+| `platform/windows/media/webrtc/` | WebRTC C ABI 动态加载与运行时生命周期 |
 | `platform/windows/input/` | SendInput、输入 lease 与失联释放 |
 | `presentation/ui/components/` | 通用控件、图标、菜单、选择动画和原生视频面 |
 | `presentation/ui/pages/` | 设备、列表、远程协助和设置页面 |
@@ -31,6 +32,8 @@
 `LocalSessionService` 负责持久化本机 ID 和生成当前进程的 8 位协助码。它明确报告“信令未连接”，不会生成对端、网络遥测或打开假会话。后续 WSS 适配器必须保留同一接口，并在真实授权、传输与首帧事实就绪后更新状态。
 
 `DesktopView` 是原生 QWidget/HWND 渲染目标。当前只绘制离线/等待状态，不生成桌面内容。媒体实现应绑定 `winId()`，不得通过 UI 层逐帧传递像素。
+
+`MediaRuntimeLibrary` 只从应用目录动态加载 `easydesk_media.dll`，校验 ABI 后创建唯一 WebRTC 运行时。Qt/MSVC 与 WebRTC/Clang 之间不交换 C++ 对象；媒体 DLL 缺失或初始化失败时保持未就绪，不伪造连接能力。
 
 ## 文件传输
 

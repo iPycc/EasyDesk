@@ -4,6 +4,7 @@
 #include "data/local/local_transfer_service.h"
 #include "data/local/settings_device_service.h"
 #include "data/local/windows_system_service.h"
+#include "media/webrtc/media_runtime_library.h"
 #include <QDir>
 #include <QFile>
 #include <QSettings>
@@ -27,6 +28,8 @@ ApplicationContext::ApplicationContext() {
     m_sessions = std::make_unique<LocalSessionService>(*m_settings);
     m_transfers = std::make_unique<LocalTransferService>();
     m_local = std::make_unique<WindowsSystemService>(*m_settings);
+    m_media = std::make_unique<MediaRuntimeLibrary>();
+    m_media->start();
 }
 ApplicationContext::~ApplicationContext() = default;
 DeviceService &ApplicationContext::devices() const {
@@ -44,4 +47,8 @@ QSettings &ApplicationContext::settings() const {
 
 LocalSystemService &ApplicationContext::localSystem() const {
     return *m_local;
+}
+
+MediaRuntimeLibrary &ApplicationContext::mediaRuntime() const {
+    return *m_media;
 }

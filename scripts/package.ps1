@@ -5,6 +5,7 @@ $qtRoot = Join-Path $projectRoot '.toolchain\qt-5.15.12'
 $targetRoot = Join-Path $projectRoot ('dist\' + $PackageName)
 New-Item -ItemType Directory -Force -Path $targetRoot, "$targetRoot\platforms", "$targetRoot\styles", "$targetRoot\licenses" | Out-Null
 Copy-Item -LiteralPath "$projectRoot\build\bin\EasyDesk.exe" -Destination $targetRoot
+Copy-Item -LiteralPath "$projectRoot\build\bin\easydesk_media.dll" -Destination $targetRoot
 foreach ($fileName in @('Qt5Core.dll','Qt5Gui.dll','Qt5Widgets.dll','Qt5Svg.dll')) {
     Copy-Item -LiteralPath "$qtRoot\bin\$fileName" -Destination $targetRoot
 }
