@@ -15,7 +15,6 @@ SOURCES += \
     src/data/local/windows_system_service.cpp \
     src/ui/components/device_list.cpp \
     src/ui/components/selection_indicator.cpp \
-    src/ui/controllers/quick_launch_controller.cpp \
     src/core/device.cpp \
     src/features/devices/device_service.cpp \
     src/ui/components/controls.cpp \

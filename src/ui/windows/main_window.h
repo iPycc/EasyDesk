@@ -49,7 +49,6 @@ class MainWindow : public QWidget {
     QLineEdit *m_remoteId = nullptr, *m_remoteCode = nullptr, *m_search = nullptr;
     QComboBox *m_filter = nullptr;
     Ui::DeviceList *m_deviceList = nullptr;
-    QWidget *m_quickHost = nullptr;
     QSettings *m_settings = nullptr;
     Ui::SessionWindow *m_session = nullptr;
     QPointer<Ui::Dialog> m_transferDialog;
@@ -66,8 +65,6 @@ class MainWindow : public QWidget {
     void rebuildNav();
     void updateNavIndicator(bool animate = true);
     void showDeviceDetails(const QString &id);
-    void refreshQuickLaunch();
-    void addQuickLaunch();
     void showDevice(const QString &id);
     void refreshDevice();
     void updateFilter();

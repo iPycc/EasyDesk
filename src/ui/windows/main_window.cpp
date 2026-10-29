@@ -129,7 +129,6 @@ void MainWindow::refreshDevice() {
         icon(d->favorite ? "star-filled" : "star", QColor(d->favorite ? "#3478ed" : "#999999")));
     m_preview->setDevice(d->name, d->online);
     m_connect->setEnabled(d->online && m_sessions.isAvailable());
-    refreshQuickLaunch();
 }
 
 void MainWindow::notify(const QString &s) {
