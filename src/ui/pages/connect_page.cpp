@@ -84,6 +84,7 @@ QWidget *MainWindow::buildStartPage() {
     auto *go = button(QStringLiteral("开始连接"), "arrow", "primary");
     go->setObjectName("startConnect");
     go->setMinimumHeight(40);
+    go->setEnabled(m_sessions.isAvailable());
     b->addWidget(go);
     connect(go, &QPushButton::clicked, this, &MainWindow::connectRemote);
     connect(m_remoteCode, &QLineEdit::returnPressed, this, &MainWindow::connectRemote);
