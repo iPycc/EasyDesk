@@ -14,6 +14,7 @@ QWidget *MainWindow::buildStartPage() {
     local->setObjectName("identityPanel");
     auto *a = column(local, 22, 14);
     a->addWidget(text(QStringLiteral("此设备"), "h3"));
+    a->addWidget(text(m_sessions.statusText(), "caption"));
     a->addSpacing(12);
     a->addWidget(text(QStringLiteral("设备 ID"), "caption"));
     auto *idRow = row();
@@ -38,10 +39,10 @@ QWidget *MainWindow::buildStartPage() {
     code->setObjectName("localCode");
     codeRow->addWidget(code);
     codeRow->addStretch();
-    auto *eye = tool(QStringLiteral("显示 / 隐藏演示协助码"), "eye");
+    auto *eye = tool(QStringLiteral("显示 / 隐藏协助码"), "eye");
     eye->setCheckable(true);
     codeRow->addWidget(eye);
-    auto *refresh = tool(QStringLiteral("刷新演示码"), "refresh");
+    auto *refresh = tool(QStringLiteral("刷新协助码"), "refresh");
     codeRow->addWidget(refresh);
     a->addLayout(codeRow);
     auto updateCode = [this, code, eye] {
@@ -89,11 +90,5 @@ QWidget *MainWindow::buildStartPage() {
     b->addStretch();
     cols->addWidget(connectPane, 1);
     l->addLayout(cols, 1);
-    auto *sample = row();
-    sample->addStretch();
-    auto *fill = button(QStringLiteral("使用示例设备"), "arrow", "link");
-    sample->addWidget(fill);
-    connect(fill, &QPushButton::clicked, this, &MainWindow::useExampleDevice);
-    l->addLayout(sample);
     return p;
 }

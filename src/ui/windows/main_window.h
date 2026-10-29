@@ -72,7 +72,6 @@ class MainWindow : public QWidget {
     void refreshDevice();
     void updateFilter();
     void connectRemote();
-    void useExampleDevice();
     void watchDeviceOperation(quint64 requestId, const QString &success,
                               std::function<void()> onSuccess = {});
     void toggleFavorite(const QString &id);

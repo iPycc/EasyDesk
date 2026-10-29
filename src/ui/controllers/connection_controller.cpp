@@ -11,12 +11,3 @@ void MainWindow::connectRemote() {
         return;
     startSession(id);
 }
-void MainWindow::useExampleDevice() {
-    for (const auto &device : m_devices.devices())
-        if (device.online) {
-            m_remoteId->setText(spacedId(device.id));
-            m_remoteCode->setText(m_sessions.localIdentity().assistanceCode);
-            notify(QStringLiteral("已填入示例设备"));
-            return;
-        }
-}

@@ -12,9 +12,9 @@ struct SessionOptions {
 };
 struct SessionTelemetry {
     int latencyMs = 0, frameRate = 0;
-    QString localIp, peerIp, transport;
+    QString localIp, peerIp, transport, codec;
     double packetLossPercent = 0;
-    bool peerToPeer = false, simulated = true;
+    bool peerToPeer = false;
 };
 Q_DECLARE_METATYPE(SessionTelemetry)
 Q_DECLARE_METATYPE(SessionOptions)

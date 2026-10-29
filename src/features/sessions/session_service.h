@@ -7,6 +7,8 @@ class SessionService : public QObject {
   public:
     using QObject::QObject;
     virtual LocalIdentity localIdentity() const = 0;
+    virtual bool isAvailable() const = 0;
+    virtual QString statusText() const = 0;
     virtual void refreshAssistanceCode() = 0;
     virtual QString validateConnection(const QString &id, const QString &code) const = 0;
     virtual void start(const QString &deviceId, const SessionOptions &options) = 0;

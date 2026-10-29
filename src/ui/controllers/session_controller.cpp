@@ -6,6 +6,10 @@
 using namespace Ui::Layout;
 
 void MainWindow::startSession(const QString &id) {
+    if (!m_sessions.isAvailable()) {
+        Ui::alert(this, QStringLiteral("无法连接"), m_sessions.statusText());
+        return;
+    }
     auto *device = m_devices.find(id);
     if (device && !device->online) {
         notify(QStringLiteral("设备已离线"));
@@ -17,7 +21,6 @@ void MainWindow::startSession(const QString &id) {
         return;
     }
     const QString name = device ? device->name : spacedId(id);
-    const bool simulated = m_sessions.telemetry().simulated;
     Ui::Dialog consent(this, QStringLiteral("连接设备"));
     consent.setObjectName("sessionConsent");
     consent.resize(440, 270);
@@ -30,7 +33,6 @@ void MainWindow::startSession(const QString &id) {
     if (m_route == "start" && findChild<QComboBox *>("connectionMode")->currentIndex() == 1)
         view->setChecked(true);
     c->addWidget(view);
-    c->addWidget(text(simulated ? QStringLiteral("模拟桌面") : QString(), "caption"));
     auto *r = consent.actions;
     auto *cancel = button(QStringLiteral("取消"));
     auto *accept = button(QStringLiteral("连接"), "arrow", "primary");
@@ -41,8 +43,7 @@ void MainWindow::startSession(const QString &id) {
     connect(accept, &QPushButton::clicked, &consent, &Ui::Dialog::accept);
     if (consent.exec() != Ui::Dialog::Accepted)
         return;
-    auto *session = new Ui::SessionWindow(
-        this, name + (simulated ? QStringLiteral(" · 模拟桌面") : QStringLiteral(" · 远程桌面")));
+    auto *session = new Ui::SessionWindow(this, name + QStringLiteral(" · 远程桌面"));
     session->setObjectName("sessionWindow");
     m_session = session;
     session->setAttribute(Qt::WA_DeleteOnClose);
@@ -65,7 +66,6 @@ void MainWindow::startSession(const QString &id) {
     m_sessions.start(id, requested);
     session->setProperty("fps", initialFps);
     session->setProperty("quality", initialQuality);
-    session->setProperty("telemetryIsSimulated", m_sessions.telemetry().simulated);
     auto *title = dynamic_cast<Ui::TitleBar *>(session->findChild<QFrame *>("titleBar"));
     auto *signal = tool(QStringLiteral("连接信息"), "quality");
     signal->setObjectName("sessionSignal");
@@ -82,8 +82,6 @@ void MainWindow::startSession(const QString &id) {
     auto *heading = row();
     heading->addWidget(text(QStringLiteral("连接信息"), "h3"));
     heading->addStretch();
-    auto *simulation = text(QStringLiteral("模拟数据"), "caption");
-    heading->addWidget(simulation);
     stats->addLayout(heading);
     auto metric = [stats](const QString &label, const QString &value, const QString &key) {
         auto *r = row(20);
@@ -101,10 +99,8 @@ void MainWindow::startSession(const QString &id) {
     auto *fpsValue = metric(QStringLiteral("帧率"), {}, "sessionFps");
     auto *loss = metric(QStringLiteral("丢包"), {}, "sessionPacketLoss");
     auto *transport = metric(QStringLiteral("传输方式"), {}, "sessionTransport");
-    auto updateTelemetry = [session, signal, simulation, latency, localIp, peerIp, fpsValue, loss,
+    auto updateTelemetry = [signal, latency, localIp, peerIp, fpsValue, loss,
                             transport](const SessionTelemetry &value) {
-        session->setProperty("telemetryIsSimulated", value.simulated);
-        simulation->setVisible(value.simulated);
         signal->setText(QString::number(value.latencyMs) + " ms");
         latency->setText(QString::number(value.latencyMs) + " ms");
         localIp->setText(value.localIp);
