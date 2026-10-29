@@ -41,17 +41,18 @@ scripts\build.cmd
 ## 目录
 
 ```text
-src/app/                 启动与依赖装配
-src/core/                设备、会话、传输数据结构
-src/features/            功能服务接口
-src/data/local/          本地持久化和 Windows 系统读取
-src/ui/components/       通用控件、SVG 与原生视频渲染面
-src/ui/pages/            页面布局
-src/ui/controllers/      页面交互与服务协调
-src/ui/dialogs/          应用内模态面板
-src/ui/windows/          主窗口、侧边栏和独立会话窗口
-src/ui/theme/            主题与 QSS 装载
-assets/                  图标、样式和程序资源
+src/client/application/      客户端启动与依赖装配
+src/client/domain/           客户端领域模型与功能接口
+src/client/infrastructure/   客户端持久化和外部服务适配
+src/client/platform/         Windows 平台能力
+src/client/presentation/     Qt 界面、控制器与会话窗口
+backend/src/application/     服务端配置与业务协调
+backend/src/infrastructure/  服务端设备和数据库实现
+backend/src/protocol/        注册、信令与编码协议
+backend/src/security/        签名与随机数实现
+backend/src/transport/       HTTP 与 WebSocket 入口
+deploy/                      Caddy、信令服务与 coturn 部署
+assets/                      图标、样式和程序资源
 ```
 
-详细模块边界见 [src/README.md](src/README.md)，产品要求见 [docs/EasyDesk_1.0.0_MVP_PRD_Agent.md](docs/EasyDesk_1.0.0_MVP_PRD_Agent.md)。
+客户端模块边界见 [src/client/README.md](src/client/README.md)，服务端模块边界见 [backend/README.md](backend/README.md)，产品要求见 [docs/EasyDesk_1.0.0_MVP_PRD_Agent.md](docs/EasyDesk_1.0.0_MVP_PRD_Agent.md)。

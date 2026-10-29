@@ -8,21 +8,21 @@ find_package(SQLite3 REQUIRED)
 find_package(Threads REQUIRED)
 
 add_executable(easydesk-signal
-    src/main.cpp
-    src/config/application_config.cpp
-    src/devices/device_repository.cpp
-    src/hub/signaling_hub.cpp
-    src/net/http_listener.cpp
-    src/net/http_session.cpp
-    src/net/websocket_session.cpp
-    src/protocol/base64url.cpp
-    src/protocol/registration.cpp
-    src/protocol/registration_json.cpp
-    src/protocol/signed_envelope.cpp
-    src/protocol/signed_envelope_json.cpp
-    src/security/ed25519.cpp
-    src/security/random.cpp
-    src/storage/sqlite_database.cpp
+    src/application/main.cpp
+    src/application/config/application_config.cpp
+    src/application/hub/signaling_hub.cpp
+    src/infrastructure/devices/device_repository.cpp
+    src/infrastructure/storage/sqlite_database.cpp
+    src/protocol/encoding/base64url.cpp
+    src/protocol/registration/registration.cpp
+    src/protocol/registration/registration_json.cpp
+    src/protocol/signaling/signed_envelope.cpp
+    src/protocol/signaling/signed_envelope_json.cpp
+    src/security/crypto/ed25519.cpp
+    src/security/crypto/random.cpp
+    src/transport/net/http_listener.cpp
+    src/transport/net/http_session.cpp
+    src/transport/net/websocket_session.cpp
 )
 
 target_compile_features(easydesk-signal PRIVATE cxx_std_20)
