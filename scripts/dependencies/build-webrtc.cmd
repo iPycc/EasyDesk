@@ -7,6 +7,10 @@ if not exist "%EASYDESK_WEBRTC_SRC%\.git" (
   echo WebRTC source is missing. Run scripts\dependencies\fetch-webrtc.cmd first.
   exit /b 1
 )
+if not exist "%EASYDESK_DEPOT_TOOLS%\python3_bin_reldir.txt" (
+  echo depot_tools is not initialized. Run scripts\dependencies\fetch-webrtc.cmd first.
+  exit /b 1
+)
 
 pushd "%EASYDESK_WEBRTC_SRC%"
 for /f %%R in ('git rev-parse HEAD') do set "EASYDESK_ACTUAL_WEBRTC_REVISION=%%R"

@@ -14,6 +14,8 @@ git fetch --depth 1 origin %EASYDESK_DEPOT_TOOLS_REVISION%
 if errorlevel 1 goto :failed
 git checkout --detach %EASYDESK_DEPOT_TOOLS_REVISION%
 if errorlevel 1 goto :failed
+call bootstrap\win_tools.bat
+if errorlevel 1 goto :failed
 popd
 
 if not exist "%EASYDESK_WEBRTC_ROOT%" mkdir "%EASYDESK_WEBRTC_ROOT%"
