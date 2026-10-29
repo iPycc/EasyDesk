@@ -11,9 +11,12 @@
 #include <boost/json/object.hpp>
 
 #include <cstdint>
+#include <chrono>
 #include <deque>
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace easydesk::devices {
 class DeviceRepository;
@@ -46,6 +49,7 @@ private:
     void handleMessage(const std::string& message);
     void handleRegistration(const boost::json::object& object);
     void handlePresenceSubscription(const boost::json::object& object);
+    void handleSignedEnvelope(const boost::json::object& object);
 
     void sendJson(boost::json::object message);
     void sendError(std::string code, std::string message, bool closeAfter);
@@ -63,6 +67,9 @@ private:
     std::deque<std::shared_ptr<const std::string>> outbound_;
     std::string nonce_;
     std::string deviceId_;
+    std::vector<std::uint8_t> publicKey_;
+    std::unordered_map<std::string, std::uint64_t> replayWindows_;
+    std::deque<std::chrono::steady_clock::time_point> pairRequestTimes_;
     std::int64_t challengeExpiresAt_ = 0;
     boost::beast::websocket::close_reason closeReason_;
     bool registered_ = false;

@@ -73,6 +73,32 @@ std::optional<std::vector<PresenceState>> SignalingHub::subscribe(
     return states;
 }
 
+RouteResult SignalingHub::route(const std::string& senderId,
+                                const SignalingPeer* sender,
+                                const std::string& targetId,
+                                boost::json::object message) {
+    std::shared_ptr<SignalingPeer> target;
+    {
+        const std::scoped_lock lock(mutex_);
+        const auto source = connections_.find(senderId);
+        if (source == connections_.end()) {
+            return RouteResult::senderMissing;
+        }
+        const auto activeSender = source->second.peer.lock();
+        if (!activeSender || activeSender.get() != sender) {
+            return RouteResult::senderMissing;
+        }
+
+        const auto destination = connections_.find(targetId);
+        if (destination == connections_.end() || !(target = destination->second.peer.lock())) {
+            return RouteResult::targetOffline;
+        }
+    }
+
+    target->deliver(std::move(message));
+    return RouteResult::delivered;
+}
+
 std::vector<std::shared_ptr<SignalingPeer>> SignalingHub::watchersForLocked(
     const std::string& deviceId,
     const SignalingPeer* excluded) {

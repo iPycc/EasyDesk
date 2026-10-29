@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <boost/json/object.hpp>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -17,6 +18,12 @@ struct PresenceState {
     bool online;
 };
 
+enum class RouteResult {
+    delivered,
+    targetOffline,
+    senderMissing,
+};
+
 class SignalingHub final {
 public:
     bool connect(const std::string& deviceId, const std::shared_ptr<SignalingPeer>& peer);
@@ -26,6 +33,10 @@ public:
         const std::string& subscriberId,
         const SignalingPeer* subscriber,
         const std::vector<std::string>& deviceIds);
+    RouteResult route(const std::string& senderId,
+                      const SignalingPeer* sender,
+                      const std::string& targetId,
+                      boost::json::object message);
 
 private:
     struct Connection {

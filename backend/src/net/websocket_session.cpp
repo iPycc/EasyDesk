@@ -4,6 +4,7 @@
 #include "hub/signaling_hub.hpp"
 #include "protocol/base64url.hpp"
 #include "protocol/registration_json.hpp"
+#include "protocol/signed_envelope_json.hpp"
 #include "security/ed25519.hpp"
 #include "security/random.hpp"
 
@@ -53,6 +54,17 @@ bool isDeviceId(std::string_view value) {
            std::all_of(value.begin(), value.end(), [](unsigned char character) {
                return std::isdigit(character) != 0;
            });
+}
+
+bool isSessionId(std::string_view value) {
+    return value.size() >= 16 && value.size() <= 64 &&
+           std::all_of(value.begin(), value.end(), [](unsigned char character) {
+               return std::isalnum(character) != 0 || character == '-' || character == '_';
+           });
+}
+
+bool isPairMessage(std::string_view type) {
+    return type == "pair.request" || type == "pair.response" || type == "pair.cancel";
 }
 
 }  // namespace
@@ -186,6 +198,8 @@ void WebSocketSession::handleMessage(const std::string& message) {
         sendError("E_ALREADY_REGISTERED", "this connection is already registered", false);
     } else if (type == "presence.subscribe") {
         handlePresenceSubscription(object);
+    } else if (isPairMessage(type)) {
+        handleSignedEnvelope(object);
     } else {
         sendError("E_UNSUPPORTED_MESSAGE", "this signaling message is not implemented yet", false);
     }
@@ -244,6 +258,7 @@ void WebSocketSession::handleRegistration(const boost::json::object& object) {
     }
     connectedToHub_ = true;
     registered_ = true;
+    publicKey_ = envelope.publicKey;
     registrationTimer_.cancel();
 
     boost::json::object response;
@@ -300,6 +315,79 @@ void WebSocketSession::handlePresenceSubscription(const boost::json::object& obj
     response["type"] = "presence.snapshot";
     response["devices"] = std::move(devices);
     sendJson(std::move(response));
+}
+
+void WebSocketSession::handleSignedEnvelope(const boost::json::object& object) {
+    auto parsed = protocol::parseSignedEnvelope(object);
+    if (const auto* protocolError = std::get_if<protocol::ProtocolError>(&parsed)) {
+        sendError(protocolError->code, protocolError->message, false);
+        return;
+    }
+    auto envelope = std::get<protocol::SignedEnvelope>(std::move(parsed));
+    if (!isPairMessage(envelope.type) || !isDeviceId(envelope.targetId) ||
+        envelope.targetId == deviceId_ || !isSessionId(envelope.sessionId)) {
+        sendError("E_INVALID_ROUTE", "pairing route fields are invalid", false);
+        return;
+    }
+
+    const std::int64_t now = unixSeconds();
+    if (envelope.expiresAt < now || envelope.expiresAt > now + kTimestampTolerance.count()) {
+        sendError("E_EXPIRED", "signed signaling message is expired or too far in the future", false);
+        return;
+    }
+    if (!protocol::verifySignedEnvelope(envelope, deviceId_, publicKey_)) {
+        sendError("E_SIGNATURE", "signaling signature is invalid", false);
+        return;
+    }
+
+    std::string replayKey = envelope.type;
+    replayKey.push_back('\0');
+    replayKey += envelope.targetId;
+    replayKey.push_back('\0');
+    replayKey += envelope.sessionId;
+    replayKey.push_back('\0');
+    replayKey += std::to_string(envelope.sessionEpoch);
+    const auto previous = replayWindows_.find(replayKey);
+    if (previous != replayWindows_.end() && envelope.sequence <= previous->second) {
+        sendError("E_REPLAY", "signaling sequence was already processed", false);
+        return;
+    }
+    if (previous == replayWindows_.end() && replayWindows_.size() >= 256) {
+        sendError("E_ROUTE_LIMIT", "too many active signaling routes", false);
+        return;
+    }
+
+    if (envelope.type == "pair.request") {
+        const auto steadyNow = std::chrono::steady_clock::now();
+        const auto cutoff = steadyNow - std::chrono::minutes(1);
+        while (!pairRequestTimes_.empty() && pairRequestTimes_.front() <= cutoff) {
+            pairRequestTimes_.pop_front();
+        }
+        if (pairRequestTimes_.size() >= 10) {
+            sendError("E_RATE_LIMIT", "too many pairing requests", false);
+            return;
+        }
+        pairRequestTimes_.push_back(steadyNow);
+    }
+
+    replayWindows_[std::move(replayKey)] = envelope.sequence;
+    const auto routeResult = hub_.route(deviceId_, this, envelope.targetId,
+                                        protocol::signedEnvelopeToJson(envelope, deviceId_));
+    if (routeResult == hub::RouteResult::senderMissing) {
+        sendError("E_CONNECTION_STATE", "the registered connection is no longer active", true);
+        return;
+    }
+    if (routeResult == hub::RouteResult::targetOffline) {
+        sendError("E_TARGET_OFFLINE", "the target device is not online", false);
+        return;
+    }
+
+    boost::json::object delivered;
+    delivered["type"] = "signal.delivered";
+    delivered["message_type"] = envelope.type;
+    delivered["session_id"] = envelope.sessionId;
+    delivered["sequence"] = envelope.sequence;
+    sendJson(std::move(delivered));
 }
 
 void WebSocketSession::sendJson(boost::json::object message) {
