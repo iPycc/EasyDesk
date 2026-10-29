@@ -1,5 +1,6 @@
 #include "config/application_config.hpp"
 #include "devices/device_repository.hpp"
+#include "hub/signaling_hub.hpp"
 #include "net/http_listener.hpp"
 #include "storage/sqlite_database.hpp"
 
@@ -26,12 +27,13 @@ int main() {
         easydesk::storage::SqliteDatabase database(config.databasePath);
         easydesk::devices::DeviceRepository devices(database);
         devices.migrate();
+        easydesk::hub::SignalingHub hub;
 
         boost::asio::io_context context(static_cast<int>(config.workerThreads));
 
         const auto address = boost::asio::ip::make_address(config.bindAddress);
         const boost::asio::ip::tcp::endpoint endpoint(address, config.port);
-        std::make_shared<easydesk::net::HttpListener>(context, endpoint, devices)->run();
+        std::make_shared<easydesk::net::HttpListener>(context, endpoint, devices, hub)->run();
 
         boost::asio::signal_set signals(context, SIGINT, SIGTERM);
         signals.async_wait([&context](const boost::system::error_code&, int) { context.stop(); });

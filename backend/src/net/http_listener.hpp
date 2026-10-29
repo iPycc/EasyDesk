@@ -12,13 +12,18 @@ namespace easydesk::devices {
 class DeviceRepository;
 }
 
+namespace easydesk::hub {
+class SignalingHub;
+}
+
 namespace easydesk::net {
 
 class HttpListener final : public std::enable_shared_from_this<HttpListener> {
 public:
     HttpListener(boost::asio::io_context& context,
                  const boost::asio::ip::tcp::endpoint& endpoint,
-                 devices::DeviceRepository& devices);
+                 devices::DeviceRepository& devices,
+                 hub::SignalingHub& hub);
 
     void run();
 
@@ -27,6 +32,7 @@ private:
 
     boost::asio::ip::tcp::acceptor acceptor_;
     devices::DeviceRepository& devices_;
+    hub::SignalingHub& hub_;
 };
 
 }  // namespace easydesk::net

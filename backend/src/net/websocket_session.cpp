@@ -1,6 +1,7 @@
 #include "net/websocket_session.hpp"
 
 #include "devices/device_repository.hpp"
+#include "hub/signaling_hub.hpp"
 #include "protocol/base64url.hpp"
 #include "protocol/registration_json.hpp"
 #include "security/ed25519.hpp"
@@ -12,9 +13,12 @@
 #include <boost/json/parse.hpp>
 #include <boost/json/serialize.hpp>
 
+#include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <iostream>
 #include <stdexcept>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 
@@ -44,15 +48,30 @@ std::string jsonString(const boost::json::object& object, std::string_view field
     return std::string(text.data(), text.size());
 }
 
+bool isDeviceId(std::string_view value) {
+    return value.size() == 9 &&
+           std::all_of(value.begin(), value.end(), [](unsigned char character) {
+               return std::isdigit(character) != 0;
+           });
+}
+
 }  // namespace
 
 WebSocketSession::WebSocketSession(beast::tcp_stream stream,
-                                   devices::DeviceRepository& devices)
+                                   devices::DeviceRepository& devices,
+                                   hub::SignalingHub& hub)
     : strand_(boost::asio::make_strand(
           static_cast<boost::asio::io_context&>(stream.get_executor().context()))),
       websocket_(std::move(stream)),
       registrationTimer_(strand_),
-      devices_(devices) {}
+      devices_(devices),
+      hub_(hub) {}
+
+WebSocketSession::~WebSocketSession() {
+    if (connectedToHub_) {
+        hub_.disconnect(deviceId_, this);
+    }
+}
 
 void WebSocketSession::accept(Request request) {
     auto sharedRequest = std::make_shared<Request>(std::move(request));
@@ -68,6 +87,14 @@ void WebSocketSession::accept(Request request) {
                 self->strand_, [self, sharedRequest](beast::error_code error) {
                     self->onAccept(error);
                 }));
+    });
+}
+
+void WebSocketSession::deliver(boost::json::object message) {
+    boost::asio::dispatch(strand_, [self = shared_from_this(), message = std::move(message)]() mutable {
+        if (!self->closing_) {
+            self->sendJson(std::move(message));
+        }
     });
 }
 
@@ -157,6 +184,8 @@ void WebSocketSession::handleMessage(const std::string& message) {
 
     if (type == "register.response") {
         sendError("E_ALREADY_REGISTERED", "this connection is already registered", false);
+    } else if (type == "presence.subscribe") {
+        handlePresenceSubscription(object);
     } else {
         sendError("E_UNSUPPORTED_MESSAGE", "this signaling message is not implemented yet", false);
     }
@@ -207,8 +236,14 @@ void WebSocketSession::handleRegistration(const boost::json::object& object) {
         return;
     }
 
-    registered_ = true;
     deviceId_ = envelope.deviceId;
+    if (!hub_.connect(deviceId_, shared_from_this())) {
+        deviceId_.clear();
+        sendError("E_ALREADY_ONLINE", "this device already has an active connection", true);
+        return;
+    }
+    connectedToHub_ = true;
+    registered_ = true;
     registrationTimer_.cancel();
 
     boost::json::object response;
@@ -216,6 +251,54 @@ void WebSocketSession::handleRegistration(const boost::json::object& object) {
     response["status"] = result == devices::RegistrationResult::created ? "created" : "refreshed";
     response["device_id"] = deviceId_;
     response["fingerprint"] = security::sha256Fingerprint(envelope.publicKey);
+    sendJson(std::move(response));
+}
+
+void WebSocketSession::handlePresenceSubscription(const boost::json::object& object) {
+    const auto* value = object.if_contains("device_ids");
+    if (value == nullptr || !value->is_array() || value->as_array().size() > 100) {
+        sendError("E_INVALID_SUBSCRIPTION", "device_ids must be an array of at most 100 IDs", false);
+        return;
+    }
+
+    std::vector<std::string> deviceIds;
+    std::unordered_set<std::string> unique;
+    deviceIds.reserve(value->as_array().size());
+    for (const auto& item : value->as_array()) {
+        if (!item.is_string()) {
+            sendError("E_INVALID_SUBSCRIPTION", "every subscribed device ID must be text", false);
+            return;
+        }
+        const auto& text = item.as_string();
+        std::string deviceId(text.data(), text.size());
+        if (!isDeviceId(deviceId)) {
+            sendError("E_INVALID_SUBSCRIPTION", "every subscribed device ID must contain 9 digits",
+                      false);
+            return;
+        }
+        if (unique.insert(deviceId).second) {
+            deviceIds.push_back(std::move(deviceId));
+        }
+    }
+
+    auto states = hub_.subscribe(deviceId_, this, deviceIds);
+    if (!states) {
+        sendError("E_CONNECTION_STATE", "the registered connection is no longer active", true);
+        return;
+    }
+
+    boost::json::array devices;
+    devices.reserve(states->size());
+    for (const auto& state : *states) {
+        boost::json::object item;
+        item["device_id"] = state.deviceId;
+        item["online"] = state.online;
+        devices.push_back(std::move(item));
+    }
+
+    boost::json::object response;
+    response["type"] = "presence.snapshot";
+    response["devices"] = std::move(devices);
     sendJson(std::move(response));
 }
 

@@ -12,8 +12,9 @@ namespace easydesk::net {
 
 HttpListener::HttpListener(boost::asio::io_context& context,
                            const boost::asio::ip::tcp::endpoint& endpoint,
-                           devices::DeviceRepository& devices)
-    : acceptor_(context), devices_(devices) {
+                           devices::DeviceRepository& devices,
+                           hub::SignalingHub& hub)
+    : acceptor_(context), devices_(devices), hub_(hub) {
     boost::system::error_code error;
 
     acceptor_.open(endpoint.protocol(), error);
@@ -45,7 +46,7 @@ void HttpListener::accept() {
     acceptor_.async_accept([self = shared_from_this()](boost::system::error_code error,
                                                        boost::asio::ip::tcp::socket socket) {
         if (!error) {
-            std::make_shared<HttpSession>(std::move(socket), self->devices_)->run();
+            std::make_shared<HttpSession>(std::move(socket), self->devices_, self->hub_)->run();
         } else if (error != boost::asio::error::operation_aborted) {
             std::cerr << "accept failed: " << error.message() << '\n';
         }

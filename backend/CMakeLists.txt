@@ -11,6 +11,7 @@ add_executable(easydesk-signal
     src/main.cpp
     src/config/application_config.cpp
     src/devices/device_repository.cpp
+    src/hub/signaling_hub.cpp
     src/net/http_listener.cpp
     src/net/http_session.cpp
     src/net/websocket_session.cpp
