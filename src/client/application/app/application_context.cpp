@@ -1,4 +1,5 @@
 #include "app/application_context.h"
+#include "features/sessions/model/session_state.h"
 #include "data/local/local_session_service.h"
 #include "data/local/local_transfer_service.h"
 #include "data/local/settings_device_service.h"
@@ -11,6 +12,7 @@
 ApplicationContext::ApplicationContext() {
     qRegisterMetaType<SessionTelemetry>();
     qRegisterMetaType<SessionOptions>();
+    qRegisterMetaType<SessionState>();
     qRegisterMetaType<Device>();
     QString root = qEnvironmentVariable("EASYDESK_DATA_DIR");
     if (root.isEmpty())

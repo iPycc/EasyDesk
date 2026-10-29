@@ -62,7 +62,7 @@ void MainWindow::startSession(const QString &id) {
     SessionOptions requested;
     requested.frameRate = initialFps;
     requested.quality = initialQuality;
-    requested.viewOnly = view->isChecked();
+    requested.mode = view->isChecked() ? SessionMode::ViewOnly : SessionMode::Control;
     m_sessions.start(id, requested);
     session->setProperty("fps", initialFps);
     session->setProperty("quality", initialQuality);

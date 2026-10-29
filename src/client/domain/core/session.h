@@ -1,4 +1,6 @@
 #pragma once
+#include "features/sessions/model/session_access.h"
+
 #include <QString>
 #include <QMetaType>
 
@@ -8,7 +10,7 @@ struct LocalIdentity {
 struct SessionOptions {
     int frameRate = 30;
     QString quality = QStringLiteral("清晰");
-    bool viewOnly = true;
+    SessionMode mode = SessionMode::ViewOnly;
 };
 struct SessionTelemetry {
     int latencyMs = 0, frameRate = 0;

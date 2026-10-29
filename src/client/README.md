@@ -8,6 +8,7 @@
 | `domain/core/` | 不依赖 QWidget 的设备、会话和传输结构 |
 | `domain/features/devices/` | 设备快照与异步增删改接口 |
 | `domain/features/sessions/` | 本机身份、连接校验、会话选项和遥测接口 |
+| `domain/features/sessions/model/` | 会话权限、状态机与就绪事实 |
 | `domain/features/transfers/` | 文件任务队列接口 |
 | `domain/features/system/` | 本机系统信息接口 |
 | `infrastructure/data/local/` | 设置持久化和未连接会话状态 |
