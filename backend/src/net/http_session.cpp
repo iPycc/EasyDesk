@@ -1,6 +1,9 @@
 #include "net/http_session.hpp"
 
+#include "net/websocket_session.hpp"
+
 #include <boost/asio/dispatch.hpp>
+#include <boost/beast/websocket.hpp>
 
 #include <chrono>
 #include <string_view>
@@ -35,7 +38,8 @@ http::response<http::string_body> makeResponse(const http::request<http::string_
 
 }  // namespace
 
-HttpSession::HttpSession(boost::asio::ip::tcp::socket socket) : stream_(std::move(socket)) {
+HttpSession::HttpSession(boost::asio::ip::tcp::socket socket, devices::DeviceRepository& devices)
+    : stream_(std::move(socket)), devices_(devices) {
     parser_.body_limit(16 * 1024);
 }
 
@@ -52,7 +56,15 @@ void HttpSession::readRequest() {
                              self->close();
                              return;
                          }
-                         self->writeResponse(makeResponse(self->parser_.get()));
+                         auto request = self->parser_.release();
+                         const std::string_view target(request.target().data(), request.target().size());
+                         if (boost::beast::websocket::is_upgrade(request) && target == "/ws") {
+                             self->stream_.expires_never();
+                             std::make_shared<WebSocketSession>(std::move(self->stream_), self->devices_)
+                                 ->accept(std::move(request));
+                             return;
+                         }
+                         self->writeResponse(makeResponse(request));
                      });
 }
 

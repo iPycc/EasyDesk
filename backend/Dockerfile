@@ -5,6 +5,7 @@ RUN apt-get update \
         build-essential \
         cmake \
         libboost-dev \
+        libboost-json1.83-dev \
         libsqlite3-dev \
         libssl-dev \
         ninja-build \
@@ -22,6 +23,7 @@ RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         ca-certificates \
         libgcc-s1 \
+        libboost-json1.83.0 \
         libsqlite3-0 \
         libssl3 \
         libstdc++6 \

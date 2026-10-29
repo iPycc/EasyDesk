@@ -1,0 +1,284 @@
+#include "net/websocket_session.hpp"
+
+#include "devices/device_repository.hpp"
+#include "protocol/base64url.hpp"
+#include "protocol/registration_json.hpp"
+#include "security/ed25519.hpp"
+#include "security/random.hpp"
+
+#include <boost/asio/bind_executor.hpp>
+#include <boost/asio/dispatch.hpp>
+#include <boost/beast/core/buffers_to_string.hpp>
+#include <boost/json/parse.hpp>
+#include <boost/json/serialize.hpp>
+
+#include <chrono>
+#include <iostream>
+#include <stdexcept>
+#include <utility>
+#include <variant>
+
+namespace easydesk::net {
+namespace {
+
+namespace beast = boost::beast;
+namespace http = beast::http;
+namespace websocket = beast::websocket;
+
+constexpr std::string_view kProtocol = "easydesk-signaling/1";
+constexpr auto kRegistrationTimeout = std::chrono::seconds(5);
+constexpr auto kTimestampTolerance = std::chrono::seconds(60);
+
+std::int64_t unixSeconds() {
+    return std::chrono::duration_cast<std::chrono::seconds>(
+               std::chrono::system_clock::now().time_since_epoch())
+        .count();
+}
+
+std::string jsonString(const boost::json::object& object, std::string_view field) {
+    const auto* value = object.if_contains(field);
+    if (value == nullptr || !value->is_string()) {
+        return {};
+    }
+    const auto& text = value->as_string();
+    return std::string(text.data(), text.size());
+}
+
+}  // namespace
+
+WebSocketSession::WebSocketSession(beast::tcp_stream stream,
+                                   devices::DeviceRepository& devices)
+    : strand_(boost::asio::make_strand(
+          static_cast<boost::asio::io_context&>(stream.get_executor().context()))),
+      websocket_(std::move(stream)),
+      registrationTimer_(strand_),
+      devices_(devices) {}
+
+void WebSocketSession::accept(Request request) {
+    auto sharedRequest = std::make_shared<Request>(std::move(request));
+    boost::asio::dispatch(strand_, [self = shared_from_this(), sharedRequest] {
+        self->websocket_.set_option(websocket::stream_base::timeout::suggested(beast::role_type::server));
+        self->websocket_.set_option(websocket::stream_base::decorator([](websocket::response_type& response) {
+            response.set(http::field::server, "EasyDesk-Signal/0.1");
+        }));
+        self->websocket_.read_message_max(64 * 1024);
+        self->websocket_.async_accept(
+            *sharedRequest,
+            boost::asio::bind_executor(
+                self->strand_, [self, sharedRequest](beast::error_code error) {
+                    self->onAccept(error);
+                }));
+    });
+}
+
+void WebSocketSession::onAccept(beast::error_code error) {
+    if (error) {
+        return;
+    }
+    sendChallenge();
+    readMessage();
+}
+
+void WebSocketSession::sendChallenge() {
+    nonce_ = protocol::encodeBase64Url(security::randomBytes(32));
+    challengeExpiresAt_ = unixSeconds() + kRegistrationTimeout.count();
+
+    boost::json::object message;
+    message["type"] = "register.challenge";
+    message["protocol"] = kProtocol;
+    message["nonce"] = nonce_;
+    message["expires_at"] = challengeExpiresAt_;
+    sendJson(std::move(message));
+
+    registrationTimer_.expires_after(kRegistrationTimeout);
+    registrationTimer_.async_wait(boost::asio::bind_executor(
+        strand_, [self = shared_from_this()](beast::error_code error) {
+            if (!error && !self->registered_) {
+                self->requestClose(websocket::close_code::policy_error, "registration timeout");
+            }
+        }));
+}
+
+void WebSocketSession::readMessage() {
+    websocket_.async_read(
+        buffer_, boost::asio::bind_executor(
+                     strand_, [self = shared_from_this()](beast::error_code error, std::size_t) {
+                         self->onRead(error);
+                     }));
+}
+
+void WebSocketSession::onRead(beast::error_code error) {
+    if (error == websocket::error::closed || error == boost::asio::error::operation_aborted) {
+        return;
+    }
+    if (error) {
+        std::cerr << "websocket read failed: " << error.message() << '\n';
+        return;
+    }
+
+    if (!websocket_.got_text()) {
+        buffer_.consume(buffer_.size());
+        sendError("E_TEXT_REQUIRED", "signaling messages must be UTF-8 JSON text", true);
+        return;
+    }
+
+    const std::string message = beast::buffers_to_string(buffer_.data());
+    buffer_.consume(buffer_.size());
+    try {
+        handleMessage(message);
+    } catch (const std::exception& exception) {
+        std::cerr << "websocket message handling failed: " << exception.what() << '\n';
+        sendError("E_INTERNAL", "the server could not process this message", true);
+    }
+
+    if (!closing_) {
+        readMessage();
+    }
+}
+
+void WebSocketSession::handleMessage(const std::string& message) {
+    boost::system::error_code error;
+    boost::json::value value = boost::json::parse(message, error);
+    if (error || !value.is_object()) {
+        sendError("E_INVALID_JSON", "message must be a JSON object", true);
+        return;
+    }
+
+    const auto& object = value.as_object();
+    const std::string type = jsonString(object, "type");
+    if (!registered_) {
+        if (type != "register.response") {
+            sendError("E_REGISTRATION_REQUIRED", "complete registration before other messages", true);
+            return;
+        }
+        handleRegistration(object);
+        return;
+    }
+
+    if (type == "register.response") {
+        sendError("E_ALREADY_REGISTERED", "this connection is already registered", false);
+    } else {
+        sendError("E_UNSUPPORTED_MESSAGE", "this signaling message is not implemented yet", false);
+    }
+}
+
+void WebSocketSession::handleRegistration(const boost::json::object& object) {
+    if (jsonString(object, "protocol") != kProtocol) {
+        sendError("E_PROTOCOL_VERSION", "unsupported signaling protocol", true);
+        return;
+    }
+
+    auto parsed = protocol::parseRegistrationResponse(object);
+    if (const auto* protocolError = std::get_if<protocol::ProtocolError>(&parsed)) {
+        sendError(protocolError->code, protocolError->message, true);
+        return;
+    }
+    auto envelope = std::get<protocol::RegistrationEnvelope>(std::move(parsed));
+
+    const std::int64_t now = unixSeconds();
+    if (envelope.nonce != nonce_ || now > challengeExpiresAt_) {
+        sendError("E_CHALLENGE_EXPIRED", "registration challenge is invalid or expired", true);
+        return;
+    }
+    if (envelope.timestamp < now - kTimestampTolerance.count() ||
+        envelope.timestamp > now + kTimestampTolerance.count()) {
+        sendError("E_TIMESTAMP", "registration timestamp is outside the allowed window", true);
+        return;
+    }
+    if (!protocol::verifyRegistrationEnvelope(envelope)) {
+        sendError("E_SIGNATURE", "registration signature is invalid", true);
+        return;
+    }
+
+    const auto result = devices_.registerDevice({
+        .locatorId = envelope.deviceId,
+        .publicKey = envelope.publicKey,
+        .displayName = envelope.displayName,
+        .platform = envelope.platform,
+        .schemaVersion = static_cast<int>(envelope.schemaVersion),
+        .registeredAt = now,
+    });
+    if (result == devices::RegistrationResult::locatorCollision) {
+        sendError("E_ID_COLLISION", "device ID belongs to a different public key", true);
+        return;
+    }
+    if (result == devices::RegistrationResult::identityConflict) {
+        sendError("E_IDENTITY_CONFLICT", "public key is already bound to another device ID", true);
+        return;
+    }
+
+    registered_ = true;
+    deviceId_ = envelope.deviceId;
+    registrationTimer_.cancel();
+
+    boost::json::object response;
+    response["type"] = "register.result";
+    response["status"] = result == devices::RegistrationResult::created ? "created" : "refreshed";
+    response["device_id"] = deviceId_;
+    response["fingerprint"] = security::sha256Fingerprint(envelope.publicKey);
+    sendJson(std::move(response));
+}
+
+void WebSocketSession::sendJson(boost::json::object message) {
+    auto payload = std::make_shared<const std::string>(boost::json::serialize(message));
+    outbound_.push_back(std::move(payload));
+    if (outbound_.size() == 1) {
+        writeNext();
+    }
+}
+
+void WebSocketSession::sendError(std::string code, std::string message, bool closeAfter) {
+    boost::json::object response;
+    response["type"] = "error";
+    response["code"] = std::move(code);
+    response["message"] = std::move(message);
+    sendJson(std::move(response));
+    if (closeAfter) {
+        requestClose(websocket::close_code::policy_error, "signaling policy violation");
+    }
+}
+
+void WebSocketSession::writeNext() {
+    websocket_.text(true);
+    websocket_.async_write(
+        boost::asio::buffer(*outbound_.front()),
+        boost::asio::bind_executor(
+            strand_, [self = shared_from_this()](beast::error_code error, std::size_t) {
+                self->onWrite(error);
+            }));
+}
+
+void WebSocketSession::onWrite(beast::error_code error) {
+    if (error) {
+        return;
+    }
+    outbound_.pop_front();
+    if (!outbound_.empty()) {
+        writeNext();
+    } else if (closeWhenDrained_) {
+        closeNow();
+    }
+}
+
+void WebSocketSession::requestClose(websocket::close_code code, std::string reason) {
+    if (closing_) {
+        return;
+    }
+    closing_ = true;
+    closeWhenDrained_ = true;
+    closeReason_.code = code;
+    closeReason_.reason = std::move(reason);
+    registrationTimer_.cancel();
+    if (outbound_.empty()) {
+        closeNow();
+    }
+}
+
+void WebSocketSession::closeNow() {
+    websocket_.async_close(closeReason_, boost::asio::bind_executor(
+                                             strand_, [self = shared_from_this()](beast::error_code) {
+                                                 self->outbound_.clear();
+                                             }));
+}
+
+}  // namespace easydesk::net

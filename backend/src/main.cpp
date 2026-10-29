@@ -31,7 +31,7 @@ int main() {
 
         const auto address = boost::asio::ip::make_address(config.bindAddress);
         const boost::asio::ip::tcp::endpoint endpoint(address, config.port);
-        std::make_shared<easydesk::net::HttpListener>(context, endpoint)->run();
+        std::make_shared<easydesk::net::HttpListener>(context, endpoint, devices)->run();
 
         boost::asio::signal_set signals(context, SIGINT, SIGTERM);
         signals.async_wait([&context](const boost::system::error_code&, int) { context.stop(); });

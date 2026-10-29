@@ -6,11 +6,15 @@
 
 #include <memory>
 
+namespace easydesk::devices {
+class DeviceRepository;
+}
+
 namespace easydesk::net {
 
 class HttpSession final : public std::enable_shared_from_this<HttpSession> {
 public:
-    explicit HttpSession(boost::asio::ip::tcp::socket socket);
+    HttpSession(boost::asio::ip::tcp::socket socket, devices::DeviceRepository& devices);
 
     void run();
 
@@ -25,6 +29,7 @@ private:
     boost::beast::flat_buffer buffer_;
     boost::beast::http::request_parser<boost::beast::http::string_body> parser_;
     std::shared_ptr<Response> response_;
+    devices::DeviceRepository& devices_;
 };
 
 }  // namespace easydesk::net
