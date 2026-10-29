@@ -1,0 +1,7 @@
+.toolchain/
+.venv/
+build/
+dist/
+artifacts/
+*.user
+/data/
