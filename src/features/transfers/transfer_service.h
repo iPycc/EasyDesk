@@ -12,7 +12,7 @@ class TransferService : public QObject {
     virtual void resume() = 0;
     virtual void cancel() = 0;
     virtual bool isPaused() const = 0;
-    virtual bool isSimulated() const = 0;
+    virtual bool isAvailable() const = 0;
   signals:
     void changed();
 };

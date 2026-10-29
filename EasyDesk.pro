@@ -9,6 +9,7 @@ INCLUDEPATH += $$PWD/src
 SOURCES += \
     src/app/application_context.cpp \
     src/app/main.cpp \
+    src/data/local/local_transfer_service.cpp \
     src/data/local/local_session_service.cpp \
     src/data/local/settings_device_service.cpp \
     src/data/local/windows_system_service.cpp \
@@ -16,7 +17,6 @@ SOURCES += \
     src/ui/components/selection_indicator.cpp \
     src/ui/controllers/quick_launch_controller.cpp \
     src/core/device.cpp \
-    src/data/mock/mock_transfer_service.cpp \
     src/features/devices/device_service.cpp \
     src/ui/components/controls.cpp \
     src/ui/components/desktop_view.cpp \
@@ -44,6 +44,7 @@ HEADERS += \
     src/core/device.h \
     src/core/local_computer.h \
     src/features/system/local_system_service.h \
+    src/data/local/local_transfer_service.h \
     src/data/local/local_session_service.h \
     src/data/local/settings_device_service.h \
     src/data/local/windows_system_service.h \
@@ -51,7 +52,6 @@ HEADERS += \
     src/ui/components/selection_indicator.h \
     src/core/session.h \
     src/core/transfer.h \
-    src/data/mock/mock_transfer_service.h \
     src/features/devices/device_service.h \
     src/features/sessions/session_service.h \
     src/features/transfers/transfer_service.h \

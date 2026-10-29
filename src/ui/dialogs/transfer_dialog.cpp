@@ -12,9 +12,7 @@ void MainWindow::openTransfers() {
     }
     if (m_transfers.items().isEmpty())
         m_transfers.start();
-    auto *dialog =
-        new Ui::Dialog(this, QStringLiteral("文件传输") +
-                                 (m_transfers.isSimulated() ? QStringLiteral(" · 模拟队列") : QString()));
+    auto *dialog = new Ui::Dialog(this, QStringLiteral("文件传输"));
     m_transferDialog = dialog;
     dialog->setObjectName("transfersDialog");
     dialog->setAttribute(Qt::WA_DeleteOnClose);
@@ -86,14 +84,16 @@ void MainWindow::openTransfers() {
                 break;
             }
         }
+        const bool available = m_transfers.isAvailable();
         pause->setText(m_transfers.isPaused() ? QStringLiteral("继续") : QStringLiteral("暂停"));
-        pause->setEnabled(!finished);
-        cancel->setEnabled(!finished);
-        status->setText(cancelled                   ? QStringLiteral("队列已取消")
-                        : finished                  ? QStringLiteral("队列已完成")
-                        : m_transfers.isPaused()    ? QStringLiteral("已暂停")
-                        : m_transfers.isSimulated() ? QStringLiteral("正在模拟传输…")
-                                                    : QStringLiteral("正在传输…"));
+        pause->setEnabled(available && !finished);
+        cancel->setEnabled(available && !finished);
+        status->setText(!available               ? QStringLiteral("文件通道未连接")
+                        : items.isEmpty()         ? QStringLiteral("暂无传输任务")
+                        : cancelled              ? QStringLiteral("队列已取消")
+                        : finished               ? QStringLiteral("队列已完成")
+                        : m_transfers.isPaused() ? QStringLiteral("已暂停")
+                                                 : QStringLiteral("正在传输…"));
     };
     connect(&m_transfers, &TransferService::changed, dialog, update);
     update();

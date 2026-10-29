@@ -1,7 +1,7 @@
 #include "app/application_context.h"
 #include "data/local/local_session_service.h"
+#include "data/local/local_transfer_service.h"
 #include "data/local/settings_device_service.h"
-#include "data/mock/mock_transfer_service.h"
 #include "data/local/windows_system_service.h"
 #include <QDir>
 #include <QSettings>
@@ -18,7 +18,7 @@ ApplicationContext::ApplicationContext() {
     m_settings = std::make_unique<QSettings>(root + "/preview.ini", QSettings::IniFormat);
     m_devices = std::make_unique<SettingsDeviceService>(*m_settings);
     m_sessions = std::make_unique<LocalSessionService>(*m_settings);
-    m_transfers = std::make_unique<MockTransferService>();
+    m_transfers = std::make_unique<LocalTransferService>();
     m_local = std::make_unique<WindowsSystemService>(*m_settings);
 }
 ApplicationContext::~ApplicationContext() = default;

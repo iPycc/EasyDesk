@@ -1,11 +1,11 @@
 #pragma once
-#include <QTimer>
+
 #include "features/transfers/transfer_service.h"
 
-class MockTransferService final : public TransferService {
+class LocalTransferService final : public TransferService {
     Q_OBJECT
   public:
-    explicit MockTransferService(QObject *parent = nullptr);
+    using TransferService::TransferService;
     const QVector<TransferItem> &items() const override {
         return m_items;
     }
@@ -14,15 +14,12 @@ class MockTransferService final : public TransferService {
     void resume() override;
     void cancel() override;
     bool isPaused() const override {
-        return m_paused;
+        return false;
     }
-    bool isSimulated() const override {
-        return true;
+    bool isAvailable() const override {
+        return false;
     }
 
   private:
     QVector<TransferItem> m_items;
-    QTimer m_timer;
-    bool m_paused = false;
-    void advance();
 };
