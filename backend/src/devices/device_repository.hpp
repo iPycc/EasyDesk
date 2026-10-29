@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <mutex>
 #include <span>
 #include <string>
 
@@ -36,6 +37,7 @@ public:
 
 private:
     storage::SqliteDatabase& database_;
+    std::mutex mutex_;
 };
 
 }  // namespace easydesk::devices

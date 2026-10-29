@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <mutex>
 #include <stdexcept>
 #include <string_view>
 
@@ -44,6 +45,7 @@ void validate(const DeviceRegistration& registration) {
 DeviceRepository::DeviceRepository(storage::SqliteDatabase& database) : database_(database) {}
 
 void DeviceRepository::migrate() {
+    const std::scoped_lock lock(mutex_);
     auto version = database_.prepare("PRAGMA user_version;");
     if (!version.step()) {
         throw std::runtime_error("database did not return a schema version");
@@ -82,6 +84,7 @@ void DeviceRepository::migrate() {
 }
 
 RegistrationResult DeviceRepository::registerDevice(const DeviceRegistration& registration) {
+    const std::scoped_lock lock(mutex_);
     validate(registration);
     const std::string fingerprint = security::sha256Fingerprint(registration.publicKey);
 
@@ -147,6 +150,7 @@ RegistrationResult DeviceRepository::registerDevice(const DeviceRegistration& re
 }
 
 std::int64_t DeviceRepository::deviceCount() {
+    const std::scoped_lock lock(mutex_);
     auto count = database_.prepare("SELECT COUNT(*) FROM devices;");
     if (!count.step()) {
         throw std::runtime_error("database did not return a device count");
