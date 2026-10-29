@@ -13,6 +13,8 @@ add_executable(easydesk-signal
     src/devices/device_repository.cpp
     src/net/http_listener.cpp
     src/net/http_session.cpp
+    src/protocol/base64url.cpp
+    src/protocol/registration.cpp
     src/security/ed25519.cpp
     src/storage/sqlite_database.cpp
 )
