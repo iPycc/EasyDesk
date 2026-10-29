@@ -18,6 +18,7 @@ add_executable(easydesk-signal
     src/protocol/base64url.cpp
     src/protocol/registration.cpp
     src/protocol/registration_json.cpp
+    src/protocol/signed_envelope.cpp
     src/security/ed25519.cpp
     src/security/random.cpp
     src/storage/sqlite_database.cpp

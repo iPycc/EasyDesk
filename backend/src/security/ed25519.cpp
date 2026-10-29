@@ -22,8 +22,7 @@ struct ContextDeleter {
 }  // namespace
 
 std::string sha256Fingerprint(std::span<const std::uint8_t> publicKey) {
-    std::array<unsigned char, SHA256_DIGEST_LENGTH> digest{};
-    SHA256(publicKey.data(), publicKey.size(), digest.data());
+    const auto digest = sha256Digest(publicKey);
 
     std::ostringstream output;
     output << std::hex << std::setfill('0');
@@ -31,6 +30,12 @@ std::string sha256Fingerprint(std::span<const std::uint8_t> publicKey) {
         output << std::setw(2) << static_cast<unsigned int>(value);
     }
     return output.str();
+}
+
+std::array<std::uint8_t, 32> sha256Digest(std::span<const std::uint8_t> bytes) {
+    std::array<std::uint8_t, SHA256_DIGEST_LENGTH> digest{};
+    SHA256(bytes.data(), bytes.size(), digest.data());
+    return digest;
 }
 
 bool verifyEd25519(std::span<const std::uint8_t> publicKey,
