@@ -1,7 +1,7 @@
 # Third-party components
 
 The frontend is C++17 and dynamically links Qt 5.15.12 Core, Gui, Widgets and Svg.
-This package is a mock frontend preview, not a complete remote-control product.
+This package currently provides the native client shell and local state only. Network, media, input, and file transport components are not included yet.
 
 ## Qt 5.15.12
 
