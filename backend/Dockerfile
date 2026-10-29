@@ -22,6 +22,7 @@ FROM ubuntu:24.04
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         ca-certificates \
+        curl \
         libgcc-s1 \
         libboost-json1.83.0 \
         libsqlite3-0 \

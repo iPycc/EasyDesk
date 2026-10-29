@@ -1,0 +1,17 @@
+{
+    email {$ACME_EMAIL}
+}
+
+{$EASYDESK_DOMAIN} {
+    reverse_proxy signal:8080 {
+        health_uri /healthz
+        health_interval 30s
+        health_timeout 3s
+        stream_close_delay 5m
+    }
+
+    log {
+        output stdout
+        format json
+    }
+}

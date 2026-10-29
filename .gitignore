@@ -5,3 +5,5 @@ dist/
 artifacts/
 *.user
 /data/
+/deploy/.env
+/deploy/secrets/
