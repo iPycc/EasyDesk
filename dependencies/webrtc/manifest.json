@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "source": {
+    "url": "https://webrtc.googlesource.com/src.git",
+    "branch": "refs/branch-heads/7339",
+    "revision": "36ea4535a500ac137dbf1f577ce40dc1aaa774ef",
+    "release": "M140"
+  },
+  "depot_tools": {
+    "url": "https://chromium.googlesource.com/chromium/tools/depot_tools.git",
+    "revision": "7083aadfb53f3de2e20b72058c7f510da8f8218a"
+  },
+  "windows": {
+    "architecture": "x64",
+    "visual_studio": "2022",
+    "gn_args": "dependencies/webrtc/windows-release.gn",
+    "target": "webrtc",
+    "library": ".toolchain/webrtc/src/out/easydesk/obj/webrtc.lib"
+  }
+}

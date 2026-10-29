@@ -56,3 +56,5 @@ assets/                      图标、样式和程序资源
 ```
 
 客户端模块边界见 [src/client/README.md](src/client/README.md)，服务端模块边界见 [backend/README.md](backend/README.md)，产品要求见 [docs/EasyDesk_1.0.0_MVP_PRD_Agent.md](docs/EasyDesk_1.0.0_MVP_PRD_Agent.md)。
+
+libwebrtc 的固定版本与构建入口见 [dependencies/webrtc/README.md](dependencies/webrtc/README.md)。
