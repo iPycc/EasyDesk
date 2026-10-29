@@ -16,7 +16,6 @@ QLabel[role="caption"], QLabel[role="muted"] { color: @MUTED@; font-size: 12px; 
 QLabel[role="localName"] { font-size: 14px; font-weight: 600; }
 QLabel[role="localId"] { font-size: 13px; color: @MUTED@; }
 QLabel[role="largeId"] { font-size: 24px; font-weight: 500; }
-QLabel[role="previewBadge"] { font-size: 11px; color: @MUTED@; padding: 3px 7px; }
 QLabel[role="onlineBadge"] { font-size: 11px; color: @SUCCESS@; background: @SUCCESS_BG@; border-radius: 4px; padding: 4px 8px; }
 QLabel[role="onlineBadge"][offline="true"] { color: @MUTED@; background: @HOVER@; }
 QLabel[role="shortcut"] { color: @MUTED@; font-size: 12px; }

@@ -14,10 +14,10 @@ void MainWindow::showAbout() {
     h->addWidget(logo);
     auto *copy = new QVBoxLayout;
     copy->addWidget(text("EasyDesk", "h2"));
-    copy->addWidget(text(QStringLiteral("1.0.0 · 前端预览"), "muted"));
+    copy->addWidget(text(QCoreApplication::applicationVersion(), "muted"));
     h->addLayout(copy, 1);
     d.body->addLayout(h);
-    auto *note = text(QStringLiteral("本机信息来自系统。远程设备、画面与传输为模拟数据。"), "muted");
+    auto *note = text(QStringLiteral("信令未连接，远程会话和文件通道尚不可用。"), "muted");
     note->setWordWrap(true);
     d.body->addWidget(note);
     d.body->addWidget(text(QStringLiteral("开源许可见发布包 licenses 目录"), "muted"));

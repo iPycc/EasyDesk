@@ -6,9 +6,6 @@ using namespace Ui::Layout;
 
 void MainWindow::buildTitleBar(QVBoxLayout *layout) {
     auto *bar = new Ui::TitleBar(this, "EasyDesk", true);
-    auto *badge = text(QStringLiteral("预览"), "previewBadge");
-    badge->setToolTip(QStringLiteral("本机信息来自系统；远程设备与画面为模拟数据"));
-    bar->items->insertWidget(bar->items->count() - 2, badge);
     auto *theme = tool(QStringLiteral("切换浅色 / 深色"), "sun");
     theme->setObjectName("themeToggle");
     bar->items->insertWidget(bar->items->count() - 2, theme);

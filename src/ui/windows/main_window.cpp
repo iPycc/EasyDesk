@@ -71,7 +71,7 @@ MainWindow::MainWindow(DeviceService &devices, SessionService &sessions, Transfe
     connect(stop, &QShortcut::activated, this, [this] {
         if (m_session)
             m_session->close();
-        notify(QStringLiteral("演示会话已停止"));
+        notify(QStringLiteral("会话已停止"));
     });
 #ifdef Q_OS_WIN
     Ui::enableChrome(this, true, true);

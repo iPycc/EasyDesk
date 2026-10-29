@@ -12,7 +12,7 @@ int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     app.setApplicationName("EasyDesk");
     app.setOrganizationName("EasyDesk");
-    app.setApplicationVersion("1.0.0-preview");
+    app.setApplicationVersion("0.2.0-dev");
     Ui::installStyle();
     QPalette palette = app.palette();
     palette.setColor(QPalette::Highlight, QColor("#dfeafb"));

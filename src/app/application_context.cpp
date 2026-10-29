@@ -4,6 +4,7 @@
 #include "data/local/settings_device_service.h"
 #include "data/local/windows_system_service.h"
 #include <QDir>
+#include <QFile>
 #include <QSettings>
 #include <QStandardPaths>
 
@@ -15,7 +16,11 @@ ApplicationContext::ApplicationContext() {
     if (root.isEmpty())
         root = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
     QDir().mkpath(root);
-    m_settings = std::make_unique<QSettings>(root + "/preview.ini", QSettings::IniFormat);
+    const QString settingsPath = root + "/settings.ini";
+    const QString legacyPath = root + "/preview.ini";
+    if (!QFile::exists(settingsPath) && QFile::exists(legacyPath))
+        QFile::copy(legacyPath, settingsPath);
+    m_settings = std::make_unique<QSettings>(settingsPath, QSettings::IniFormat);
     m_devices = std::make_unique<SettingsDeviceService>(*m_settings);
     m_sessions = std::make_unique<LocalSessionService>(*m_settings);
     m_transfers = std::make_unique<LocalTransferService>();
