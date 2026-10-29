@@ -62,6 +62,8 @@ void SessionState::fail(const QString &reason) {
 void SessionState::reset() {
     sessionId.clear();
     peerDeviceId.clear();
+    sessionEpoch = 0;
+    permissionEpoch = 0;
     role = SessionRole::Controller;
     phase = SessionPhase::Idle;
     access = {};

@@ -22,6 +22,9 @@ SOURCES += \
     src/client/infrastructure/data/local/local_transfer_service.cpp \
     src/client/infrastructure/data/local/settings_device_service.cpp \
     src/client/platform/windows/data/local/windows_system_service.cpp \
+    src/client/platform/windows/input/input_lease.cpp \
+    src/client/platform/windows/input/send_input_executor.cpp \
+    src/client/platform/windows/input/windows_input_controller.cpp \
     src/client/platform/windows/media/capture/dxgi_desktop_capture.cpp \
     src/client/presentation/ui/components/controls.cpp \
     src/client/presentation/ui/components/desktop_view.cpp \
@@ -53,6 +56,7 @@ HEADERS += \
     src/client/domain/core/session.h \
     src/client/domain/core/transfer.h \
     src/client/domain/features/devices/device_service.h \
+    src/client/domain/features/sessions/input/input_command.h \
     src/client/domain/features/sessions/session_service.h \
     src/client/domain/features/sessions/model/session_access.h \
     src/client/domain/features/sessions/model/session_state.h \
@@ -62,6 +66,9 @@ HEADERS += \
     src/client/infrastructure/data/local/local_transfer_service.h \
     src/client/infrastructure/data/local/settings_device_service.h \
     src/client/platform/windows/data/local/windows_system_service.h \
+    src/client/platform/windows/input/input_lease.h \
+    src/client/platform/windows/input/send_input_executor.h \
+    src/client/platform/windows/input/windows_input_controller.h \
     src/client/platform/windows/media/capture/desktop_capture_frame.h \
     src/client/platform/windows/media/capture/dxgi_desktop_capture.h \
     src/client/presentation/ui/components/controls.h \
@@ -78,7 +85,7 @@ HEADERS += \
     src/client/presentation/ui/windows/window_chrome.h
 RESOURCES += assets/resources.qrc
 win32 {
-    LIBS += -ldwmapi -luser32 -ladvapi32 -liphlpapi -ld3d11 -ldxgi
+    LIBS += -ldwmapi -luser32 -ladvapi32 -liphlpapi -ld3d11 -ldxgi -lbcrypt
     QMAKE_CXXFLAGS += /utf-8
     RC_FILE = assets/app.rc
     RC_INCLUDEPATH += $$PWD/assets

@@ -33,6 +33,8 @@ struct SessionReadiness {
 struct SessionState {
     QString sessionId;
     QString peerDeviceId;
+    quint64 sessionEpoch = 0;
+    quint64 permissionEpoch = 0;
     SessionRole role = SessionRole::Controller;
     SessionPhase phase = SessionPhase::Idle;
     SessionAccess access;
