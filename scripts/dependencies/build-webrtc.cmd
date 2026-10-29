@@ -11,6 +11,21 @@ if not exist "%EASYDESK_DEPOT_TOOLS%\python3_bin_reldir.txt" (
   echo depot_tools is not initialized. Run scripts\dependencies\fetch-webrtc.cmd first.
   exit /b 1
 )
+if not exist "%EASYDESK_WINDOWS_SDK%\App Certification Kit\DbgHelp.dll" (
+  echo Microsoft-signed DbgHelp.dll was not found in the Windows SDK App Certification Kit.
+  exit /b 1
+)
+
+if not exist "%EASYDESK_DEBUGGER_SHIM%\Debuggers\x64" mkdir "%EASYDESK_DEBUGGER_SHIM%\Debuggers\x64"
+copy /y "%EASYDESK_WINDOWS_SDK%\App Certification Kit\DbgHelp.dll" "%EASYDESK_DEBUGGER_SHIM%\Debuggers\x64\dbghelp.dll" >nul
+if errorlevel 1 exit /b 1
+for %%D in (Include Lib bin UnionMetadata References) do (
+  if not exist "%EASYDESK_DEBUGGER_SHIM%\%%D" (
+    mklink /J "%EASYDESK_DEBUGGER_SHIM%\%%D" "%EASYDESK_WINDOWS_SDK%\%%D" >nul
+    if errorlevel 1 exit /b 1
+  )
+)
+set "WINDOWSSDKDIR=%EASYDESK_DEBUGGER_SHIM%"
 
 pushd "%EASYDESK_WEBRTC_SRC%"
 for /f %%R in ('git rev-parse HEAD') do set "EASYDESK_ACTUAL_WEBRTC_REVISION=%%R"
