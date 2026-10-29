@@ -35,7 +35,7 @@ Copy-Item -LiteralPath "$projectRoot\docs\PORTABLE_README.txt" -Destination "$ta
 [Paths]
 Plugins=.
 '@ | Set-Content -Encoding ascii -LiteralPath "$targetRoot\qt.conf"
-$zipPath = Join-Path $projectRoot 'dist\EasyDesk-1.0.0-preview-win64.zip'
+$zipPath = Join-Path $projectRoot 'dist\EasyDesk-0.2.0-dev-win64.zip'
 Compress-Archive -LiteralPath $targetRoot -DestinationPath $zipPath -Force
 Write-Output "Portable application: $targetRoot\EasyDesk.exe"
 Write-Output "ZIP: $zipPath"
