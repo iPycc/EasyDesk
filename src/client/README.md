@@ -13,6 +13,7 @@
 | `domain/features/system/` | 本机系统信息接口 |
 | `infrastructure/data/local/` | 设置持久化和未连接会话状态 |
 | `platform/windows/data/local/` | Windows 系统信息读取 |
+| `platform/windows/media/capture/` | DXGI 桌面纹理、变更区域与光标采集 |
 | `presentation/ui/components/` | 通用控件、图标、菜单、选择动画和原生视频面 |
 | `presentation/ui/pages/` | 设备、列表、远程协助和设置页面 |
 | `presentation/ui/controllers/` | UI 事件与功能接口之间的协调 |

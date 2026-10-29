@@ -22,6 +22,7 @@ SOURCES += \
     src/client/infrastructure/data/local/local_transfer_service.cpp \
     src/client/infrastructure/data/local/settings_device_service.cpp \
     src/client/platform/windows/data/local/windows_system_service.cpp \
+    src/client/platform/windows/media/capture/dxgi_desktop_capture.cpp \
     src/client/presentation/ui/components/controls.cpp \
     src/client/presentation/ui/components/desktop_view.cpp \
     src/client/presentation/ui/components/device_list.cpp \
@@ -61,6 +62,8 @@ HEADERS += \
     src/client/infrastructure/data/local/local_transfer_service.h \
     src/client/infrastructure/data/local/settings_device_service.h \
     src/client/platform/windows/data/local/windows_system_service.h \
+    src/client/platform/windows/media/capture/desktop_capture_frame.h \
+    src/client/platform/windows/media/capture/dxgi_desktop_capture.h \
     src/client/presentation/ui/components/controls.h \
     src/client/presentation/ui/components/desktop_view.h \
     src/client/presentation/ui/components/device_list.h \
@@ -75,7 +78,7 @@ HEADERS += \
     src/client/presentation/ui/windows/window_chrome.h
 RESOURCES += assets/resources.qrc
 win32 {
-    LIBS += -ldwmapi -luser32 -ladvapi32 -liphlpapi
+    LIBS += -ldwmapi -luser32 -ladvapi32 -liphlpapi -ld3d11 -ldxgi
     QMAKE_CXXFLAGS += /utf-8
     RC_FILE = assets/app.rc
     RC_INCLUDEPATH += $$PWD/assets
