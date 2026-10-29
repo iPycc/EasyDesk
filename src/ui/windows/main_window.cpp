@@ -26,7 +26,7 @@ MainWindow::MainWindow(DeviceService &devices, SessionService &sessions, Transfe
     body->addWidget(buildSidebar());
     auto *contentHost = new QWidget;
     auto *hostLayout = column(contentHost, 0, 0);
-    hostLayout->setContentsMargins(0, 8, 12, 12);
+    hostLayout->setContentsMargins(0, 0, 12, 12);
     auto *content = new QFrame;
     content->setObjectName("contentPanel");
     auto *contentLayout = column(content, 1, 0);
