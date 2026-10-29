@@ -1,0 +1,40 @@
+diff --git a/BUILD.gn b/BUILD.gn
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -38,7 +38,10 @@ if (!build_with_chromium) {
+   # 'ninja default' and then 'ninja all', the second build should do no work.
+   group("default") {
+     testonly = true
+-    deps = [ ":webrtc" ]
++    deps = [
++      ":easydesk_media",
++      ":webrtc",
++    ]
+     if (rtc_build_examples) {
+       deps += [ "examples" ]
+     }
+@@ -516,8 +519,24 @@
++rtc_shared_library("easydesk_media") {
++  output_name = "easydesk_media"
++  sources = [
++    "//easydesk_media_bridge/include/easydesk_media_abi.h",
++    "//easydesk_media_bridge/runtime/media_runtime.cpp",
++  ]
++  include_dirs = [ "//easydesk_media_bridge/include" ]
++  defines = [ "EASYDESK_MEDIA_BUILD" ]
++  deps = [
++    ":webrtc",
++    "//api/video_codecs:builtin_video_decoder_factory",
++    "//api/video_codecs:builtin_video_encoder_factory",
++  ]
++}
++
+ if (!build_with_chromium) {
+   # Target to build all the WebRTC production code.
+   rtc_static_library("webrtc") {
+     # Only the root target and the test should depend on this.
+     visibility = [
+       "//:default",
++      "//:easydesk_media",
+       "//:webrtc_lib_link_test",
+     ]
