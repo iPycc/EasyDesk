@@ -14,6 +14,8 @@ inline constexpr std::string_view kSessionProtocol = "easydesk-session/2";
 inline constexpr std::size_t kSessionIdentifierSize = 16;
 inline constexpr std::size_t kSessionPayloadMaximumBytes = 44 * 1024;
 
+using SessionIdentifier = std::array<std::uint8_t, kSessionIdentifierSize>;
+
 enum class SessionMessageType {
     request,
     accept,
@@ -29,8 +31,8 @@ enum class SessionMessageType {
 
 struct SessionEnvelope {
     SessionMessageType type;
-    std::array<std::uint8_t, kSessionIdentifierSize> requestId;
-    std::array<std::uint8_t, kSessionIdentifierSize> sessionId;
+    SessionIdentifier requestId;
+    SessionIdentifier sessionId;
     std::optional<std::uint32_t> sessionEpoch;
     std::optional<std::uint32_t> iceGeneration;
     std::uint64_t sequence;
