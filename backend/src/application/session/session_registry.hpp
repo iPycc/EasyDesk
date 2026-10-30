@@ -3,6 +3,7 @@
 #include "protocol/session/session_verifier.hpp"
 
 #include <chrono>
+#include <cstdint>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -21,9 +22,18 @@ enum class SessionActivationResult {
     missingPendingRequest,
 };
 
+enum class NegotiationStoreResult {
+    stored,
+    missingSession,
+    replay,
+    invalidGeneration,
+};
+
 struct ActiveSession {
     protocol::VerifiedSessionRequest request;
     protocol::VerifiedSessionAccept accept;
+    std::optional<protocol::VerifiedSessionOffer> offer;
+    std::optional<protocol::VerifiedSessionAnswer> answer;
 };
 
 class SessionRegistry final {
@@ -49,6 +59,10 @@ public:
         const protocol::SessionIdentifier& sessionId,
         const std::string& participantDeviceId,
         std::chrono::steady_clock::time_point now);
+    NegotiationStoreResult storeOffer(protocol::VerifiedSessionOffer offer,
+                                      std::chrono::steady_clock::time_point now);
+    NegotiationStoreResult storeAnswer(protocol::VerifiedSessionAnswer answer,
+                                       std::chrono::steady_clock::time_point now);
     bool removeSession(const protocol::SessionIdentifier& requestId,
                        const protocol::SessionIdentifier& sessionId,
                        const std::string& participantDeviceId);
@@ -63,6 +77,9 @@ private:
     struct ActiveEntry {
         ActiveSession session;
         std::chrono::steady_clock::time_point expiresAt;
+        std::uint64_t lastRequesterSequence = 1;
+        std::uint64_t lastResponderSequence = 1;
+        std::optional<std::uint32_t> iceGeneration;
     };
 
     static std::string routeKey(const protocol::SessionIdentifier& requestId,

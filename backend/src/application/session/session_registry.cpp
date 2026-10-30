@@ -74,8 +74,13 @@ SessionActivationResult SessionRegistry::activate(
         .session = ActiveSession{
             .request = pending->second.request,
             .accept = std::move(accept),
+            .offer = std::nullopt,
+            .answer = std::nullopt,
         },
         .expiresAt = expiresAt,
+        .lastRequesterSequence = 1,
+        .lastResponderSequence = 1,
+        .iceGeneration = std::nullopt,
     };
     const auto [activeEntry, inserted] = active_.emplace(key, std::move(active));
     (void)activeEntry;
@@ -99,6 +104,55 @@ std::optional<ActiveSession> SessionRegistry::findActiveForParticipant(
     if (request.fromDeviceId != participantDeviceId && request.toDeviceId != participantDeviceId)
         return std::nullopt;
     return entry->second.session;
+}
+
+NegotiationStoreResult SessionRegistry::storeOffer(
+    protocol::VerifiedSessionOffer offer,
+    std::chrono::steady_clock::time_point now) {
+    const std::scoped_lock lock(mutex_);
+    removeExpiredLocked(now);
+    const std::string key = routeKey(offer.envelope.requestId, offer.envelope.sessionId);
+    const auto entry = active_.find(key);
+    if (entry == active_.end() ||
+        offer.envelope.fromDeviceId != entry->second.session.request.envelope.fromDeviceId ||
+        offer.envelope.toDeviceId != entry->second.session.request.envelope.toDeviceId)
+        return NegotiationStoreResult::missingSession;
+    if (offer.envelope.sequence <= entry->second.lastRequesterSequence)
+        return NegotiationStoreResult::replay;
+    if (entry->second.iceGeneration &&
+        offer.payload.iceGeneration <= *entry->second.iceGeneration) {
+        return NegotiationStoreResult::invalidGeneration;
+    }
+
+    entry->second.lastRequesterSequence = offer.envelope.sequence;
+    entry->second.iceGeneration = offer.payload.iceGeneration;
+    entry->second.session.offer = std::move(offer);
+    entry->second.session.answer.reset();
+    return NegotiationStoreResult::stored;
+}
+
+NegotiationStoreResult SessionRegistry::storeAnswer(
+    protocol::VerifiedSessionAnswer answer,
+    std::chrono::steady_clock::time_point now) {
+    const std::scoped_lock lock(mutex_);
+    removeExpiredLocked(now);
+    const std::string key = routeKey(answer.envelope.requestId, answer.envelope.sessionId);
+    const auto entry = active_.find(key);
+    if (entry == active_.end() || !entry->second.session.offer ||
+        answer.envelope.fromDeviceId != entry->second.session.request.envelope.toDeviceId ||
+        answer.envelope.toDeviceId != entry->second.session.request.envelope.fromDeviceId)
+        return NegotiationStoreResult::missingSession;
+    if (answer.envelope.sequence <= entry->second.lastResponderSequence)
+        return NegotiationStoreResult::replay;
+    if (!entry->second.iceGeneration ||
+        answer.payload.iceGeneration != *entry->second.iceGeneration ||
+        entry->second.session.answer) {
+        return NegotiationStoreResult::invalidGeneration;
+    }
+
+    entry->second.lastResponderSequence = answer.envelope.sequence;
+    entry->second.session.answer = std::move(answer);
+    return NegotiationStoreResult::stored;
 }
 
 bool SessionRegistry::removeSession(const protocol::SessionIdentifier& requestId,
