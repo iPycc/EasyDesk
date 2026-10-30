@@ -26,6 +26,10 @@ namespace easydesk::hub {
 class SignalingHub;
 }
 
+namespace easydesk::session {
+class AssistCodeRegistry;
+}
+
 namespace easydesk::net {
 
 class WebSocketSession final : public std::enable_shared_from_this<WebSocketSession>,
@@ -35,7 +39,8 @@ public:
 
     WebSocketSession(boost::beast::tcp_stream stream,
                      devices::DeviceRepository& devices,
-                     hub::SignalingHub& hub);
+                     hub::SignalingHub& hub,
+                     session::AssistCodeRegistry& assistCodes);
     ~WebSocketSession() override;
 
     void accept(Request request);
@@ -50,6 +55,8 @@ private:
     void handleRegistration(const boost::json::object& object);
     void handlePresenceSubscription(const boost::json::object& object);
     void handleSignedEnvelope(const boost::json::object& object);
+    void handleAssistRefresh(const boost::json::object& object);
+    void sendAssistCode();
 
     void sendJson(boost::json::object message);
     void sendError(std::string code, std::string message, bool closeAfter);
@@ -63,6 +70,7 @@ private:
     boost::asio::steady_timer registrationTimer_;
     devices::DeviceRepository& devices_;
     hub::SignalingHub& hub_;
+    session::AssistCodeRegistry& assistCodes_;
     boost::beast::flat_buffer buffer_;
     std::deque<std::shared_ptr<const std::string>> outbound_;
     std::string nonce_;

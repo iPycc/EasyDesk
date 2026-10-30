@@ -1,9 +1,11 @@
 #include "transport/net/websocket_session.hpp"
 
 #include "application/hub/signaling_hub.hpp"
+#include "application/session/assist_code_registry.hpp"
 #include "infrastructure/devices/device_repository.hpp"
 #include "protocol/encoding/base64url.hpp"
 #include "protocol/registration/registration_json.hpp"
+#include "protocol/session/session_envelope.hpp"
 #include "protocol/signaling/signed_envelope_json.hpp"
 #include "security/crypto/ed25519.hpp"
 #include "security/crypto/random.hpp"
@@ -71,16 +73,19 @@ bool isPairMessage(std::string_view type) {
 
 WebSocketSession::WebSocketSession(beast::tcp_stream stream,
                                    devices::DeviceRepository& devices,
-                                   hub::SignalingHub& hub)
+                                   hub::SignalingHub& hub,
+                                   session::AssistCodeRegistry& assistCodes)
     : strand_(boost::asio::make_strand(
           static_cast<boost::asio::io_context&>(stream.get_executor().context()))),
       websocket_(std::move(stream)),
       registrationTimer_(strand_),
       devices_(devices),
-      hub_(hub) {}
+      hub_(hub),
+      assistCodes_(assistCodes) {}
 
 WebSocketSession::~WebSocketSession() {
     if (connectedToHub_) {
+        assistCodes_.revoke(deviceId_);
         hub_.disconnect(deviceId_, this);
     }
 }
@@ -198,6 +203,8 @@ void WebSocketSession::handleMessage(const std::string& message) {
         sendError("E_ALREADY_REGISTERED", "this connection is already registered", false);
     } else if (type == "presence.subscribe") {
         handlePresenceSubscription(object);
+    } else if (type == "assist.refresh") {
+        handleAssistRefresh(object);
     } else if (isPairMessage(type)) {
         handleSignedEnvelope(object);
     } else {
@@ -266,6 +273,27 @@ void WebSocketSession::handleRegistration(const boost::json::object& object) {
     response["status"] = result == devices::RegistrationResult::created ? "created" : "refreshed";
     response["device_id"] = deviceId_;
     response["fingerprint"] = security::sha256Fingerprint(envelope.publicKey);
+    sendJson(std::move(response));
+    sendAssistCode();
+}
+
+void WebSocketSession::handleAssistRefresh(const boost::json::object& object) {
+    if (object.size() != 2 || jsonString(object, "protocol") != protocol::kSessionProtocol) {
+        sendError("E_INVALID_MESSAGE", "assist.refresh requires the session/2 protocol", false);
+        return;
+    }
+    sendAssistCode();
+}
+
+void WebSocketSession::sendAssistCode() {
+    const auto lease = assistCodes_.issue(deviceId_, std::chrono::steady_clock::now());
+    boost::json::object response;
+    response["type"] = "assist.code";
+    response["protocol"] = protocol::kSessionProtocol;
+    response["code"] = lease.code;
+    response["expires_in_seconds"] =
+        std::chrono::duration_cast<std::chrono::seconds>(session::AssistCodeRegistry::kLifetime)
+            .count();
     sendJson(std::move(response));
 }
 

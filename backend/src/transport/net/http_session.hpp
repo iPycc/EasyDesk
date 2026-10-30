@@ -14,13 +14,18 @@ namespace easydesk::hub {
 class SignalingHub;
 }
 
+namespace easydesk::session {
+class AssistCodeRegistry;
+}
+
 namespace easydesk::net {
 
 class HttpSession final : public std::enable_shared_from_this<HttpSession> {
 public:
     HttpSession(boost::asio::ip::tcp::socket socket,
                 devices::DeviceRepository& devices,
-                hub::SignalingHub& hub);
+                hub::SignalingHub& hub,
+                session::AssistCodeRegistry& assistCodes);
 
     void run();
 
@@ -37,6 +42,7 @@ private:
     std::shared_ptr<Response> response_;
     devices::DeviceRepository& devices_;
     hub::SignalingHub& hub_;
+    session::AssistCodeRegistry& assistCodes_;
 };
 
 }  // namespace easydesk::net
