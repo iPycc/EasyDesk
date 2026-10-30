@@ -29,6 +29,7 @@ class SignalingHub;
 namespace easydesk::session {
 class AssistCodeRegistry;
 class SessionAttemptLimiter;
+class SessionRegistry;
 }
 
 namespace easydesk::net {
@@ -42,7 +43,8 @@ public:
                      devices::DeviceRepository& devices,
                      hub::SignalingHub& hub,
                      session::AssistCodeRegistry& assistCodes,
-                     session::SessionAttemptLimiter& attemptLimiter);
+                     session::SessionAttemptLimiter& attemptLimiter,
+                     session::SessionRegistry& sessions);
     ~WebSocketSession() override;
 
     void accept(Request request);
@@ -59,6 +61,7 @@ private:
     void handleSignedEnvelope(const boost::json::object& object);
     void handleAssistRefresh(const boost::json::object& object);
     void handleAssistResolve(const boost::json::object& object);
+    void handleSessionRequest(const boost::json::object& object);
     void sendAssistCode();
 
     void sendJson(boost::json::object message);
@@ -75,6 +78,7 @@ private:
     hub::SignalingHub& hub_;
     session::AssistCodeRegistry& assistCodes_;
     session::SessionAttemptLimiter& attemptLimiter_;
+    session::SessionRegistry& sessions_;
     boost::beast::flat_buffer buffer_;
     std::deque<std::shared_ptr<const std::string>> outbound_;
     std::string nonce_;

@@ -17,6 +17,7 @@ class SignalingHub;
 namespace easydesk::session {
 class AssistCodeRegistry;
 class SessionAttemptLimiter;
+class SessionRegistry;
 }
 
 namespace easydesk::net {
@@ -27,7 +28,8 @@ public:
                 devices::DeviceRepository& devices,
                 hub::SignalingHub& hub,
                 session::AssistCodeRegistry& assistCodes,
-                session::SessionAttemptLimiter& attemptLimiter);
+                session::SessionAttemptLimiter& attemptLimiter,
+                session::SessionRegistry& sessions);
 
     void run();
 
@@ -46,6 +48,7 @@ private:
     hub::SignalingHub& hub_;
     session::AssistCodeRegistry& assistCodes_;
     session::SessionAttemptLimiter& attemptLimiter_;
+    session::SessionRegistry& sessions_;
 };
 
 }  // namespace easydesk::net
