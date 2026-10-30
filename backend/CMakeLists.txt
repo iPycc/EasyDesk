@@ -22,6 +22,7 @@ add_executable(easydesk-signal
     src/protocol/registration/registration_json.cpp
     src/protocol/session/session_accept.cpp
     src/protocol/session/session_capability.cpp
+    src/protocol/session/session_description.cpp
     src/protocol/session/session_envelope.cpp
     src/protocol/session/session_envelope_json.cpp
     src/protocol/session/session_payload.cpp
