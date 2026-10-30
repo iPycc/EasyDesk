@@ -10,6 +10,7 @@
 | `src/infrastructure/storage/` | SQLite 连接与迁移 |
 | `src/protocol/encoding/` | 协议编码工具 |
 | `src/protocol/registration/` | 设备注册验证 |
+| `src/protocol/session/` | `session/2` 会话信封与消息边界 |
 | `src/protocol/signaling/` | 点对点信令信封验证 |
 | `src/security/crypto/` | Ed25519 与安全随机数 |
 | `src/transport/net/` | HTTP、WebSocket 会话与监听器 |
