@@ -26,6 +26,10 @@ namespace easydesk::hub {
 class SignalingHub;
 }
 
+namespace easydesk::protocol {
+struct SessionEnvelope;
+}
+
 namespace easydesk::session {
 class AssistCodeRegistry;
 class SessionAttemptLimiter;
@@ -62,6 +66,8 @@ private:
     void handleAssistRefresh(const boost::json::object& object);
     void handleAssistResolve(const boost::json::object& object);
     void handleSessionRequest(const boost::json::object& object);
+    void handleSessionAccept(const boost::json::object& object);
+    void sendSessionDelivered(const protocol::SessionEnvelope& envelope);
     void sendAssistCode();
 
     void sendJson(boost::json::object message);

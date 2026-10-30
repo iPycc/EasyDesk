@@ -20,6 +20,7 @@ namespace easydesk::net {
 namespace {
 
 constexpr auto kRequestLifetime = std::chrono::seconds(60);
+constexpr auto kMaximumSessionLifetime = std::chrono::hours(8);
 
 std::int64_t unixSeconds() {
     return std::chrono::duration_cast<std::chrono::seconds>(
@@ -98,12 +99,79 @@ void WebSocketSession::handleSessionRequest(const boost::json::object& object) {
         return;
     }
 
+    sendSessionDelivered(envelope);
+}
+
+void WebSocketSession::handleSessionAccept(const boost::json::object& object) {
+    auto parsed = protocol::parseSessionEnvelope(object);
+    if (const auto* protocolError = std::get_if<protocol::ProtocolError>(&parsed)) {
+        sendError(protocolError->code, protocolError->message, false);
+        return;
+    }
+    auto envelope = std::get<protocol::SessionEnvelope>(std::move(parsed));
+    if (envelope.type != protocol::SessionMessageType::accept ||
+        envelope.fromDeviceId != deviceId_) {
+        sendError("E_INVALID_ROUTE", "session accept route is invalid", false);
+        return;
+    }
+
+    const std::int64_t nowUnix = unixSeconds();
+    if (envelope.expiresAt <= nowUnix ||
+        envelope.expiresAt >
+            nowUnix +
+                std::chrono::duration_cast<std::chrono::seconds>(kMaximumSessionLifetime).count()) {
+        sendError("E_EXPIRED", "session authorization expiry is invalid", false);
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    const auto request = sessions_.findPendingForResponder(
+        envelope.requestId, envelope.sessionId, deviceId_, now);
+    if (!request) {
+        sendError("E_SESSION_NOT_PENDING", "session request is no longer pending", false);
+        return;
+    }
+
+    auto verified = protocol::verifySessionAccept(envelope, *request);
+    if (const auto* error = std::get_if<protocol::SessionVerificationError>(&verified)) {
+        sendError(*error == protocol::SessionVerificationError::invalidSignature
+                      ? "E_SIGNATURE"
+                      : "E_INVALID_SESSION_MESSAGE",
+                  "session accept authentication failed", false);
+        return;
+    }
+    auto accept = std::get<protocol::VerifiedSessionAccept>(std::move(verified));
+    const auto activeExpiresAt =
+        now + std::chrono::seconds(envelope.expiresAt - nowUnix);
+    if (sessions_.activate(std::move(accept), now, activeExpiresAt) !=
+        session::SessionActivationResult::activated) {
+        sendError("E_SESSION_NOT_PENDING", "session request is no longer pending", false);
+        return;
+    }
+
+    const auto routeResult =
+        hub_.route(deviceId_, this, envelope.toDeviceId, protocol::sessionEnvelopeToJson(envelope));
+    if (routeResult != hub::RouteResult::delivered) {
+        sessions_.removeSession(envelope.requestId, envelope.sessionId, deviceId_);
+        sendError(routeResult == hub::RouteResult::senderMissing ? "E_CONNECTION_STATE"
+                                                                 : "E_TARGET_OFFLINE",
+                  "session accept could not be delivered",
+                  routeResult == hub::RouteResult::senderMissing);
+        return;
+    }
+
+    sendSessionDelivered(envelope);
+    sendAssistCode();
+}
+
+void WebSocketSession::sendSessionDelivered(const protocol::SessionEnvelope& envelope) {
     boost::json::object delivered;
     delivered["type"] = "session.delivered";
     delivered["protocol"] = protocol::kSessionProtocol;
     delivered["message_type"] = protocol::sessionMessageTypeName(envelope.type);
     delivered["request_id"] = protocol::encodeBase64Url(envelope.requestId);
     delivered["session_id"] = protocol::encodeBase64Url(envelope.sessionId);
+    if (envelope.sessionEpoch)
+        delivered["session_epoch"] = *envelope.sessionEpoch;
     delivered["seq"] = envelope.sequence;
     sendJson(std::move(delivered));
 }

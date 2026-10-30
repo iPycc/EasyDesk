@@ -214,6 +214,8 @@ void WebSocketSession::handleMessage(const std::string& message) {
         handleAssistResolve(object);
     } else if (type == "session.request") {
         handleSessionRequest(object);
+    } else if (type == "session.accept") {
+        handleSessionAccept(object);
     } else if (isPairMessage(type)) {
         handleSignedEnvelope(object);
     } else {
