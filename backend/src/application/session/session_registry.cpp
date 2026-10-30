@@ -40,6 +40,21 @@ std::optional<protocol::VerifiedSessionRequest> SessionRegistry::findPendingForR
     return entry->second.request;
 }
 
+std::optional<protocol::VerifiedSessionRequest> SessionRegistry::findPendingForRequester(
+    const protocol::SessionIdentifier& requestId,
+    const protocol::SessionIdentifier& sessionId,
+    const std::string& requesterDeviceId,
+    std::chrono::steady_clock::time_point now) {
+    const std::scoped_lock lock(mutex_);
+    removeExpiredLocked(now);
+    const auto entry = pending_.find(routeKey(requestId, sessionId));
+    if (entry == pending_.end() ||
+        entry->second.request.envelope.fromDeviceId != requesterDeviceId) {
+        return std::nullopt;
+    }
+    return entry->second.request;
+}
+
 bool SessionRegistry::consumePending(const protocol::SessionIdentifier& requestId,
                                      const protocol::SessionIdentifier& sessionId,
                                      const std::string& participantDeviceId,

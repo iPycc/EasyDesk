@@ -50,6 +50,11 @@ public:
         const protocol::SessionIdentifier& sessionId,
         const std::string& responderDeviceId,
         std::chrono::steady_clock::time_point now);
+    std::optional<protocol::VerifiedSessionRequest> findPendingForRequester(
+        const protocol::SessionIdentifier& requestId,
+        const protocol::SessionIdentifier& sessionId,
+        const std::string& requesterDeviceId,
+        std::chrono::steady_clock::time_point now);
     bool consumePending(const protocol::SessionIdentifier& requestId,
                         const protocol::SessionIdentifier& sessionId,
                         const std::string& participantDeviceId,

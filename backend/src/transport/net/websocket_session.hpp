@@ -68,6 +68,8 @@ private:
     void handleAssistResolve(const boost::json::object& object);
     void handleSessionRequest(const boost::json::object& object);
     void handleSessionAccept(const boost::json::object& object);
+    void handleSessionDecision(const boost::json::object& object,
+                               protocol::SessionMessageType expectedType);
     void handleSessionOffer(const boost::json::object& object);
     void handleSessionAnswer(const boost::json::object& object);
     void handleSessionIceSignal(const boost::json::object& object,

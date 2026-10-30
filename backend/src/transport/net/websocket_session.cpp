@@ -217,6 +217,10 @@ void WebSocketSession::handleMessage(const std::string& message) {
         handleSessionRequest(object);
     } else if (type == "session.accept") {
         handleSessionAccept(object);
+    } else if (type == "session.reject") {
+        handleSessionDecision(object, protocol::SessionMessageType::reject);
+    } else if (type == "session.cancel") {
+        handleSessionDecision(object, protocol::SessionMessageType::cancel);
     } else if (type == "session.offer") {
         handleSessionOffer(object);
     } else if (type == "session.answer") {
