@@ -105,13 +105,11 @@ SessionEnvelopeParseResult parseSessionEnvelope(const boost::json::object& objec
     const auto toDeviceId = stringField(object, "to_device_id", 9);
     const auto payloadText = stringField(object, "signed_payload", 60 * 1024);
     const auto signatureText = stringField(object, "signature", 128);
-    const auto sessionEpoch = unsignedInteger(object.if_contains("session_epoch"), false);
     const auto sequence = unsignedInteger(object.if_contains("seq"), false);
     const auto expiresAt = unsignedInteger(object.if_contains("expires_at"), false);
 
     if (!protocol || *protocol != kSessionProtocol || !typeText || !requestIdText ||
         !sessionIdText || !fromDeviceId || !toDeviceId || !payloadText || !signatureText ||
-        !sessionEpoch || *sessionEpoch > std::numeric_limits<std::uint32_t>::max() ||
         !sequence || !expiresAt || *expiresAt > std::numeric_limits<std::int64_t>::max()) {
         return invalid("session envelope fields are missing or outside their allowed range");
     }
@@ -125,6 +123,17 @@ SessionEnvelopeParseResult parseSessionEnvelope(const boost::json::object& objec
         !isDeviceId(*toDeviceId) || *fromDeviceId == *toDeviceId || !signedPayload ||
         !signature || signature->size() != 64) {
         return invalid("session envelope identity, type, payload, or signature is invalid");
+    }
+
+    const auto* epochValue = object.if_contains("session_epoch");
+    std::optional<std::uint32_t> sessionEpoch;
+    if (sessionMessageRequiresSessionEpoch(*type)) {
+        const auto parsed = unsignedInteger(epochValue, false);
+        if (!parsed || *parsed > std::numeric_limits<std::uint32_t>::max())
+            return invalid("this session message requires a valid session epoch");
+        sessionEpoch = static_cast<std::uint32_t>(*parsed);
+    } else if (epochValue != nullptr) {
+        return invalid("this session message must not carry a session epoch");
     }
 
     const auto* iceValue = object.if_contains("ice_generation");
@@ -142,7 +151,7 @@ SessionEnvelopeParseResult parseSessionEnvelope(const boost::json::object& objec
         .type = *type,
         .requestId = *requestId,
         .sessionId = *sessionId,
-        .sessionEpoch = static_cast<std::uint32_t>(*sessionEpoch),
+        .sessionEpoch = sessionEpoch,
         .iceGeneration = iceGeneration,
         .sequence = *sequence,
         .expiresAt = static_cast<std::int64_t>(*expiresAt),
@@ -159,7 +168,8 @@ boost::json::object sessionEnvelopeToJson(const SessionEnvelope& envelope) {
     object["type"] = sessionMessageTypeName(envelope.type);
     object["request_id"] = encodeBase64Url(envelope.requestId);
     object["session_id"] = encodeBase64Url(envelope.sessionId);
-    object["session_epoch"] = envelope.sessionEpoch;
+    if (envelope.sessionEpoch)
+        object["session_epoch"] = *envelope.sessionEpoch;
     if (envelope.iceGeneration)
         object["ice_generation"] = *envelope.iceGeneration;
     object["seq"] = envelope.sequence;

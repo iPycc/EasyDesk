@@ -31,7 +31,7 @@ struct SessionEnvelope {
     SessionMessageType type;
     std::array<std::uint8_t, kSessionIdentifierSize> requestId;
     std::array<std::uint8_t, kSessionIdentifierSize> sessionId;
-    std::uint32_t sessionEpoch;
+    std::optional<std::uint32_t> sessionEpoch;
     std::optional<std::uint32_t> iceGeneration;
     std::uint64_t sequence;
     std::int64_t expiresAt;
@@ -44,5 +44,6 @@ struct SessionEnvelope {
 std::optional<SessionMessageType> parseSessionMessageType(std::string_view value);
 std::string_view sessionMessageTypeName(SessionMessageType type);
 bool sessionMessageRequiresIceGeneration(SessionMessageType type);
+bool sessionMessageRequiresSessionEpoch(SessionMessageType type);
 
 }  // namespace easydesk::protocol

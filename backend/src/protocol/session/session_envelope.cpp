@@ -58,4 +58,9 @@ bool sessionMessageRequiresIceGeneration(SessionMessageType type) {
            type == SessionMessageType::gatheringComplete;
 }
 
+bool sessionMessageRequiresSessionEpoch(SessionMessageType type) {
+    return type != SessionMessageType::request && type != SessionMessageType::reject &&
+           type != SessionMessageType::cancel;
+}
+
 }  // namespace easydesk::protocol
