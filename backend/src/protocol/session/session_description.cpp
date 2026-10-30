@@ -93,12 +93,12 @@ SessionDigest descriptionDigest(std::string_view sdp) {
 
 std::optional<std::vector<std::uint8_t>> encodeSessionOfferPayload(
     const SessionOfferPayload& payload) {
-    if (payload.sequence == 0 || !cbor::isValidUtf8(payload.sdp) ||
+    if (payload.sequence == 0 || payload.expiresAt <= 0 || !cbor::isValidUtf8(payload.sdp) ||
         !sdpBindsFingerprint(payload.sdp, payload.dtlsFingerprint))
         return std::nullopt;
 
     cbor::Writer writer;
-    writer.beginArray(9);
+    writer.beginArray(10);
     writer.writeText(kSessionSigningDomain);
     writer.writeText(kOfferType);
     writer.writeBytes(payload.acceptDigest);
@@ -108,6 +108,7 @@ std::optional<std::vector<std::uint8_t>> encodeSessionOfferPayload(
     writer.writeBytes(descriptionDigest(payload.sdp));
     writer.writeBytes(payload.dtlsFingerprint);
     writer.writeUnsigned(payload.sequence);
+    writer.writeUnsigned(static_cast<std::uint64_t>(payload.expiresAt));
     return writer.takeBytes();
 }
 
@@ -124,11 +125,14 @@ std::optional<SessionOfferPayload> parseSessionOfferPayload(
     const auto sdpDigest = readFixedBytes<kSessionDigestSize>(reader);
     const auto fingerprint = readFixedBytes<kSessionDigestSize>(reader);
     const auto sequence = reader.readUnsigned();
-    if (!arraySize || *arraySize != 9 || !domain || *domain != kSessionSigningDomain ||
+    const auto expiresAt = reader.readUnsigned();
+    if (!arraySize || *arraySize != 10 || !domain || *domain != kSessionSigningDomain ||
         !type || *type != kOfferType || !acceptDigest || !iceGeneration ||
         *iceGeneration > std::numeric_limits<std::uint32_t>::max() || !nonce || !sdp ||
         !sdpDigest || *sdpDigest != descriptionDigest(*sdp) || !fingerprint || !sequence ||
-        *sequence == 0 || !reader.finished() || !sdpBindsFingerprint(*sdp, *fingerprint)) {
+        *sequence == 0 || !expiresAt || *expiresAt == 0 ||
+        *expiresAt > std::numeric_limits<std::int64_t>::max() || !reader.finished() ||
+        !sdpBindsFingerprint(*sdp, *fingerprint)) {
         return std::nullopt;
     }
     return SessionOfferPayload{
@@ -138,17 +142,18 @@ std::optional<SessionOfferPayload> parseSessionOfferPayload(
         .sdp = *sdp,
         .dtlsFingerprint = *fingerprint,
         .sequence = *sequence,
+        .expiresAt = static_cast<std::int64_t>(*expiresAt),
     };
 }
 
 std::optional<std::vector<std::uint8_t>> encodeSessionAnswerPayload(
     const SessionAnswerPayload& payload) {
-    if (payload.sequence == 0 || !cbor::isValidUtf8(payload.sdp) ||
+    if (payload.sequence == 0 || payload.expiresAt <= 0 || !cbor::isValidUtf8(payload.sdp) ||
         !sdpBindsFingerprint(payload.sdp, payload.dtlsFingerprint))
         return std::nullopt;
 
     cbor::Writer writer;
-    writer.beginArray(8);
+    writer.beginArray(9);
     writer.writeText(kSessionSigningDomain);
     writer.writeText(kAnswerType);
     writer.writeBytes(payload.offerDigest);
@@ -157,6 +162,7 @@ std::optional<std::vector<std::uint8_t>> encodeSessionAnswerPayload(
     writer.writeBytes(descriptionDigest(payload.sdp));
     writer.writeBytes(payload.dtlsFingerprint);
     writer.writeUnsigned(payload.sequence);
+    writer.writeUnsigned(static_cast<std::uint64_t>(payload.expiresAt));
     return writer.takeBytes();
 }
 
@@ -172,11 +178,14 @@ std::optional<SessionAnswerPayload> parseSessionAnswerPayload(
     const auto sdpDigest = readFixedBytes<kSessionDigestSize>(reader);
     const auto fingerprint = readFixedBytes<kSessionDigestSize>(reader);
     const auto sequence = reader.readUnsigned();
-    if (!arraySize || *arraySize != 8 || !domain || *domain != kSessionSigningDomain ||
+    const auto expiresAt = reader.readUnsigned();
+    if (!arraySize || *arraySize != 9 || !domain || *domain != kSessionSigningDomain ||
         !type || *type != kAnswerType || !offerDigest || !iceGeneration ||
         *iceGeneration > std::numeric_limits<std::uint32_t>::max() || !sdp || !sdpDigest ||
         *sdpDigest != descriptionDigest(*sdp) || !fingerprint || !sequence || *sequence == 0 ||
-        !reader.finished() || !sdpBindsFingerprint(*sdp, *fingerprint)) {
+        !expiresAt || *expiresAt == 0 ||
+        *expiresAt > std::numeric_limits<std::int64_t>::max() || !reader.finished() ||
+        !sdpBindsFingerprint(*sdp, *fingerprint)) {
         return std::nullopt;
     }
     return SessionAnswerPayload{
@@ -185,6 +194,7 @@ std::optional<SessionAnswerPayload> parseSessionAnswerPayload(
         .sdp = *sdp,
         .dtlsFingerprint = *fingerprint,
         .sequence = *sequence,
+        .expiresAt = static_cast<std::int64_t>(*expiresAt),
     };
 }
 

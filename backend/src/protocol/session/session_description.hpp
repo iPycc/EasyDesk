@@ -20,6 +20,7 @@ struct SessionOfferPayload {
     std::string sdp;
     SessionDigest dtlsFingerprint;
     std::uint64_t sequence;
+    std::int64_t expiresAt;
 };
 
 struct SessionAnswerPayload {
@@ -28,6 +29,7 @@ struct SessionAnswerPayload {
     std::string sdp;
     SessionDigest dtlsFingerprint;
     std::uint64_t sequence;
+    std::int64_t expiresAt;
 };
 
 std::optional<std::vector<std::uint8_t>> encodeSessionOfferPayload(
