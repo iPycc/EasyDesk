@@ -223,6 +223,66 @@ void WebSocketSession::handleSessionOffer(const boost::json::object& object) {
     sendSessionDelivered(envelope);
 }
 
+void WebSocketSession::handleSessionAnswer(const boost::json::object& object) {
+    auto parsed = protocol::parseSessionEnvelope(object);
+    if (const auto* protocolError = std::get_if<protocol::ProtocolError>(&parsed)) {
+        sendError(protocolError->code, protocolError->message, false);
+        return;
+    }
+    auto envelope = std::get<protocol::SessionEnvelope>(std::move(parsed));
+    if (envelope.type != protocol::SessionMessageType::answer ||
+        envelope.fromDeviceId != deviceId_) {
+        sendError("E_INVALID_ROUTE", "session answer route is invalid", false);
+        return;
+    }
+
+    const std::int64_t nowUnix = unixSeconds();
+    if (envelope.expiresAt < nowUnix ||
+        envelope.expiresAt > nowUnix + kRequestLifetime.count()) {
+        sendError("E_EXPIRED", "session answer is expired or too far in the future", false);
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    const auto active = sessions_.findActiveForParticipant(
+        envelope.requestId, envelope.sessionId, deviceId_, now);
+    if (!active || !active->offer) {
+        sendError("E_SESSION_NOT_ACTIVE", "session offer is not active", false);
+        return;
+    }
+
+    auto verified = protocol::verifySessionAnswer(
+        envelope, active->request, active->accept, *active->offer);
+    if (const auto* error = std::get_if<protocol::SessionVerificationError>(&verified)) {
+        sendError(*error == protocol::SessionVerificationError::invalidSignature
+                      ? "E_SIGNATURE"
+                      : "E_INVALID_SESSION_MESSAGE",
+                  "session answer authentication failed", false);
+        return;
+    }
+    auto answer = std::get<protocol::VerifiedSessionAnswer>(std::move(verified));
+    const auto stored = sessions_.storeAnswer(std::move(answer), now);
+    if (stored == session::NegotiationStoreResult::replay) {
+        sendError("E_REPLAY", "session answer sequence was already processed", false);
+        return;
+    }
+    if (stored != session::NegotiationStoreResult::stored) {
+        sendError("E_ICE_GENERATION", "session answer ICE generation is invalid", false);
+        return;
+    }
+
+    const auto routeResult =
+        hub_.route(deviceId_, this, envelope.toDeviceId, protocol::sessionEnvelopeToJson(envelope));
+    if (routeResult != hub::RouteResult::delivered) {
+        sessions_.removeSession(envelope.requestId, envelope.sessionId, deviceId_);
+        sendError(routeResult == hub::RouteResult::senderMissing ? "E_CONNECTION_STATE"
+                                                                 : "E_TARGET_OFFLINE",
+                  "session answer could not be delivered",
+                  routeResult == hub::RouteResult::senderMissing);
+        return;
+    }
+    sendSessionDelivered(envelope);
+}
+
 void WebSocketSession::sendSessionDelivered(const protocol::SessionEnvelope& envelope) {
     boost::json::object delivered;
     delivered["type"] = "session.delivered";
