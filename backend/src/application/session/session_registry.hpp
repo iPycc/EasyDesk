@@ -16,6 +16,16 @@ enum class PendingRequestResult {
     participantBusy,
 };
 
+enum class SessionActivationResult {
+    activated,
+    missingPendingRequest,
+};
+
+struct ActiveSession {
+    protocol::VerifiedSessionRequest request;
+    protocol::VerifiedSessionAccept accept;
+};
+
 class SessionRegistry final {
 public:
     static constexpr auto kConsentTimeout = std::chrono::seconds(60);
@@ -31,11 +41,27 @@ public:
                         const protocol::SessionIdentifier& sessionId,
                         const std::string& participantDeviceId,
                         std::chrono::steady_clock::time_point now);
+    SessionActivationResult activate(protocol::VerifiedSessionAccept accept,
+                                     std::chrono::steady_clock::time_point now,
+                                     std::chrono::steady_clock::time_point expiresAt);
+    std::optional<ActiveSession> findActiveForParticipant(
+        const protocol::SessionIdentifier& requestId,
+        const protocol::SessionIdentifier& sessionId,
+        const std::string& participantDeviceId,
+        std::chrono::steady_clock::time_point now);
+    bool removeSession(const protocol::SessionIdentifier& requestId,
+                       const protocol::SessionIdentifier& sessionId,
+                       const std::string& participantDeviceId);
     void removeForDevice(const std::string& deviceId);
 
 private:
     struct PendingEntry {
         protocol::VerifiedSessionRequest request;
+        std::chrono::steady_clock::time_point expiresAt;
+    };
+
+    struct ActiveEntry {
+        ActiveSession session;
         std::chrono::steady_clock::time_point expiresAt;
     };
 
@@ -46,6 +72,7 @@ private:
 
     std::mutex mutex_;
     std::unordered_map<std::string, PendingEntry> pending_;
+    std::unordered_map<std::string, ActiveEntry> active_;
     std::unordered_map<std::string, std::string> participantRoutes_;
 };
 

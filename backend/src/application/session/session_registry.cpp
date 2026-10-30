@@ -57,6 +57,71 @@ bool SessionRegistry::consumePending(const protocol::SessionIdentifier& requestI
     return true;
 }
 
+SessionActivationResult SessionRegistry::activate(
+    protocol::VerifiedSessionAccept accept,
+    std::chrono::steady_clock::time_point now,
+    std::chrono::steady_clock::time_point expiresAt) {
+    const std::scoped_lock lock(mutex_);
+    removeExpiredLocked(now);
+    const std::string key = routeKey(accept.envelope.requestId, accept.envelope.sessionId);
+    const auto pending = pending_.find(key);
+    if (pending == pending_.end() || expiresAt <= now ||
+        accept.envelope.fromDeviceId != pending->second.request.envelope.toDeviceId ||
+        accept.envelope.toDeviceId != pending->second.request.envelope.fromDeviceId)
+        return SessionActivationResult::missingPendingRequest;
+
+    ActiveEntry active{
+        .session = ActiveSession{
+            .request = pending->second.request,
+            .accept = std::move(accept),
+        },
+        .expiresAt = expiresAt,
+    };
+    const auto [activeEntry, inserted] = active_.emplace(key, std::move(active));
+    (void)activeEntry;
+    if (!inserted)
+        return SessionActivationResult::missingPendingRequest;
+    pending_.erase(pending);
+    return SessionActivationResult::activated;
+}
+
+std::optional<ActiveSession> SessionRegistry::findActiveForParticipant(
+    const protocol::SessionIdentifier& requestId,
+    const protocol::SessionIdentifier& sessionId,
+    const std::string& participantDeviceId,
+    std::chrono::steady_clock::time_point now) {
+    const std::scoped_lock lock(mutex_);
+    removeExpiredLocked(now);
+    const auto entry = active_.find(routeKey(requestId, sessionId));
+    if (entry == active_.end())
+        return std::nullopt;
+    const auto& request = entry->second.session.request.envelope;
+    if (request.fromDeviceId != participantDeviceId && request.toDeviceId != participantDeviceId)
+        return std::nullopt;
+    return entry->second.session;
+}
+
+bool SessionRegistry::removeSession(const protocol::SessionIdentifier& requestId,
+                                    const protocol::SessionIdentifier& sessionId,
+                                    const std::string& participantDeviceId) {
+    const std::scoped_lock lock(mutex_);
+    const std::string key = routeKey(requestId, sessionId);
+    const auto pending = pending_.find(key);
+    const auto active = active_.find(key);
+    const protocol::SessionEnvelope* request = nullptr;
+    if (pending != pending_.end())
+        request = &pending->second.request.envelope;
+    else if (active != active_.end())
+        request = &active->second.session.request.envelope;
+    if (request == nullptr ||
+        (request->fromDeviceId != participantDeviceId &&
+         request->toDeviceId != participantDeviceId)) {
+        return false;
+    }
+    removeLocked(key);
+    return true;
+}
+
 void SessionRegistry::removeForDevice(const std::string& deviceId) {
     const std::scoped_lock lock(mutex_);
     const auto route = participantRoutes_.find(deviceId);
@@ -74,21 +139,38 @@ std::string SessionRegistry::routeKey(const protocol::SessionIdentifier& request
 }
 
 void SessionRegistry::removeLocked(const std::string& key) {
-    const auto entry = pending_.find(key);
-    if (entry == pending_.end())
+    const auto pending = pending_.find(key);
+    const auto active = active_.find(key);
+    const protocol::SessionEnvelope* envelope = nullptr;
+    if (pending != pending_.end())
+        envelope = &pending->second.request.envelope;
+    else if (active != active_.end())
+        envelope = &active->second.session.request.envelope;
+    if (envelope == nullptr)
         return;
-    const auto& envelope = entry->second.request.envelope;
-    const auto source = participantRoutes_.find(envelope.fromDeviceId);
+    const auto source = participantRoutes_.find(envelope->fromDeviceId);
     if (source != participantRoutes_.end() && source->second == key)
         participantRoutes_.erase(source);
-    const auto target = participantRoutes_.find(envelope.toDeviceId);
+    const auto target = participantRoutes_.find(envelope->toDeviceId);
     if (target != participantRoutes_.end() && target->second == key)
         participantRoutes_.erase(target);
-    pending_.erase(entry);
+    if (pending != pending_.end())
+        pending_.erase(pending);
+    if (active != active_.end())
+        active_.erase(active);
 }
 
 void SessionRegistry::removeExpiredLocked(std::chrono::steady_clock::time_point now) {
     for (auto entry = pending_.begin(); entry != pending_.end();) {
+        if (entry->second.expiresAt > now) {
+            ++entry;
+            continue;
+        }
+        const std::string key = entry->first;
+        ++entry;
+        removeLocked(key);
+    }
+    for (auto entry = active_.begin(); entry != active_.end();) {
         if (entry->second.expiresAt > now) {
             ++entry;
             continue;
