@@ -23,6 +23,7 @@ add_executable(easydesk-signal
     src/protocol/session/session_envelope_json.cpp
     src/protocol/session/session_payload.cpp
     src/protocol/session/session_request.cpp
+    src/protocol/session/session_verifier.cpp
     src/protocol/signaling/signed_envelope.cpp
     src/protocol/signaling/signed_envelope_json.cpp
     src/security/crypto/ed25519.cpp
