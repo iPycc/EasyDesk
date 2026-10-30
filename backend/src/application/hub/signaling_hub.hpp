@@ -28,6 +28,7 @@ class SignalingHub final {
 public:
     bool connect(const std::string& deviceId, const std::shared_ptr<SignalingPeer>& peer);
     void disconnect(const std::string& deviceId, const SignalingPeer* peer);
+    bool isOnline(const std::string& deviceId);
 
     std::optional<std::vector<PresenceState>> subscribe(
         const std::string& subscriberId,

@@ -2,6 +2,7 @@
 
 #include "application/hub/signaling_hub.hpp"
 #include "application/session/assist_code_registry.hpp"
+#include "application/session/session_attempt_limiter.hpp"
 #include "infrastructure/devices/device_repository.hpp"
 #include "protocol/encoding/base64url.hpp"
 #include "protocol/registration/registration_json.hpp"
@@ -65,6 +66,13 @@ bool isSessionId(std::string_view value) {
            });
 }
 
+bool isAssistCode(std::string_view value) {
+    return value.size() == 8 &&
+           std::all_of(value.begin(), value.end(), [](unsigned char character) {
+               return std::isdigit(character) != 0;
+           });
+}
+
 bool isPairMessage(std::string_view type) {
     return type == "pair.request" || type == "pair.response" || type == "pair.cancel";
 }
@@ -74,14 +82,16 @@ bool isPairMessage(std::string_view type) {
 WebSocketSession::WebSocketSession(beast::tcp_stream stream,
                                    devices::DeviceRepository& devices,
                                    hub::SignalingHub& hub,
-                                   session::AssistCodeRegistry& assistCodes)
+                                   session::AssistCodeRegistry& assistCodes,
+                                   session::SessionAttemptLimiter& attemptLimiter)
     : strand_(boost::asio::make_strand(
           static_cast<boost::asio::io_context&>(stream.get_executor().context()))),
       websocket_(std::move(stream)),
       registrationTimer_(strand_),
       devices_(devices),
       hub_(hub),
-      assistCodes_(assistCodes) {}
+      assistCodes_(assistCodes),
+      attemptLimiter_(attemptLimiter) {}
 
 WebSocketSession::~WebSocketSession() {
     if (connectedToHub_) {
@@ -205,6 +215,8 @@ void WebSocketSession::handleMessage(const std::string& message) {
         handlePresenceSubscription(object);
     } else if (type == "assist.refresh") {
         handleAssistRefresh(object);
+    } else if (type == "assist.resolve") {
+        handleAssistResolve(object);
     } else if (isPairMessage(type)) {
         handleSignedEnvelope(object);
     } else {
@@ -283,6 +295,57 @@ void WebSocketSession::handleAssistRefresh(const boost::json::object& object) {
         return;
     }
     sendAssistCode();
+}
+
+void WebSocketSession::handleAssistResolve(const boost::json::object& object) {
+    if (object.size() != 3 || jsonString(object, "protocol") != protocol::kSessionProtocol) {
+        sendError("E_INVALID_MESSAGE", "assist.resolve requires the session/2 protocol", false);
+        return;
+    }
+    if (assistResolveAttempts_ >= 3) {
+        sendError("E_AUTH_LIMIT", "assist code attempts are exhausted for this connection", false);
+        return;
+    }
+    ++assistResolveAttempts_;
+
+    const auto now = std::chrono::steady_clock::now();
+    const auto outgoing = attemptLimiter_.beginOutgoing(deviceId_, now);
+    if (outgoing == session::AttemptLimitResult::cooldown) {
+        sendError("E_COOLDOWN", "assist code authentication is temporarily unavailable", false);
+        return;
+    }
+    if (outgoing == session::AttemptLimitResult::rateLimited) {
+        sendError("E_RATE_LIMIT", "too many session attempts", false);
+        return;
+    }
+
+    const std::string code = jsonString(object, "code");
+    const auto targetId = isAssistCode(code) ? assistCodes_.resolve(code, now) : std::nullopt;
+    if (!targetId || *targetId == deviceId_) {
+        attemptLimiter_.recordFailure(deviceId_, now);
+        sendError("E_ASSIST_CODE_INVALID", "assist code is invalid or unavailable", false);
+        return;
+    }
+    if (attemptLimiter_.beginIncoming(*targetId, now) != session::AttemptLimitResult::allowed ||
+        !hub_.isOnline(*targetId)) {
+        sendError("E_ASSIST_CODE_UNAVAILABLE", "assist code is invalid or unavailable", false);
+        return;
+    }
+
+    const auto targetIdentity = devices_.findIdentity(*targetId);
+    if (!targetIdentity) {
+        sendError("E_ASSIST_CODE_UNAVAILABLE", "assist code is invalid or unavailable", false);
+        return;
+    }
+    attemptLimiter_.recordSuccess(deviceId_, now);
+
+    boost::json::object response;
+    response["type"] = "assist.resolved";
+    response["protocol"] = protocol::kSessionProtocol;
+    response["device_id"] = targetIdentity->locatorId;
+    response["public_key"] = protocol::encodeBase64Url(targetIdentity->publicKey);
+    response["fingerprint"] = security::sha256Fingerprint(targetIdentity->publicKey);
+    sendJson(std::move(response));
 }
 
 void WebSocketSession::sendAssistCode() {

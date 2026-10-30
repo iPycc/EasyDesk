@@ -41,8 +41,13 @@ http::response<http::string_body> makeResponse(const http::request<http::string_
 HttpSession::HttpSession(boost::asio::ip::tcp::socket socket,
                          devices::DeviceRepository& devices,
                          hub::SignalingHub& hub,
-                         session::AssistCodeRegistry& assistCodes)
-    : stream_(std::move(socket)), devices_(devices), hub_(hub), assistCodes_(assistCodes) {
+                         session::AssistCodeRegistry& assistCodes,
+                         session::SessionAttemptLimiter& attemptLimiter)
+    : stream_(std::move(socket)),
+      devices_(devices),
+      hub_(hub),
+      assistCodes_(assistCodes),
+      attemptLimiter_(attemptLimiter) {
     parser_.body_limit(16 * 1024);
 }
 
@@ -64,7 +69,8 @@ void HttpSession::readRequest() {
                          if (boost::beast::websocket::is_upgrade(request) && target == "/ws") {
                              self->stream_.expires_never();
                              std::make_shared<WebSocketSession>(std::move(self->stream_), self->devices_,
-                                                                self->hub_, self->assistCodes_)
+                                                                self->hub_, self->assistCodes_,
+                                                                self->attemptLimiter_)
                                  ->accept(std::move(request));
                              return;
                          }

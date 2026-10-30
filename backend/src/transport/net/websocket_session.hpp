@@ -28,6 +28,7 @@ class SignalingHub;
 
 namespace easydesk::session {
 class AssistCodeRegistry;
+class SessionAttemptLimiter;
 }
 
 namespace easydesk::net {
@@ -40,7 +41,8 @@ public:
     WebSocketSession(boost::beast::tcp_stream stream,
                      devices::DeviceRepository& devices,
                      hub::SignalingHub& hub,
-                     session::AssistCodeRegistry& assistCodes);
+                     session::AssistCodeRegistry& assistCodes,
+                     session::SessionAttemptLimiter& attemptLimiter);
     ~WebSocketSession() override;
 
     void accept(Request request);
@@ -56,6 +58,7 @@ private:
     void handlePresenceSubscription(const boost::json::object& object);
     void handleSignedEnvelope(const boost::json::object& object);
     void handleAssistRefresh(const boost::json::object& object);
+    void handleAssistResolve(const boost::json::object& object);
     void sendAssistCode();
 
     void sendJson(boost::json::object message);
@@ -71,6 +74,7 @@ private:
     devices::DeviceRepository& devices_;
     hub::SignalingHub& hub_;
     session::AssistCodeRegistry& assistCodes_;
+    session::SessionAttemptLimiter& attemptLimiter_;
     boost::beast::flat_buffer buffer_;
     std::deque<std::shared_ptr<const std::string>> outbound_;
     std::string nonce_;
@@ -78,6 +82,7 @@ private:
     std::vector<std::uint8_t> publicKey_;
     std::unordered_map<std::string, std::uint64_t> replayWindows_;
     std::deque<std::chrono::steady_clock::time_point> pairRequestTimes_;
+    std::size_t assistResolveAttempts_ = 0;
     std::int64_t challengeExpiresAt_ = 0;
     boost::beast::websocket::close_reason closeReason_;
     bool registered_ = false;

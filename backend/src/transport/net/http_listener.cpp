@@ -14,8 +14,13 @@ HttpListener::HttpListener(boost::asio::io_context& context,
                            const boost::asio::ip::tcp::endpoint& endpoint,
                            devices::DeviceRepository& devices,
                            hub::SignalingHub& hub,
-                           session::AssistCodeRegistry& assistCodes)
-    : acceptor_(context), devices_(devices), hub_(hub), assistCodes_(assistCodes) {
+                           session::AssistCodeRegistry& assistCodes,
+                           session::SessionAttemptLimiter& attemptLimiter)
+    : acceptor_(context),
+      devices_(devices),
+      hub_(hub),
+      assistCodes_(assistCodes),
+      attemptLimiter_(attemptLimiter) {
     boost::system::error_code error;
 
     acceptor_.open(endpoint.protocol(), error);
@@ -48,7 +53,7 @@ void HttpListener::accept() {
                                                        boost::asio::ip::tcp::socket socket) {
         if (!error) {
             std::make_shared<HttpSession>(std::move(socket), self->devices_, self->hub_,
-                                          self->assistCodes_)
+                                          self->assistCodes_, self->attemptLimiter_)
                 ->run();
         } else if (error != boost::asio::error::operation_aborted) {
             std::cerr << "accept failed: " << error.message() << '\n';

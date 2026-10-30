@@ -18,6 +18,7 @@ class SignalingHub;
 
 namespace easydesk::session {
 class AssistCodeRegistry;
+class SessionAttemptLimiter;
 }
 
 namespace easydesk::net {
@@ -28,7 +29,8 @@ public:
                  const boost::asio::ip::tcp::endpoint& endpoint,
                  devices::DeviceRepository& devices,
                  hub::SignalingHub& hub,
-                 session::AssistCodeRegistry& assistCodes);
+                 session::AssistCodeRegistry& assistCodes,
+                 session::SessionAttemptLimiter& attemptLimiter);
 
     void run();
 
@@ -39,6 +41,7 @@ private:
     devices::DeviceRepository& devices_;
     hub::SignalingHub& hub_;
     session::AssistCodeRegistry& assistCodes_;
+    session::SessionAttemptLimiter& attemptLimiter_;
 };
 
 }  // namespace easydesk::net

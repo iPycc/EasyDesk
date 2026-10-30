@@ -1,6 +1,7 @@
 #include "application/config/application_config.hpp"
 #include "application/hub/signaling_hub.hpp"
 #include "application/session/assist_code_registry.hpp"
+#include "application/session/session_attempt_limiter.hpp"
 #include "infrastructure/devices/device_repository.hpp"
 #include "infrastructure/storage/sqlite_database.hpp"
 #include "transport/net/http_listener.hpp"
@@ -30,13 +31,14 @@ int main() {
         devices.migrate();
         easydesk::hub::SignalingHub hub;
         easydesk::session::AssistCodeRegistry assistCodes;
+        easydesk::session::SessionAttemptLimiter attemptLimiter;
 
         boost::asio::io_context context(static_cast<int>(config.workerThreads));
 
         const auto address = boost::asio::ip::make_address(config.bindAddress);
         const boost::asio::ip::tcp::endpoint endpoint(address, config.port);
         std::make_shared<easydesk::net::HttpListener>(context, endpoint, devices, hub,
-                                                      assistCodes)
+                                                      assistCodes, attemptLimiter)
             ->run();
 
         boost::asio::signal_set signals(context, SIGINT, SIGTERM);

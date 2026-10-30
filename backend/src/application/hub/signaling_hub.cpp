@@ -46,6 +46,12 @@ void SignalingHub::disconnect(const std::string& deviceId, const SignalingPeer* 
     announce(watchers, deviceId, false);
 }
 
+bool SignalingHub::isOnline(const std::string& deviceId) {
+    const std::scoped_lock lock(mutex_);
+    const auto connection = connections_.find(deviceId);
+    return connection != connections_.end() && !connection->second.peer.expired();
+}
+
 std::optional<std::vector<PresenceState>> SignalingHub::subscribe(
     const std::string& subscriberId,
     const SignalingPeer* subscriber,
