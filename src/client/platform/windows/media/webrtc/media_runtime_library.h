@@ -1,8 +1,11 @@
 #pragma once
 
-#include "easydesk_media_abi.h"
-
 #include <QString>
+#include <memory>
+
+class MediaSession;
+struct MediaSessionConfig;
+struct MediaRuntimeState;
 
 class MediaRuntimeLibrary final {
   public:
@@ -16,22 +19,12 @@ class MediaRuntimeLibrary final {
     void stop();
 
     bool isReady() const;
+    std::unique_ptr<MediaSession> createSession(const MediaSessionConfig &config);
     QString errorString() const;
     QString libraryPath() const;
 
   private:
-    using AbiVersionFunction = uint32_t (*)();
-    using RuntimeCreateFunction = EasyDeskMediaStatus (*)(
-        const EasyDeskMediaRuntimeConfig *, EasyDeskMediaRuntime **, EasyDeskMediaError *);
-    using RuntimeIsReadyFunction = int32_t (*)(const EasyDeskMediaRuntime *);
-    using RuntimeDestroyFunction = void (*)(EasyDeskMediaRuntime *);
-
-    void *m_module = nullptr;
-    EasyDeskMediaRuntime *m_runtime = nullptr;
-    AbiVersionFunction m_abiVersion = nullptr;
-    RuntimeCreateFunction m_create = nullptr;
-    RuntimeIsReadyFunction m_isReady = nullptr;
-    RuntimeDestroyFunction m_destroy = nullptr;
+    std::shared_ptr<MediaRuntimeState> m_state;
     QString m_libraryPath;
     QString m_error;
 };

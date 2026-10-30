@@ -27,7 +27,9 @@ SOURCES += \
     src/client/platform/windows/input/send_input_executor.cpp \
     src/client/platform/windows/input/windows_input_controller.cpp \
     src/client/platform/windows/media/capture/dxgi_desktop_capture.cpp \
+    src/client/platform/windows/media/webrtc/media_runtime_state.cpp \
     src/client/platform/windows/media/webrtc/media_runtime_library.cpp \
+    src/client/platform/windows/media/webrtc/media_session.cpp \
     src/client/presentation/ui/components/controls.cpp \
     src/client/presentation/ui/components/desktop_view.cpp \
     src/client/presentation/ui/components/device_list.cpp \
@@ -73,7 +75,10 @@ HEADERS += \
     src/client/platform/windows/input/windows_input_controller.h \
     src/client/platform/windows/media/capture/desktop_capture_frame.h \
     src/client/platform/windows/media/capture/dxgi_desktop_capture.h \
+    src/client/platform/windows/media/webrtc/media_api.h \
     src/client/platform/windows/media/webrtc/media_runtime_library.h \
+    src/client/platform/windows/media/webrtc/media_runtime_state.h \
+    src/client/platform/windows/media/webrtc/media_session.h \
     src/media/bridge/include/easydesk_media_abi.h \
     src/client/presentation/ui/components/controls.h \
     src/client/presentation/ui/components/desktop_view.h \

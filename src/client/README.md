@@ -33,7 +33,7 @@
 
 `DesktopView` 是原生 QWidget/HWND 渲染目标。当前只绘制离线/等待状态，不生成桌面内容。媒体实现应绑定 `winId()`，不得通过 UI 层逐帧传递像素。
 
-`MediaRuntimeLibrary` 只从应用目录动态加载 `easydesk_media.dll`，校验 ABI 后创建唯一 WebRTC 运行时。Qt/MSVC 与 WebRTC/Clang 之间不交换 C++ 对象；媒体 DLL 缺失或初始化失败时保持未就绪，不伪造连接能力。
+`MediaRuntimeLibrary` 只从应用目录动态加载 `easydesk_media.dll`，一次校验 ABI v2 的全部导出后创建唯一 WebRTC 运行时。`MediaSession` 将 16 字节 session ID、epoch、权限、ICE server 和事件缓冲映射为 C POD；Qt/MSVC 与 WebRTC/Clang 之间不交换 C++ 对象。运行时由会话共享持有，最后一个会话销毁前不会卸载 DLL。媒体 DLL 缺失、导出不全或初始化失败时保持未就绪，不伪造连接能力。
 
 ## 文件传输
 

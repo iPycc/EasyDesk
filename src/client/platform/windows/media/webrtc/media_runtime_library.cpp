@@ -1,9 +1,14 @@
 #include "media/webrtc/media_runtime_library.h"
 
+#include "media/webrtc/media_runtime_state.h"
+#include "media/webrtc/media_session.h"
+
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 
+#include <cstring>
+#include <utility>
 #include <windows.h>
 
 namespace {
@@ -27,6 +32,17 @@ Function resolveFunction(HMODULE module, const char *name) {
     return reinterpret_cast<Function>(GetProcAddress(module, name));
 }
 
+uint64_t capabilityMask(SessionCapabilities capabilities) {
+    uint64_t mask = 0;
+    if (capabilities.testFlag(SessionCapability::ViewDesktop))
+        mask |= EASYDESK_MEDIA_CAPABILITY_VIEW_SCREEN;
+    if (capabilities.testFlag(SessionCapability::ControlInput))
+        mask |= EASYDESK_MEDIA_CAPABILITY_SEND_INPUT;
+    if (capabilities.testFlag(SessionCapability::TransferFiles))
+        mask |= EASYDESK_MEDIA_CAPABILITY_TRANSFER_FILES;
+    return mask;
+}
+
 }  // namespace
 
 MediaRuntimeLibrary::~MediaRuntimeLibrary() {
@@ -42,6 +58,7 @@ bool MediaRuntimeLibrary::start(const QString &libraryPath) {
                               .absoluteFilePath(QStringLiteral("easydesk_media.dll"))
                         : QFileInfo(libraryPath).absoluteFilePath();
 
+    auto state = std::make_shared<MediaRuntimeState>();
     const HMODULE module = LoadLibraryW(reinterpret_cast<const wchar_t *>(m_libraryPath.utf16()));
     if (module == nullptr) {
         m_error = QStringLiteral("Cannot load %1: %2")
@@ -49,27 +66,46 @@ bool MediaRuntimeLibrary::start(const QString &libraryPath) {
                            windowsErrorMessage(GetLastError()));
         return false;
     }
-    m_module = module;
+    state->module = module;
 
-    m_abiVersion = resolveFunction<AbiVersionFunction>(module, "easydesk_media_abi_version");
-    m_create = resolveFunction<RuntimeCreateFunction>(module, "easydesk_media_runtime_create");
-    m_isReady =
-        resolveFunction<RuntimeIsReadyFunction>(module, "easydesk_media_runtime_is_ready");
-    m_destroy =
-        resolveFunction<RuntimeDestroyFunction>(module, "easydesk_media_runtime_destroy");
-    if (m_abiVersion == nullptr || m_create == nullptr || m_isReady == nullptr ||
-        m_destroy == nullptr) {
+    MediaApi &api = state->api;
+    api.abiVersion = resolveFunction<MediaApi::AbiVersionFunction>(
+        module, "easydesk_media_abi_version");
+    api.runtimeCreate = resolveFunction<MediaApi::RuntimeCreateFunction>(
+        module, "easydesk_media_runtime_create");
+    api.runtimeIsReady = resolveFunction<MediaApi::RuntimeIsReadyFunction>(
+        module, "easydesk_media_runtime_is_ready");
+    api.runtimeDestroy = resolveFunction<MediaApi::RuntimeDestroyFunction>(
+        module, "easydesk_media_runtime_destroy");
+    api.sessionCreate = resolveFunction<MediaApi::SessionCreateFunction>(
+        module, "easydesk_media_session_create");
+    api.sessionCreateOffer = resolveFunction<MediaApi::SessionActionFunction>(
+        module, "easydesk_media_session_create_offer");
+    api.sessionCreateAnswer = resolveFunction<MediaApi::SessionActionFunction>(
+        module, "easydesk_media_session_create_answer");
+    api.sessionSetRemoteDescription =
+        resolveFunction<MediaApi::SessionSetRemoteDescriptionFunction>(
+            module, "easydesk_media_session_set_remote_description");
+    api.sessionAddIceCandidate = resolveFunction<MediaApi::SessionAddIceCandidateFunction>(
+        module, "easydesk_media_session_add_ice_candidate");
+    api.sessionSetPermissions = resolveFunction<MediaApi::SessionSetPermissionsFunction>(
+        module, "easydesk_media_session_set_permissions");
+    api.sessionPollEvent = resolveFunction<MediaApi::SessionPollEventFunction>(
+        module, "easydesk_media_session_poll_event");
+    api.sessionClose = resolveFunction<MediaApi::SessionActionFunction>(
+        module, "easydesk_media_session_close");
+    api.sessionDestroy = resolveFunction<MediaApi::SessionDestroyFunction>(
+        module, "easydesk_media_session_destroy");
+    if (!api.complete()) {
         m_error = QStringLiteral("Media runtime ABI exports are incomplete.");
-        stop();
         return false;
     }
 
-    const uint32_t actualAbiVersion = m_abiVersion();
+    const uint32_t actualAbiVersion = api.abiVersion();
     if (actualAbiVersion != EASYDESK_MEDIA_ABI_VERSION) {
         m_error = QStringLiteral("Media runtime ABI mismatch: expected %1, found %2.")
                       .arg(EASYDESK_MEDIA_ABI_VERSION)
                       .arg(actualAbiVersion);
-        stop();
         return false;
     }
 
@@ -78,39 +114,99 @@ bool MediaRuntimeLibrary::start(const QString &libraryPath) {
     config.abi_version = EASYDESK_MEDIA_ABI_VERSION;
     EasyDeskMediaError error{};
     error.size = sizeof(error);
-    const EasyDeskMediaStatus status = m_create(&config, &m_runtime, &error);
-    if (status != EASYDESK_MEDIA_STATUS_OK || m_runtime == nullptr) {
+    const EasyDeskMediaStatus status = api.runtimeCreate(&config, &state->runtime, &error);
+    if (status != EASYDESK_MEDIA_STATUS_OK || state->runtime == nullptr) {
         m_error = QString::fromUtf8(error.message).trimmed();
         if (m_error.isEmpty())
             m_error = QStringLiteral("Media runtime initialization failed with status %1.")
                           .arg(static_cast<int>(status));
-        stop();
         return false;
     }
-    if (m_isReady(m_runtime) != 1) {
+    if (api.runtimeIsReady(state->runtime) != 1) {
         m_error = QStringLiteral("Media runtime did not become ready.");
-        stop();
         return false;
     }
+
+    m_state = std::move(state);
     return true;
 }
 
 void MediaRuntimeLibrary::stop() {
-    if (m_runtime != nullptr && m_destroy != nullptr)
-        m_destroy(m_runtime);
-    m_runtime = nullptr;
-
-    if (m_module != nullptr)
-        FreeLibrary(static_cast<HMODULE>(m_module));
-    m_module = nullptr;
-    m_abiVersion = nullptr;
-    m_create = nullptr;
-    m_isReady = nullptr;
-    m_destroy = nullptr;
+    m_state.reset();
 }
 
 bool MediaRuntimeLibrary::isReady() const {
-    return m_runtime != nullptr && m_isReady != nullptr && m_isReady(m_runtime) == 1;
+    return m_state && m_state->runtime &&
+           m_state->api.runtimeIsReady(m_state->runtime) == 1;
+}
+
+std::unique_ptr<MediaSession>
+MediaRuntimeLibrary::createSession(const MediaSessionConfig &config) {
+    if (!isReady()) {
+        m_error = QStringLiteral("Media runtime is not ready.");
+        return nullptr;
+    }
+    if (config.sessionId.size() != EASYDESK_MEDIA_SESSION_ID_SIZE) {
+        m_error = QStringLiteral("Media session ID must contain exactly 16 bytes.");
+        return nullptr;
+    }
+
+    QVector<QByteArray> urls;
+    QVector<QByteArray> usernames;
+    QVector<QByteArray> credentials;
+    urls.reserve(config.iceServers.size());
+    usernames.reserve(config.iceServers.size());
+    credentials.reserve(config.iceServers.size());
+    for (const MediaIceServer &server : config.iceServers) {
+        urls.push_back(server.url.toUtf8());
+        usernames.push_back(server.username.toUtf8());
+        credentials.push_back(server.credential.toUtf8());
+    }
+
+    QVector<EasyDeskMediaIceServerConfig> nativeIceServers;
+    nativeIceServers.reserve(config.iceServers.size());
+    for (int index = 0; index < config.iceServers.size(); ++index) {
+        EasyDeskMediaIceServerConfig server{};
+        server.size = sizeof(server);
+        server.url_utf8 = urls[index].constData();
+        server.url_size = static_cast<uint32_t>(urls[index].size());
+        server.username_utf8 = usernames[index].constData();
+        server.username_size = static_cast<uint32_t>(usernames[index].size());
+        server.credential_utf8 = credentials[index].constData();
+        server.credential_size = static_cast<uint32_t>(credentials[index].size());
+        nativeIceServers.push_back(server);
+    }
+
+    EasyDeskMediaSessionConfig native{};
+    native.size = sizeof(native);
+    native.abi_version = EASYDESK_MEDIA_ABI_VERSION;
+    std::memcpy(native.session_id, config.sessionId.constData(), EASYDESK_MEDIA_SESSION_ID_SIZE);
+    native.session_epoch = config.sessionEpoch;
+    native.permission_epoch = config.permissionEpoch;
+    native.capabilities = capabilityMask(config.capabilities);
+    native.role = config.role == SessionRole::Controller
+                      ? EASYDESK_MEDIA_SESSION_ROLE_CONTROLLER
+                      : EASYDESK_MEDIA_SESSION_ROLE_CONTROLLED;
+    native.ice_generation = config.iceGeneration;
+    native.ice_servers = nativeIceServers.isEmpty() ? nullptr : nativeIceServers.constData();
+    native.ice_server_count = static_cast<uint32_t>(nativeIceServers.size());
+    native.event_queue_capacity_bytes = config.eventQueueCapacityBytes;
+
+    EasyDeskMediaError error{};
+    error.size = sizeof(error);
+    EasyDeskMediaSession *session = nullptr;
+    const EasyDeskMediaStatus status =
+        m_state->api.sessionCreate(m_state->runtime, &native, &session, &error);
+    if (status != EASYDESK_MEDIA_STATUS_OK || session == nullptr) {
+        m_error = QString::fromUtf8(error.message).trimmed();
+        if (m_error.isEmpty())
+            m_error = QStringLiteral("Media session creation failed with status %1.")
+                          .arg(static_cast<int>(status));
+        return nullptr;
+    }
+
+    m_error.clear();
+    return std::unique_ptr<MediaSession>(new MediaSession(m_state, session));
 }
 
 QString MediaRuntimeLibrary::errorString() const {
