@@ -2,6 +2,7 @@
 
 #include "protocol/session/session_accept.hpp"
 #include "protocol/session/session_candidate.hpp"
+#include "protocol/session/session_decision.hpp"
 #include "protocol/session/session_description.hpp"
 #include "protocol/session/session_envelope.hpp"
 #include "protocol/session/session_request.hpp"
@@ -28,6 +29,16 @@ struct VerifiedSessionAccept {
     SessionAcceptPayload payload;
 };
 
+struct VerifiedSessionReject {
+    SessionEnvelope envelope;
+    SessionRejectPayload payload;
+};
+
+struct VerifiedSessionCancel {
+    SessionEnvelope envelope;
+    SessionCancelPayload payload;
+};
+
 struct VerifiedSessionOffer {
     SessionEnvelope envelope;
     SessionOfferPayload payload;
@@ -52,6 +63,10 @@ using SessionRequestVerificationResult =
     std::variant<VerifiedSessionRequest, SessionVerificationError>;
 using SessionAcceptVerificationResult =
     std::variant<VerifiedSessionAccept, SessionVerificationError>;
+using SessionRejectVerificationResult =
+    std::variant<VerifiedSessionReject, SessionVerificationError>;
+using SessionCancelVerificationResult =
+    std::variant<VerifiedSessionCancel, SessionVerificationError>;
 using SessionOfferVerificationResult =
     std::variant<VerifiedSessionOffer, SessionVerificationError>;
 using SessionAnswerVerificationResult =
@@ -66,6 +81,12 @@ SessionRequestVerificationResult verifySessionRequest(
     const SessionPublicKey& registeredSourcePublicKey,
     const SessionPublicKey& registeredTargetPublicKey);
 SessionAcceptVerificationResult verifySessionAccept(
+    const SessionEnvelope& envelope,
+    const VerifiedSessionRequest& request);
+SessionRejectVerificationResult verifySessionReject(
+    const SessionEnvelope& envelope,
+    const VerifiedSessionRequest& request);
+SessionCancelVerificationResult verifySessionCancel(
     const SessionEnvelope& envelope,
     const VerifiedSessionRequest& request);
 SessionOfferVerificationResult verifySessionOffer(

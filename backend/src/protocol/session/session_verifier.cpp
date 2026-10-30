@@ -106,6 +106,60 @@ SessionAcceptVerificationResult verifySessionAccept(
     return VerifiedSessionAccept{.envelope = envelope, .payload = std::move(*payload)};
 }
 
+SessionRejectVerificationResult verifySessionReject(
+    const SessionEnvelope& envelope,
+    const VerifiedSessionRequest& request) {
+    if (envelope.type != SessionMessageType::reject)
+        return SessionVerificationError::wrongMessageType;
+    if (envelope.sequence != 1 || envelope.sessionEpoch || envelope.iceGeneration ||
+        envelope.fromDeviceId != request.envelope.toDeviceId ||
+        envelope.toDeviceId != request.envelope.fromDeviceId ||
+        envelope.requestId != request.envelope.requestId ||
+        envelope.sessionId != request.envelope.sessionId) {
+        return SessionVerificationError::invalidRoute;
+    }
+    if (!security::verifyEd25519(request.payload.targetPublicKey, envelope.signedPayload,
+                                 envelope.signature)) {
+        return SessionVerificationError::invalidSignature;
+    }
+
+    auto payload = parseSessionRejectPayload(envelope.signedPayload);
+    if (!payload)
+        return SessionVerificationError::invalidPayload;
+    if (payload->requestDigest != sessionPayloadDigest(request.envelope.signedPayload) ||
+        payload->sequence != envelope.sequence || payload->expiresAt != envelope.expiresAt) {
+        return SessionVerificationError::envelopeMismatch;
+    }
+    return VerifiedSessionReject{.envelope = envelope, .payload = std::move(*payload)};
+}
+
+SessionCancelVerificationResult verifySessionCancel(
+    const SessionEnvelope& envelope,
+    const VerifiedSessionRequest& request) {
+    if (envelope.type != SessionMessageType::cancel)
+        return SessionVerificationError::wrongMessageType;
+    if (envelope.sequence != 1 || envelope.sessionEpoch || envelope.iceGeneration ||
+        envelope.fromDeviceId != request.envelope.fromDeviceId ||
+        envelope.toDeviceId != request.envelope.toDeviceId ||
+        envelope.requestId != request.envelope.requestId ||
+        envelope.sessionId != request.envelope.sessionId) {
+        return SessionVerificationError::invalidRoute;
+    }
+    if (!security::verifyEd25519(request.payload.requesterPublicKey, envelope.signedPayload,
+                                 envelope.signature)) {
+        return SessionVerificationError::invalidSignature;
+    }
+
+    auto payload = parseSessionCancelPayload(envelope.signedPayload);
+    if (!payload)
+        return SessionVerificationError::invalidPayload;
+    if (payload->requestDigest != sessionPayloadDigest(request.envelope.signedPayload) ||
+        payload->sequence != envelope.sequence || payload->expiresAt != envelope.expiresAt) {
+        return SessionVerificationError::envelopeMismatch;
+    }
+    return VerifiedSessionCancel{.envelope = envelope, .payload = std::move(*payload)};
+}
+
 SessionOfferVerificationResult verifySessionOffer(
     const SessionEnvelope& envelope,
     const VerifiedSessionRequest& request,
