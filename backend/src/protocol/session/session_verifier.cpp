@@ -2,9 +2,54 @@
 
 #include "security/crypto/ed25519.hpp"
 
+#include <optional>
 #include <utility>
 
 namespace easydesk::protocol {
+namespace {
+
+struct SessionSignalBinding {
+    const SessionPublicKey* signerPublicKey;
+    SessionDigest descriptionDigest;
+    std::uint32_t iceGeneration;
+    std::uint64_t descriptionSequence;
+};
+
+std::optional<SessionSignalBinding> sessionSignalBinding(
+    const SessionEnvelope& envelope,
+    const VerifiedSessionRequest& request,
+    const VerifiedSessionAccept& accept,
+    const VerifiedSessionOffer& offer,
+    const VerifiedSessionAnswer* answer) {
+    if (!envelope.sessionEpoch || !envelope.iceGeneration ||
+        envelope.requestId != request.envelope.requestId ||
+        envelope.sessionId != request.envelope.sessionId ||
+        *envelope.sessionEpoch != accept.payload.sessionEpoch) {
+        return std::nullopt;
+    }
+
+    if (envelope.fromDeviceId == request.envelope.fromDeviceId &&
+        envelope.toDeviceId == request.envelope.toDeviceId) {
+        return SessionSignalBinding{
+            .signerPublicKey = &request.payload.requesterPublicKey,
+            .descriptionDigest = sessionPayloadDigest(offer.envelope.signedPayload),
+            .iceGeneration = offer.payload.iceGeneration,
+            .descriptionSequence = offer.envelope.sequence,
+        };
+    }
+    if (answer && envelope.fromDeviceId == request.envelope.toDeviceId &&
+        envelope.toDeviceId == request.envelope.fromDeviceId) {
+        return SessionSignalBinding{
+            .signerPublicKey = &request.payload.targetPublicKey,
+            .descriptionDigest = sessionPayloadDigest(answer->envelope.signedPayload),
+            .iceGeneration = answer->payload.iceGeneration,
+            .descriptionSequence = answer->envelope.sequence,
+        };
+    }
+    return std::nullopt;
+}
+
+}  // namespace
 
 SessionRequestVerificationResult verifySessionRequest(
     const SessionEnvelope& envelope,
@@ -121,6 +166,69 @@ SessionAnswerVerificationResult verifySessionAnswer(
         return SessionVerificationError::envelopeMismatch;
     }
     return VerifiedSessionAnswer{.envelope = envelope, .payload = std::move(*payload)};
+}
+
+SessionCandidatesVerificationResult verifySessionCandidates(
+    const SessionEnvelope& envelope,
+    const VerifiedSessionRequest& request,
+    const VerifiedSessionAccept& accept,
+    const VerifiedSessionOffer& offer,
+    const VerifiedSessionAnswer* answer) {
+    if (envelope.type != SessionMessageType::candidates)
+        return SessionVerificationError::wrongMessageType;
+
+    const auto binding = sessionSignalBinding(envelope, request, accept, offer, answer);
+    if (!binding || envelope.sequence <= binding->descriptionSequence ||
+        *envelope.iceGeneration != binding->iceGeneration) {
+        return SessionVerificationError::invalidRoute;
+    }
+    if (!security::verifyEd25519(*binding->signerPublicKey, envelope.signedPayload,
+                                 envelope.signature)) {
+        return SessionVerificationError::invalidSignature;
+    }
+
+    auto payload = parseSessionCandidatesPayload(envelope.signedPayload);
+    if (!payload)
+        return SessionVerificationError::invalidPayload;
+    if (payload->descriptionDigest != binding->descriptionDigest ||
+        payload->iceGeneration != binding->iceGeneration ||
+        payload->sequence != envelope.sequence || payload->expiresAt != envelope.expiresAt) {
+        return SessionVerificationError::envelopeMismatch;
+    }
+    return VerifiedSessionCandidates{.envelope = envelope, .payload = std::move(*payload)};
+}
+
+SessionGatheringCompleteVerificationResult verifySessionGatheringComplete(
+    const SessionEnvelope& envelope,
+    const VerifiedSessionRequest& request,
+    const VerifiedSessionAccept& accept,
+    const VerifiedSessionOffer& offer,
+    const VerifiedSessionAnswer* answer) {
+    if (envelope.type != SessionMessageType::gatheringComplete)
+        return SessionVerificationError::wrongMessageType;
+
+    const auto binding = sessionSignalBinding(envelope, request, accept, offer, answer);
+    if (!binding || envelope.sequence <= binding->descriptionSequence ||
+        *envelope.iceGeneration != binding->iceGeneration) {
+        return SessionVerificationError::invalidRoute;
+    }
+    if (!security::verifyEd25519(*binding->signerPublicKey, envelope.signedPayload,
+                                 envelope.signature)) {
+        return SessionVerificationError::invalidSignature;
+    }
+
+    auto payload = parseSessionGatheringCompletePayload(envelope.signedPayload);
+    if (!payload)
+        return SessionVerificationError::invalidPayload;
+    if (payload->descriptionDigest != binding->descriptionDigest ||
+        payload->iceGeneration != binding->iceGeneration ||
+        payload->sequence != envelope.sequence || payload->expiresAt != envelope.expiresAt) {
+        return SessionVerificationError::envelopeMismatch;
+    }
+    return VerifiedSessionGatheringComplete{
+        .envelope = envelope,
+        .payload = std::move(*payload),
+    };
 }
 
 }  // namespace easydesk::protocol

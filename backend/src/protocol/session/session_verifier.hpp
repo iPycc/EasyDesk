@@ -1,6 +1,7 @@
 #pragma once
 
 #include "protocol/session/session_accept.hpp"
+#include "protocol/session/session_candidate.hpp"
 #include "protocol/session/session_description.hpp"
 #include "protocol/session/session_envelope.hpp"
 #include "protocol/session/session_request.hpp"
@@ -37,6 +38,16 @@ struct VerifiedSessionAnswer {
     SessionAnswerPayload payload;
 };
 
+struct VerifiedSessionCandidates {
+    SessionEnvelope envelope;
+    SessionCandidatesPayload payload;
+};
+
+struct VerifiedSessionGatheringComplete {
+    SessionEnvelope envelope;
+    SessionGatheringCompletePayload payload;
+};
+
 using SessionRequestVerificationResult =
     std::variant<VerifiedSessionRequest, SessionVerificationError>;
 using SessionAcceptVerificationResult =
@@ -45,6 +56,10 @@ using SessionOfferVerificationResult =
     std::variant<VerifiedSessionOffer, SessionVerificationError>;
 using SessionAnswerVerificationResult =
     std::variant<VerifiedSessionAnswer, SessionVerificationError>;
+using SessionCandidatesVerificationResult =
+    std::variant<VerifiedSessionCandidates, SessionVerificationError>;
+using SessionGatheringCompleteVerificationResult =
+    std::variant<VerifiedSessionGatheringComplete, SessionVerificationError>;
 
 SessionRequestVerificationResult verifySessionRequest(
     const SessionEnvelope& envelope,
@@ -62,5 +77,17 @@ SessionAnswerVerificationResult verifySessionAnswer(
     const VerifiedSessionRequest& request,
     const VerifiedSessionAccept& accept,
     const VerifiedSessionOffer& offer);
+SessionCandidatesVerificationResult verifySessionCandidates(
+    const SessionEnvelope& envelope,
+    const VerifiedSessionRequest& request,
+    const VerifiedSessionAccept& accept,
+    const VerifiedSessionOffer& offer,
+    const VerifiedSessionAnswer* answer);
+SessionGatheringCompleteVerificationResult verifySessionGatheringComplete(
+    const SessionEnvelope& envelope,
+    const VerifiedSessionRequest& request,
+    const VerifiedSessionAccept& accept,
+    const VerifiedSessionOffer& offer,
+    const VerifiedSessionAnswer* answer);
 
 }  // namespace easydesk::protocol
