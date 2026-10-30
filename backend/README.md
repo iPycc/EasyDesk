@@ -8,6 +8,7 @@
 | `src/application/hub/` | 在线连接、订阅与消息路由 |
 | `src/infrastructure/devices/` | 设备身份仓储 |
 | `src/infrastructure/storage/` | SQLite 连接与迁移 |
+| `src/protocol/cbor/` | 签名载荷的确定性 CBOR 子集 |
 | `src/protocol/encoding/` | 协议编码工具 |
 | `src/protocol/registration/` | 设备注册验证 |
 | `src/protocol/session/` | `session/2` 会话信封与消息边界 |

@@ -13,6 +13,7 @@ add_executable(easydesk-signal
     src/application/hub/signaling_hub.cpp
     src/infrastructure/devices/device_repository.cpp
     src/infrastructure/storage/sqlite_database.cpp
+    src/protocol/cbor/deterministic_cbor.cpp
     src/protocol/encoding/base64url.cpp
     src/protocol/registration/registration.cpp
     src/protocol/registration/registration_json.cpp
