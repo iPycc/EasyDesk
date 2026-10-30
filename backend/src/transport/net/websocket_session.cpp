@@ -2,14 +2,10 @@
 
 #include "application/hub/signaling_hub.hpp"
 #include "application/session/assist_code_registry.hpp"
-#include "application/session/session_attempt_limiter.hpp"
 #include "application/session/session_registry.hpp"
 #include "infrastructure/devices/device_repository.hpp"
 #include "protocol/encoding/base64url.hpp"
 #include "protocol/registration/registration_json.hpp"
-#include "protocol/session/session_envelope.hpp"
-#include "protocol/session/session_envelope_json.hpp"
-#include "protocol/session/session_verifier.hpp"
 #include "protocol/signaling/signed_envelope_json.hpp"
 #include "security/crypto/ed25519.hpp"
 #include "security/crypto/random.hpp"
@@ -66,13 +62,6 @@ bool isSessionId(std::string_view value) {
     return value.size() >= 16 && value.size() <= 64 &&
            std::all_of(value.begin(), value.end(), [](unsigned char character) {
                return std::isalnum(character) != 0 || character == '-' || character == '_';
-           });
-}
-
-bool isAssistCode(std::string_view value) {
-    return value.size() == 8 &&
-           std::all_of(value.begin(), value.end(), [](unsigned char character) {
-               return std::isdigit(character) != 0;
            });
 }
 
@@ -295,156 +284,6 @@ void WebSocketSession::handleRegistration(const boost::json::object& object) {
     response["fingerprint"] = security::sha256Fingerprint(envelope.publicKey);
     sendJson(std::move(response));
     sendAssistCode();
-}
-
-void WebSocketSession::handleAssistRefresh(const boost::json::object& object) {
-    if (object.size() != 2 || jsonString(object, "protocol") != protocol::kSessionProtocol) {
-        sendError("E_INVALID_MESSAGE", "assist.refresh requires the session/2 protocol", false);
-        return;
-    }
-    sendAssistCode();
-}
-
-void WebSocketSession::handleAssistResolve(const boost::json::object& object) {
-    if (object.size() != 3 || jsonString(object, "protocol") != protocol::kSessionProtocol) {
-        sendError("E_INVALID_MESSAGE", "assist.resolve requires the session/2 protocol", false);
-        return;
-    }
-    if (assistResolveAttempts_ >= 3) {
-        sendError("E_AUTH_LIMIT", "assist code attempts are exhausted for this connection", false);
-        return;
-    }
-    ++assistResolveAttempts_;
-
-    const auto now = std::chrono::steady_clock::now();
-    const auto outgoing = attemptLimiter_.beginOutgoing(deviceId_, now);
-    if (outgoing == session::AttemptLimitResult::cooldown) {
-        sendError("E_COOLDOWN", "assist code authentication is temporarily unavailable", false);
-        return;
-    }
-    if (outgoing == session::AttemptLimitResult::rateLimited) {
-        sendError("E_RATE_LIMIT", "too many session attempts", false);
-        return;
-    }
-
-    const std::string code = jsonString(object, "code");
-    const auto targetId = isAssistCode(code) ? assistCodes_.resolve(code, now) : std::nullopt;
-    if (!targetId || *targetId == deviceId_) {
-        attemptLimiter_.recordFailure(deviceId_, now);
-        sendError("E_ASSIST_CODE_INVALID", "assist code is invalid or unavailable", false);
-        return;
-    }
-    if (attemptLimiter_.beginIncoming(*targetId, now) != session::AttemptLimitResult::allowed ||
-        !hub_.isOnline(*targetId)) {
-        sendError("E_ASSIST_CODE_UNAVAILABLE", "assist code is invalid or unavailable", false);
-        return;
-    }
-
-    const auto targetIdentity = devices_.findIdentity(*targetId);
-    if (!targetIdentity) {
-        sendError("E_ASSIST_CODE_UNAVAILABLE", "assist code is invalid or unavailable", false);
-        return;
-    }
-    attemptLimiter_.recordSuccess(deviceId_, now);
-
-    boost::json::object response;
-    response["type"] = "assist.resolved";
-    response["protocol"] = protocol::kSessionProtocol;
-    response["device_id"] = targetIdentity->locatorId;
-    response["public_key"] = protocol::encodeBase64Url(targetIdentity->publicKey);
-    response["fingerprint"] = security::sha256Fingerprint(targetIdentity->publicKey);
-    sendJson(std::move(response));
-}
-
-void WebSocketSession::handleSessionRequest(const boost::json::object& object) {
-    auto parsed = protocol::parseSessionEnvelope(object);
-    if (const auto* protocolError = std::get_if<protocol::ProtocolError>(&parsed)) {
-        sendError(protocolError->code, protocolError->message, false);
-        return;
-    }
-    auto envelope = std::get<protocol::SessionEnvelope>(std::move(parsed));
-    if (envelope.type != protocol::SessionMessageType::request ||
-        envelope.fromDeviceId != deviceId_) {
-        sendError("E_INVALID_ROUTE", "session request route is invalid", false);
-        return;
-    }
-
-    const std::int64_t nowUnix = unixSeconds();
-    if (envelope.expiresAt < nowUnix ||
-        envelope.expiresAt > nowUnix + kTimestampTolerance.count()) {
-        sendError("E_EXPIRED", "session request is expired or too far in the future", false);
-        return;
-    }
-    const auto now = std::chrono::steady_clock::now();
-    if (attemptLimiter_.beginOutgoing(deviceId_, now) != session::AttemptLimitResult::allowed ||
-        attemptLimiter_.beginIncoming(envelope.toDeviceId, now) !=
-            session::AttemptLimitResult::allowed) {
-        sendError("E_RATE_LIMIT", "too many session attempts", false);
-        return;
-    }
-    if (!hub_.isOnline(envelope.toDeviceId)) {
-        sendError("E_TARGET_OFFLINE", "the target device is not online", false);
-        return;
-    }
-    const auto targetIdentity = devices_.findIdentity(envelope.toDeviceId);
-    if (!targetIdentity || publicKey_.size() != protocol::kSessionPublicKeySize) {
-        sendError("E_INVALID_ROUTE", "session request identity is unavailable", false);
-        return;
-    }
-
-    protocol::SessionPublicKey sourcePublicKey{};
-    std::copy(publicKey_.begin(), publicKey_.end(), sourcePublicKey.begin());
-    auto verified = protocol::verifySessionRequest(envelope, sourcePublicKey,
-                                                   targetIdentity->publicKey);
-    if (const auto* error = std::get_if<protocol::SessionVerificationError>(&verified)) {
-        sendError(*error == protocol::SessionVerificationError::invalidSignature
-                      ? "E_SIGNATURE"
-                      : "E_INVALID_SESSION_MESSAGE",
-                  "session request authentication failed", false);
-        return;
-    }
-    auto request = std::get<protocol::VerifiedSessionRequest>(std::move(verified));
-    const auto pending = sessions_.addPending(std::move(request), now);
-    if (pending == session::PendingRequestResult::duplicate) {
-        sendError("E_REPLAY", "session request was already processed", false);
-        return;
-    }
-    if (pending == session::PendingRequestResult::participantBusy) {
-        sendError("E_SESSION_BUSY", "one of the session participants is busy", false);
-        return;
-    }
-
-    const auto routeResult =
-        hub_.route(deviceId_, this, envelope.toDeviceId, protocol::sessionEnvelopeToJson(envelope));
-    if (routeResult != hub::RouteResult::delivered) {
-        sessions_.consumePending(envelope.requestId, envelope.sessionId, deviceId_, now);
-        sendError(routeResult == hub::RouteResult::senderMissing ? "E_CONNECTION_STATE"
-                                                                 : "E_TARGET_OFFLINE",
-                  "session request could not be delivered",
-                  routeResult == hub::RouteResult::senderMissing);
-        return;
-    }
-
-    boost::json::object delivered;
-    delivered["type"] = "session.delivered";
-    delivered["protocol"] = protocol::kSessionProtocol;
-    delivered["message_type"] = protocol::sessionMessageTypeName(envelope.type);
-    delivered["request_id"] = protocol::encodeBase64Url(envelope.requestId);
-    delivered["session_id"] = protocol::encodeBase64Url(envelope.sessionId);
-    delivered["seq"] = envelope.sequence;
-    sendJson(std::move(delivered));
-}
-
-void WebSocketSession::sendAssistCode() {
-    const auto lease = assistCodes_.issue(deviceId_, std::chrono::steady_clock::now());
-    boost::json::object response;
-    response["type"] = "assist.code";
-    response["protocol"] = protocol::kSessionProtocol;
-    response["code"] = lease.code;
-    response["expires_in_seconds"] =
-        std::chrono::duration_cast<std::chrono::seconds>(session::AssistCodeRegistry::kLifetime)
-            .count();
-    sendJson(std::move(response));
 }
 
 void WebSocketSession::handlePresenceSubscription(const boost::json::object& object) {

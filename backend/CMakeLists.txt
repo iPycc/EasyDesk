@@ -33,6 +33,8 @@ add_executable(easydesk-signal
     src/security/crypto/random.cpp
     src/transport/net/http_listener.cpp
     src/transport/net/http_session.cpp
+    src/transport/net/assist/assist_message_handler.cpp
+    src/transport/net/session/session_message_handler.cpp
     src/transport/net/websocket_session.cpp
 )
 
