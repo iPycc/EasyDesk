@@ -17,6 +17,7 @@ add_executable(easydesk-signal
     src/protocol/encoding/base64url.cpp
     src/protocol/registration/registration.cpp
     src/protocol/registration/registration_json.cpp
+    src/protocol/session/session_capability.cpp
     src/protocol/session/session_envelope.cpp
     src/protocol/session/session_envelope_json.cpp
     src/protocol/signaling/signed_envelope.cpp
