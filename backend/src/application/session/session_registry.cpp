@@ -76,6 +76,8 @@ SessionActivationResult SessionRegistry::activate(
             .accept = std::move(accept),
             .offer = std::nullopt,
             .answer = std::nullopt,
+            .requesterGatheringComplete = false,
+            .responderGatheringComplete = false,
         },
         .expiresAt = expiresAt,
         .lastRequesterSequence = 1,
@@ -128,6 +130,8 @@ NegotiationStoreResult SessionRegistry::storeOffer(
     entry->second.iceGeneration = offer.payload.iceGeneration;
     entry->second.session.offer = std::move(offer);
     entry->second.session.answer.reset();
+    entry->second.session.requesterGatheringComplete = false;
+    entry->second.session.responderGatheringComplete = false;
     return NegotiationStoreResult::stored;
 }
 
@@ -152,6 +156,79 @@ NegotiationStoreResult SessionRegistry::storeAnswer(
 
     entry->second.lastResponderSequence = answer.envelope.sequence;
     entry->second.session.answer = std::move(answer);
+    return NegotiationStoreResult::stored;
+}
+
+NegotiationStoreResult SessionRegistry::storeCandidates(
+    protocol::VerifiedSessionCandidates candidates,
+    std::chrono::steady_clock::time_point now) {
+    const std::scoped_lock lock(mutex_);
+    removeExpiredLocked(now);
+    const std::string key = routeKey(candidates.envelope.requestId, candidates.envelope.sessionId);
+    const auto entry = active_.find(key);
+    if (entry == active_.end() || !entry->second.session.offer)
+        return NegotiationStoreResult::missingSession;
+    if (!entry->second.iceGeneration ||
+        candidates.payload.iceGeneration != *entry->second.iceGeneration) {
+        return NegotiationStoreResult::invalidGeneration;
+    }
+
+    auto* lastSequence = &entry->second.lastRequesterSequence;
+    auto* gatheringComplete = &entry->second.session.requesterGatheringComplete;
+    const auto& request = entry->second.session.request.envelope;
+    if (candidates.envelope.fromDeviceId == request.toDeviceId &&
+        candidates.envelope.toDeviceId == request.fromDeviceId) {
+        if (!entry->second.session.answer)
+            return NegotiationStoreResult::invalidGeneration;
+        lastSequence = &entry->second.lastResponderSequence;
+        gatheringComplete = &entry->second.session.responderGatheringComplete;
+    } else if (candidates.envelope.fromDeviceId != request.fromDeviceId ||
+               candidates.envelope.toDeviceId != request.toDeviceId) {
+        return NegotiationStoreResult::missingSession;
+    }
+
+    if (candidates.envelope.sequence <= *lastSequence)
+        return NegotiationStoreResult::replay;
+    if (*gatheringComplete)
+        return NegotiationStoreResult::gatheringComplete;
+    *lastSequence = candidates.envelope.sequence;
+    return NegotiationStoreResult::stored;
+}
+
+NegotiationStoreResult SessionRegistry::storeGatheringComplete(
+    protocol::VerifiedSessionGatheringComplete complete,
+    std::chrono::steady_clock::time_point now) {
+    const std::scoped_lock lock(mutex_);
+    removeExpiredLocked(now);
+    const std::string key = routeKey(complete.envelope.requestId, complete.envelope.sessionId);
+    const auto entry = active_.find(key);
+    if (entry == active_.end() || !entry->second.session.offer)
+        return NegotiationStoreResult::missingSession;
+    if (!entry->second.iceGeneration ||
+        complete.payload.iceGeneration != *entry->second.iceGeneration) {
+        return NegotiationStoreResult::invalidGeneration;
+    }
+
+    auto* lastSequence = &entry->second.lastRequesterSequence;
+    auto* gatheringComplete = &entry->second.session.requesterGatheringComplete;
+    const auto& request = entry->second.session.request.envelope;
+    if (complete.envelope.fromDeviceId == request.toDeviceId &&
+        complete.envelope.toDeviceId == request.fromDeviceId) {
+        if (!entry->second.session.answer)
+            return NegotiationStoreResult::invalidGeneration;
+        lastSequence = &entry->second.lastResponderSequence;
+        gatheringComplete = &entry->second.session.responderGatheringComplete;
+    } else if (complete.envelope.fromDeviceId != request.fromDeviceId ||
+               complete.envelope.toDeviceId != request.toDeviceId) {
+        return NegotiationStoreResult::missingSession;
+    }
+
+    if (complete.envelope.sequence <= *lastSequence)
+        return NegotiationStoreResult::replay;
+    if (*gatheringComplete)
+        return NegotiationStoreResult::gatheringComplete;
+    *lastSequence = complete.envelope.sequence;
+    *gatheringComplete = true;
     return NegotiationStoreResult::stored;
 }
 

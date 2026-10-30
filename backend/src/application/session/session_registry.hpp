@@ -27,6 +27,7 @@ enum class NegotiationStoreResult {
     missingSession,
     replay,
     invalidGeneration,
+    gatheringComplete,
 };
 
 struct ActiveSession {
@@ -34,6 +35,8 @@ struct ActiveSession {
     protocol::VerifiedSessionAccept accept;
     std::optional<protocol::VerifiedSessionOffer> offer;
     std::optional<protocol::VerifiedSessionAnswer> answer;
+    bool requesterGatheringComplete = false;
+    bool responderGatheringComplete = false;
 };
 
 class SessionRegistry final {
@@ -63,6 +66,11 @@ public:
                                       std::chrono::steady_clock::time_point now);
     NegotiationStoreResult storeAnswer(protocol::VerifiedSessionAnswer answer,
                                        std::chrono::steady_clock::time_point now);
+    NegotiationStoreResult storeCandidates(protocol::VerifiedSessionCandidates candidates,
+                                           std::chrono::steady_clock::time_point now);
+    NegotiationStoreResult storeGatheringComplete(
+        protocol::VerifiedSessionGatheringComplete complete,
+        std::chrono::steady_clock::time_point now);
     bool removeSession(const protocol::SessionIdentifier& requestId,
                        const protocol::SessionIdentifier& sessionId,
                        const std::string& participantDeviceId);
