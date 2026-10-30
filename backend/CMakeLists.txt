@@ -11,6 +11,7 @@ add_executable(easydesk-signal
     src/application/main.cpp
     src/application/config/application_config.cpp
     src/application/hub/signaling_hub.cpp
+    src/application/session/assist_code_registry.cpp
     src/infrastructure/devices/device_repository.cpp
     src/infrastructure/storage/sqlite_database.cpp
     src/protocol/cbor/deterministic_cbor.cpp

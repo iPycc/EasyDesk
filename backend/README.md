@@ -6,6 +6,7 @@
 | --- | --- |
 | `src/application/config/` | 启动配置解析 |
 | `src/application/hub/` | 在线连接、订阅与消息路由 |
+| `src/application/session/` | 内存协助码与会话生命周期 |
 | `src/infrastructure/devices/` | 设备身份仓储 |
 | `src/infrastructure/storage/` | SQLite 连接与迁移 |
 | `src/protocol/cbor/` | 签名载荷的确定性 CBOR 子集 |
