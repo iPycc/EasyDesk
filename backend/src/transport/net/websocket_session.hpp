@@ -27,6 +27,7 @@ class SignalingHub;
 }
 
 namespace easydesk::protocol {
+enum class SessionMessageType;
 struct SessionEnvelope;
 }
 
@@ -69,6 +70,8 @@ private:
     void handleSessionAccept(const boost::json::object& object);
     void handleSessionOffer(const boost::json::object& object);
     void handleSessionAnswer(const boost::json::object& object);
+    void handleSessionIceSignal(const boost::json::object& object,
+                                protocol::SessionMessageType expectedType);
     void sendSessionDelivered(const protocol::SessionEnvelope& envelope);
     void sendAssistCode();
 

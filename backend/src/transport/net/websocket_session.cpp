@@ -6,6 +6,7 @@
 #include "infrastructure/devices/device_repository.hpp"
 #include "protocol/encoding/base64url.hpp"
 #include "protocol/registration/registration_json.hpp"
+#include "protocol/session/session_envelope.hpp"
 #include "protocol/signaling/signed_envelope_json.hpp"
 #include "security/crypto/ed25519.hpp"
 #include "security/crypto/random.hpp"
@@ -220,6 +221,10 @@ void WebSocketSession::handleMessage(const std::string& message) {
         handleSessionOffer(object);
     } else if (type == "session.answer") {
         handleSessionAnswer(object);
+    } else if (type == "session.candidates") {
+        handleSessionIceSignal(object, protocol::SessionMessageType::candidates);
+    } else if (type == "session.gathering_complete") {
+        handleSessionIceSignal(object, protocol::SessionMessageType::gatheringComplete);
     } else if (isPairMessage(type)) {
         handleSignedEnvelope(object);
     } else {
