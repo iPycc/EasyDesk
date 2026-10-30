@@ -1,7 +1,9 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <span>
 #include <string>
 
@@ -20,6 +22,11 @@ struct DeviceRegistration {
     std::int64_t registeredAt;
 };
 
+struct DeviceIdentity {
+    std::string locatorId;
+    std::array<std::uint8_t, 32> publicKey;
+};
+
 enum class RegistrationResult {
     created,
     refreshed,
@@ -33,6 +40,7 @@ public:
 
     void migrate();
     RegistrationResult registerDevice(const DeviceRegistration& registration);
+    std::optional<DeviceIdentity> findIdentity(const std::string& locatorId);
     std::int64_t deviceCount();
 
 private:

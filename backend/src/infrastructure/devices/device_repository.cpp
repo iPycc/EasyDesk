@@ -149,6 +149,24 @@ RegistrationResult DeviceRepository::registerDevice(const DeviceRegistration& re
     }
 }
 
+std::optional<DeviceIdentity> DeviceRepository::findIdentity(const std::string& locatorId) {
+    const std::scoped_lock lock(mutex_);
+    if (!isLocatorId(locatorId))
+        return std::nullopt;
+
+    auto query = database_.prepare("SELECT public_key FROM devices WHERE locator_id = ?1;");
+    query.bindText(1, locatorId);
+    if (!query.step())
+        return std::nullopt;
+
+    const auto publicKeyBytes = query.columnBlob(0);
+    if (publicKeyBytes.size() != 32)
+        throw std::runtime_error("stored device public key has an invalid length");
+    DeviceIdentity identity{.locatorId = locatorId, .publicKey = {}};
+    std::copy(publicKeyBytes.begin(), publicKeyBytes.end(), identity.publicKey.begin());
+    return identity;
+}
+
 std::int64_t DeviceRepository::deviceCount() {
     const std::scoped_lock lock(mutex_);
     auto count = database_.prepare("SELECT COUNT(*) FROM devices;");
