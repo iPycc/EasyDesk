@@ -71,6 +71,12 @@ bool MediaRuntimeLibrary::start(const QString &libraryPath) {
     MediaApi &api = state->api;
     api.abiVersion = resolveFunction<MediaApi::AbiVersionFunction>(
         module, "easydesk_media_abi_version");
+    api.identityKeyPair = resolveFunction<MediaApi::IdentityKeyPairFunction>(
+        module, "easydesk_identity_ed25519_keypair_from_seed");
+    api.identitySign = resolveFunction<MediaApi::IdentitySignFunction>(
+        module, "easydesk_identity_ed25519_sign");
+    api.identityVerify = resolveFunction<MediaApi::IdentityVerifyFunction>(
+        module, "easydesk_identity_ed25519_verify");
     api.runtimeCreate = resolveFunction<MediaApi::RuntimeCreateFunction>(
         module, "easydesk_media_runtime_create");
     api.runtimeIsReady = resolveFunction<MediaApi::RuntimeIsReadyFunction>(
@@ -138,6 +144,84 @@ void MediaRuntimeLibrary::stop() {
 bool MediaRuntimeLibrary::isReady() const {
     return m_state && m_state->runtime &&
            m_state->api.runtimeIsReady(m_state->runtime) == 1;
+}
+
+bool MediaRuntimeLibrary::deriveEd25519KeyPair(const QByteArray &seed,
+                                               QByteArray &publicKey,
+                                               QByteArray &privateKey) {
+    publicKey.clear();
+    privateKey.clear();
+    if (!isReady() || seed.size() != EASYDESK_IDENTITY_ED25519_SEED_SIZE) {
+        m_error = QStringLiteral("Ed25519 seed must contain exactly 32 bytes.");
+        return false;
+    }
+
+    publicKey.resize(EASYDESK_IDENTITY_ED25519_PUBLIC_KEY_SIZE);
+    privateKey.resize(EASYDESK_IDENTITY_ED25519_PRIVATE_KEY_SIZE);
+    EasyDeskMediaError error{};
+    error.size = sizeof(error);
+    const auto status = m_state->api.identityKeyPair(
+        reinterpret_cast<const uint8_t *>(seed.constData()),
+        reinterpret_cast<uint8_t *>(publicKey.data()),
+        reinterpret_cast<uint8_t *>(privateKey.data()), &error);
+    if (status != EASYDESK_MEDIA_STATUS_OK) {
+        publicKey.clear();
+        privateKey.fill('\0');
+        privateKey.clear();
+        m_error = QString::fromUtf8(error.message).trimmed();
+        return false;
+    }
+    m_error.clear();
+    return true;
+}
+
+QByteArray MediaRuntimeLibrary::signEd25519(const QByteArray &privateKey,
+                                            const QByteArray &message) {
+    if (!isReady() || privateKey.size() != EASYDESK_IDENTITY_ED25519_PRIVATE_KEY_SIZE) {
+        m_error = QStringLiteral("Ed25519 private key must contain exactly 64 bytes.");
+        return {};
+    }
+
+    QByteArray signature(EASYDESK_IDENTITY_ED25519_SIGNATURE_SIZE, '\0');
+    EasyDeskMediaError error{};
+    error.size = sizeof(error);
+    const auto status = m_state->api.identitySign(
+        reinterpret_cast<const uint8_t *>(privateKey.constData()),
+        reinterpret_cast<const uint8_t *>(message.constData()),
+        static_cast<uint32_t>(message.size()),
+        reinterpret_cast<uint8_t *>(signature.data()), &error);
+    if (status != EASYDESK_MEDIA_STATUS_OK) {
+        signature.fill('\0');
+        signature.clear();
+        m_error = QString::fromUtf8(error.message).trimmed();
+        return {};
+    }
+    m_error.clear();
+    return signature;
+}
+
+bool MediaRuntimeLibrary::verifyEd25519(const QByteArray &publicKey,
+                                        const QByteArray &message,
+                                        const QByteArray &signature) {
+    if (!isReady() || publicKey.size() != EASYDESK_IDENTITY_ED25519_PUBLIC_KEY_SIZE ||
+        signature.size() != EASYDESK_IDENTITY_ED25519_SIGNATURE_SIZE) {
+        m_error = QStringLiteral("Ed25519 verification key or signature length is invalid.");
+        return false;
+    }
+
+    EasyDeskMediaError error{};
+    error.size = sizeof(error);
+    const auto status = m_state->api.identityVerify(
+        reinterpret_cast<const uint8_t *>(publicKey.constData()),
+        reinterpret_cast<const uint8_t *>(message.constData()),
+        static_cast<uint32_t>(message.size()),
+        reinterpret_cast<const uint8_t *>(signature.constData()), &error);
+    if (status != EASYDESK_MEDIA_STATUS_OK) {
+        m_error = QString::fromUtf8(error.message).trimmed();
+        return false;
+    }
+    m_error.clear();
+    return true;
 }
 
 std::unique_ptr<MediaSession>

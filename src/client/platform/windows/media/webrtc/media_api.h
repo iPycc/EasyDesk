@@ -4,6 +4,12 @@
 
 struct MediaApi {
     using AbiVersionFunction = uint32_t (*)();
+    using IdentityKeyPairFunction = EasyDeskMediaStatus (*)(
+        const uint8_t *, uint8_t *, uint8_t *, EasyDeskMediaError *);
+    using IdentitySignFunction = EasyDeskMediaStatus (*)(
+        const uint8_t *, const uint8_t *, uint32_t, uint8_t *, EasyDeskMediaError *);
+    using IdentityVerifyFunction = EasyDeskMediaStatus (*)(
+        const uint8_t *, const uint8_t *, uint32_t, const uint8_t *, EasyDeskMediaError *);
     using RuntimeCreateFunction = EasyDeskMediaStatus (*)(
         const EasyDeskMediaRuntimeConfig *, EasyDeskMediaRuntime **, EasyDeskMediaError *);
     using RuntimeIsReadyFunction = int32_t (*)(const EasyDeskMediaRuntime *);
@@ -27,6 +33,9 @@ struct MediaApi {
     using SessionDestroyFunction = void (*)(EasyDeskMediaSession *);
 
     AbiVersionFunction abiVersion = nullptr;
+    IdentityKeyPairFunction identityKeyPair = nullptr;
+    IdentitySignFunction identitySign = nullptr;
+    IdentityVerifyFunction identityVerify = nullptr;
     RuntimeCreateFunction runtimeCreate = nullptr;
     RuntimeIsReadyFunction runtimeIsReady = nullptr;
     RuntimeDestroyFunction runtimeDestroy = nullptr;
@@ -41,7 +50,8 @@ struct MediaApi {
     SessionDestroyFunction sessionDestroy = nullptr;
 
     bool complete() const {
-        return abiVersion && runtimeCreate && runtimeIsReady && runtimeDestroy &&
+        return abiVersion && identityKeyPair && identitySign && identityVerify &&
+               runtimeCreate && runtimeIsReady && runtimeDestroy &&
                sessionCreate && sessionCreateOffer && sessionCreateAnswer &&
                sessionSetRemoteDescription && sessionAddIceCandidate &&
                sessionSetPermissions && sessionPollEvent && sessionClose && sessionDestroy;
