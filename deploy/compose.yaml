@@ -11,8 +11,13 @@ services:
       EASYDESK_PORT: 8080
       EASYDESK_WORKER_THREADS: ${EASYDESK_WORKER_THREADS:-4}
       EASYDESK_DATABASE_PATH: /var/lib/easydesk/easydesk.sqlite3
+      EASYDESK_TURN_SECRET_FILE: /run/secrets/turn_shared_secret
+      EASYDESK_TURN_URLS: ${EASYDESK_TURN_URLS}
+      EASYDESK_TURN_CREDENTIAL_LIFETIME_SECONDS: ${EASYDESK_TURN_CREDENTIAL_LIFETIME_SECONDS:-600}
     volumes:
       - signal-data:/var/lib/easydesk
+    secrets:
+      - turn_shared_secret
     expose:
       - "8080"
     healthcheck:

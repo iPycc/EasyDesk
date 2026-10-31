@@ -7,6 +7,7 @@
 | `src/application/config/` | 启动配置解析 |
 | `src/application/hub/` | 在线连接、订阅与消息路由 |
 | `src/application/session/` | 内存协助码与会话生命周期 |
+| `src/application/turn/` | 短期 TURN REST 凭据签发 |
 | `src/infrastructure/devices/` | 设备身份仓储 |
 | `src/infrastructure/storage/` | SQLite 连接与迁移 |
 | `src/protocol/cbor/` | 签名载荷的确定性 CBOR 子集 |
@@ -16,5 +17,6 @@
 | `src/protocol/signaling/` | 点对点信令信封验证 |
 | `src/security/crypto/` | Ed25519 与安全随机数 |
 | `src/transport/net/` | HTTP、WebSocket 会话与监听器 |
+| `src/transport/net/turn/` | TURN 凭据消息下发 |
 
 新功能优先在现有层内增加独立子目录；只有跨层装配进入 `application`，网络和数据库细节不得进入 `protocol`。

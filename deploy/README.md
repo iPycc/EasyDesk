@@ -4,7 +4,7 @@
 
 ## 准备
 
-1. 将域名 A/AAAA 记录指向服务器，复制 `.env.example` 为 `.env` 并填写真实值。
+1. 将信令域名和 TURN 域名的 A/AAAA 记录指向服务器，复制 `.env.example` 为 `.env` 并填写真实值。`EASYDESK_TURN_URLS` 必须是客户端可达的公网地址，不能填写容器名。
 2. 创建 TURN secret，不能提交到 Git：
 
    ```sh
@@ -26,7 +26,7 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml ps
 curl --fail https://你的域名/healthz
 ```
 
-`https://域名/ws` 是客户端 WSS 地址。SQLite 位于 `signal-data` volume；TURN secret 通过 Docker secret 注入，Compose 配置和镜像内均不包含实际值。
+`https://域名/ws` 是客户端 WSS 地址。SQLite 位于 `signal-data` volume；signal 与 coturn 只读使用同一个 Docker secret，授权会话建立后由 signal 签发默认 10 分钟有效的临时用户名和密码，Compose 配置和镜像内均不包含实际 secret。
 
 ## 验收边界
 
