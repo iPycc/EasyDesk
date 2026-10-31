@@ -160,6 +160,7 @@ void WebSocketSession::handleSessionAccept(const boost::json::object& object) {
     }
 
     sendSessionDelivered(envelope);
+    sendTurnCredentials(envelope);
     sendAssistCode();
 }
 

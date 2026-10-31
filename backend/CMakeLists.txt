@@ -41,6 +41,7 @@ add_executable(easydesk-signal
     src/transport/net/assist/assist_message_handler.cpp
     src/transport/net/session/session_message_handler.cpp
     src/transport/net/session/session_lifecycle_handler.cpp
+    src/transport/net/turn/turn_message_sender.cpp
     src/transport/net/websocket_session.cpp
 )
 

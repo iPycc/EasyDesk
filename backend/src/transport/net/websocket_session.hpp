@@ -82,6 +82,7 @@ private:
     void handleSessionIceSignal(const boost::json::object& object,
                                 protocol::SessionMessageType expectedType);
     void sendSessionDelivered(const protocol::SessionEnvelope& envelope);
+    void sendTurnCredentials(const protocol::SessionEnvelope& accept);
     void sendAssistCode();
 
     void sendJson(boost::json::object message);
