@@ -19,6 +19,7 @@ class SessionService : public QObject {
     virtual void setQuality(const QString &quality) = 0;
   signals:
     void identityChanged();
+    void availabilityChanged();
     void telemetryChanged(const SessionTelemetry &telemetry);
     void optionsChanged(const SessionOptions &options);
     void failed(const QString &message);

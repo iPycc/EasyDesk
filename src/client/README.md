@@ -12,8 +12,12 @@
 | `domain/features/sessions/input/` | 有界键鼠命令与上下文字段 |
 | `domain/features/transfers/` | 文件任务队列接口 |
 | `domain/features/system/` | 本机系统信息接口 |
-| `infrastructure/data/local/` | 设置持久化和未连接会话状态 |
+| `infrastructure/data/local/` | 本地设备列表和文件队列适配 |
+| `infrastructure/data/settings/identity/` | 9 位设备索引和设备名持久化 |
+| `infrastructure/network/signaling/` | 注册协议、启动消息和信令状态机 |
 | `platform/windows/data/local/` | Windows 系统信息读取 |
+| `platform/windows/identity/` | DPAPI 设备私钥种子存储 |
+| `platform/windows/network/winhttp/` | WSS/回环开发 WS 传输 |
 | `platform/windows/media/capture/` | DXGI 桌面纹理、变更区域与光标采集 |
 | `platform/windows/media/webrtc/` | WebRTC C ABI 动态加载与运行时生命周期 |
 | `platform/windows/input/` | SendInput、输入 lease 与失联释放 |
@@ -29,7 +33,7 @@
 
 ## 会话
 
-`LocalSessionService` 负责持久化本机 ID 和生成当前进程的 8 位协助码。它明确报告“信令未连接”，不会生成对端、网络遥测或打开假会话。后续 WSS 适配器必须保留同一接口，并在真实授权、传输与首帧事实就绪后更新状态。
+`SignalingClient` 使用 DPAPI 持久身份完成 Ed25519 挑战注册，协助码只采用信令服务签发的租约。`SignalingSessionService` 在 session/2 申请链接入前保持连接入口禁用，不生成本地随机协助码或打开假会话。
 
 `DesktopView` 是原生 QWidget/HWND 渲染目标。当前只绘制离线/等待状态，不生成桌面内容。媒体实现应绑定 `winId()`，不得通过 UI 层逐帧传递像素。
 

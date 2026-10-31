@@ -14,7 +14,8 @@ QWidget *MainWindow::buildStartPage() {
     local->setObjectName("identityPanel");
     auto *a = column(local, 22, 14);
     a->addWidget(text(QStringLiteral("此设备"), "h3"));
-    a->addWidget(text(m_sessions.statusText(), "caption"));
+    auto *status = text(m_sessions.statusText(), "caption");
+    a->addWidget(status);
     a->addSpacing(12);
     a->addWidget(text(QStringLiteral("设备 ID"), "caption"));
     auto *idRow = row();
@@ -47,8 +48,11 @@ QWidget *MainWindow::buildStartPage() {
     a->addLayout(codeRow);
     auto updateCode = [this, code, eye] {
         QString value = m_sessions.localIdentity().assistanceCode;
-        value.insert(4, ' ');
-        code->setText(eye->isChecked() ? value : QStringLiteral("•••• ••••"));
+        if (value.size() == 8)
+            value.insert(4, ' ');
+        code->setText(eye->isChecked() && value.size() == 9
+                          ? value
+                          : QStringLiteral("•••• ••••"));
     };
     connect(eye, &QToolButton::toggled, this, [updateCode](bool) { updateCode(); });
     connect(&m_sessions, &SessionService::identityChanged, code, updateCode);
@@ -86,6 +90,11 @@ QWidget *MainWindow::buildStartPage() {
     go->setMinimumHeight(40);
     go->setEnabled(m_sessions.isAvailable());
     b->addWidget(go);
+    connect(&m_sessions, &SessionService::availabilityChanged, go,
+            [this, go, status] {
+                go->setEnabled(m_sessions.isAvailable());
+                status->setText(m_sessions.statusText());
+            });
     connect(go, &QPushButton::clicked, this, &MainWindow::connectRemote);
     connect(m_remoteCode, &QLineEdit::returnPressed, this, &MainWindow::connectRemote);
     b->addStretch();

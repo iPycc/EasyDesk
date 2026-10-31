@@ -19,7 +19,6 @@ SOURCES += \
     src/client/domain/features/devices/device_service.cpp \
     src/client/domain/features/sessions/model/session_access.cpp \
     src/client/domain/features/sessions/model/session_state.cpp \
-    src/client/infrastructure/data/local/local_session_service.cpp \
     src/client/infrastructure/data/local/local_transfer_service.cpp \
     src/client/infrastructure/data/local/settings_device_service.cpp \
     src/client/infrastructure/data/settings/identity/device_profile_store.cpp \
@@ -27,6 +26,7 @@ SOURCES += \
     src/client/infrastructure/network/signaling/protocol/bootstrap/bootstrap_message_codec.cpp \
     src/client/infrastructure/network/signaling/protocol/encoding/base64url.cpp \
     src/client/infrastructure/network/signaling/protocol/registration/registration_codec.cpp \
+    src/client/infrastructure/network/signaling/service/signaling_session_service.cpp \
     src/client/platform/windows/data/local/windows_system_service.cpp \
     src/client/platform/windows/input/input_lease.cpp \
     src/client/platform/windows/input/send_input_executor.cpp \
@@ -74,7 +74,6 @@ HEADERS += \
     src/client/domain/features/sessions/model/session_state.h \
     src/client/domain/features/system/local_system_service.h \
     src/client/domain/features/transfers/transfer_service.h \
-    src/client/infrastructure/data/local/local_session_service.h \
     src/client/infrastructure/data/local/local_transfer_service.h \
     src/client/infrastructure/data/local/settings_device_service.h \
     src/client/infrastructure/data/settings/identity/device_profile_store.h \
@@ -82,6 +81,7 @@ HEADERS += \
     src/client/infrastructure/network/signaling/protocol/bootstrap/bootstrap_message_codec.h \
     src/client/infrastructure/network/signaling/protocol/encoding/base64url.h \
     src/client/infrastructure/network/signaling/protocol/registration/registration_codec.h \
+    src/client/infrastructure/network/signaling/service/signaling_session_service.h \
     src/client/platform/windows/data/local/windows_system_service.h \
     src/client/platform/windows/input/input_lease.h \
     src/client/platform/windows/input/send_input_executor.h \
