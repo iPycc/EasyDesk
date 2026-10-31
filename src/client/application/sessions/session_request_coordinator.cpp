@@ -2,8 +2,11 @@
 
 #include "data/settings/identity/device_profile_store.h"
 #include "identity/windows_identity_store.h"
+#include "media/webrtc/media_runtime_library.h"
 #include "network/signaling/client/signaling_client.h"
 #include "network/signaling/protocol/bootstrap/bootstrap_message_codec.h"
+#include "network/signaling/protocol/session/session_accept_decoder.h"
+#include "network/signaling/protocol/session/session_decision_decoder.h"
 #include "network/signaling/protocol/session/session_delivery_codec.h"
 #include "network/signaling/protocol/session/session_request_codec.h"
 #include "security/secure_random.h"
@@ -16,6 +19,8 @@ constexpr int kResolveTimeoutMilliseconds = 15000;
 constexpr int kDeliveryTimeoutMilliseconds = 15000;
 constexpr int kDecisionTimeoutMilliseconds = 55000;
 constexpr qint64 kRequestLifetimeSeconds = 45;
+constexpr qint64 kMaximumDecisionLifetimeSeconds = 60;
+constexpr qint64 kMaximumActiveSessionLifetimeSeconds = 8 * 60 * 60;
 
 bool containsDigits(const QString &value, int length) {
     if (value.size() != length)
@@ -27,15 +32,27 @@ bool containsDigits(const QString &value, int length) {
     return true;
 }
 
+bool containsCapability(
+    const QVector<easydesk::client::signaling::SessionCapabilityGrant> &grants,
+    easydesk::client::signaling::SessionCapability capability) {
+    for (const auto &grant : grants) {
+        if (grant.capability == capability)
+            return true;
+    }
+    return false;
+}
+
 }  // namespace
 
 SessionRequestCoordinator::SessionRequestCoordinator(DeviceProfileStore &profile,
                                                      WindowsIdentityStore &identity,
+                                                     MediaRuntimeLibrary &crypto,
                                                      SignalingClient &signaling,
                                                      QObject *parent)
     : QObject(parent),
       m_profile(profile),
       m_identity(identity),
+      m_crypto(crypto),
       m_signaling(signaling) {
     m_timeout.setSingleShot(true);
     connect(&m_timeout, &QTimer::timeout,
@@ -59,7 +76,7 @@ SessionRequestCoordinator::State SessionRequestCoordinator::state() const {
 
 bool SessionRequestCoordinator::isAvailable() const {
     return m_state == State::Idle && m_signaling.isRegistered() && m_identity.isReady() &&
-           !m_profile.profile().deviceId.isEmpty();
+           m_crypto.isReady() && !m_profile.profile().deviceId.isEmpty();
 }
 
 QString SessionRequestCoordinator::targetDeviceId() const {
@@ -84,6 +101,26 @@ QByteArray SessionRequestCoordinator::signedRequestPayload() const {
 
 SessionMode SessionRequestCoordinator::mode() const {
     return m_mode;
+}
+
+SessionMode SessionRequestCoordinator::grantedMode() const {
+    return m_grantedMode;
+}
+
+quint32 SessionRequestCoordinator::sessionEpoch() const {
+    return m_sessionEpoch;
+}
+
+quint64 SessionRequestCoordinator::permissionEpoch() const {
+    return m_permissionEpoch;
+}
+
+qint64 SessionRequestCoordinator::expiresAt() const {
+    return m_expiresAt;
+}
+
+QByteArray SessionRequestCoordinator::acceptanceNonce() const {
+    return m_acceptanceNonce;
 }
 
 bool SessionRequestCoordinator::requestSession(const QString &targetDeviceId,
@@ -130,6 +167,12 @@ void SessionRequestCoordinator::handleMessage(const QByteArray &message) {
     } else if (m_state == State::AwaitingDelivery &&
                decoded.type == QStringLiteral("session.delivered")) {
         handleDelivery(message);
+    } else if (m_state == State::AwaitingDecision &&
+               decoded.type == QStringLiteral("session.accept")) {
+        handleAcceptance(message);
+    } else if (m_state == State::AwaitingDecision &&
+               decoded.type == QStringLiteral("session.reject")) {
+        handleRejection(message);
     }
 }
 
@@ -205,6 +248,7 @@ void SessionRequestCoordinator::handleResolvedIdentity(const QByteArray &message
         return;
     }
 
+    m_request = fields;
     setState(State::AwaitingDelivery);
     m_timeout.start(kDeliveryTimeoutMilliseconds);
 }
@@ -228,6 +272,84 @@ void SessionRequestCoordinator::handleDelivery(const QByteArray &message) {
     emit requestDelivered();
 }
 
+void SessionRequestCoordinator::handleAcceptance(const QByteArray &message) {
+    easydesk::client::signaling::DecodedSessionAccept acceptance;
+    QString error;
+    if (!easydesk::client::signaling::decodeSessionAcceptEnvelope(
+            message, m_request, m_signedRequestPayload, acceptance, error)) {
+        failRequest(QStringLiteral("E_PROTOCOL"), error);
+        return;
+    }
+
+    const qint64 now = QDateTime::currentSecsSinceEpoch();
+    if (acceptance.fields.expiresAt <= now ||
+        acceptance.fields.expiresAt > now + kMaximumActiveSessionLifetimeSeconds) {
+        failRequest(QStringLiteral("E_EXPIRED"),
+                    QStringLiteral("Session acceptance lifetime is invalid."));
+        return;
+    }
+    if (!m_crypto.verifyEd25519(m_targetPublicKey,
+                                acceptance.signedPayload,
+                                acceptance.signature)) {
+        failRequest(QStringLiteral("E_SIGNATURE"), m_crypto.errorString());
+        return;
+    }
+    if (!containsCapability(
+            acceptance.fields.grantedGrants,
+            easydesk::client::signaling::SessionCapability::ViewScreen)) {
+        failRequest(QStringLiteral("E_UNSUPPORTED_CAPABILITY"),
+                    QStringLiteral("Session acceptance does not grant screen viewing."));
+        return;
+    }
+
+    m_grantedMode = containsCapability(
+                        acceptance.fields.grantedGrants,
+                        easydesk::client::signaling::SessionCapability::SendInput)
+                        ? SessionMode::Control
+                        : SessionMode::ViewOnly;
+    m_sessionEpoch = acceptance.fields.sessionEpoch;
+    m_permissionEpoch = acceptance.fields.permissionEpoch;
+    m_expiresAt = acceptance.fields.expiresAt;
+    m_acceptanceNonce = acceptance.fields.nonce;
+    m_timeout.stop();
+    setState(State::Accepted);
+    emit sessionAccepted();
+}
+
+void SessionRequestCoordinator::handleRejection(const QByteArray &message) {
+    easydesk::client::signaling::DecodedSessionDecision rejection;
+    QString error;
+    if (!easydesk::client::signaling::decodeSessionDecisionEnvelope(
+            message, m_request, m_signedRequestPayload, rejection, error) ||
+        rejection.kind != easydesk::client::signaling::SessionDecisionKind::Reject) {
+        failRequest(QStringLiteral("E_PROTOCOL"),
+                    error.isEmpty()
+                        ? QStringLiteral("Session rejection is invalid.")
+                        : error);
+        return;
+    }
+
+    const qint64 now = QDateTime::currentSecsSinceEpoch();
+    if (rejection.expiresAt < now ||
+        rejection.expiresAt > now + kMaximumDecisionLifetimeSeconds) {
+        failRequest(QStringLiteral("E_EXPIRED"),
+                    QStringLiteral("Session rejection lifetime is invalid."));
+        return;
+    }
+    if (!m_crypto.verifyEd25519(m_targetPublicKey,
+                                rejection.signedPayload,
+                                rejection.signature)) {
+        failRequest(QStringLiteral("E_SIGNATURE"), m_crypto.errorString());
+        return;
+    }
+
+    const quint8 reason = rejection.reason;
+    m_timeout.stop();
+    clearRequest();
+    setState(State::Idle);
+    emit sessionRejected(reason);
+}
+
 void SessionRequestCoordinator::handleSignalingError(const QString &code,
                                                      const QString &message) {
     if (m_state != State::Idle)
@@ -247,6 +369,8 @@ void SessionRequestCoordinator::handleTimeout() {
     case State::AwaitingDecision:
         failRequest(QStringLiteral("E_DECISION_TIMEOUT"),
                     QStringLiteral("The remote device did not respond in time."));
+        break;
+    case State::Accepted:
         break;
     case State::Idle:
         break;
@@ -274,5 +398,11 @@ void SessionRequestCoordinator::clearRequest() {
     m_requestId.clear();
     m_sessionId.clear();
     m_signedRequestPayload.clear();
+    m_request = {};
     m_mode = SessionMode::ViewOnly;
+    m_grantedMode = SessionMode::ViewOnly;
+    m_sessionEpoch = 0;
+    m_permissionEpoch = 0;
+    m_expiresAt = 0;
+    m_acceptanceNonce.clear();
 }

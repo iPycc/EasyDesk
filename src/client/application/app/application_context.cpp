@@ -44,7 +44,7 @@ ApplicationContext::ApplicationContext() {
                              << m_profile->errorString();
     m_signaling = std::make_unique<SignalingClient>(*m_profile, *m_identity);
     m_sessionRequests = std::make_unique<SessionRequestCoordinator>(
-        *m_profile, *m_identity, *m_signaling);
+        *m_profile, *m_identity, *m_media, *m_signaling);
     m_sessionInvitations = std::make_unique<SessionInvitationCoordinator>(
         *m_profile, *m_identity, *m_media, *m_signaling);
     m_devices = std::make_unique<SettingsDeviceService>(*m_settings);

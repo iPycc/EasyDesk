@@ -1,6 +1,7 @@
 #pragma once
 
 #include "features/sessions/model/session_access.h"
+#include "network/signaling/protocol/session/session_request_codec.h"
 
 #include <QByteArray>
 #include <QObject>
@@ -8,6 +9,7 @@
 #include <QTimer>
 
 class DeviceProfileStore;
+class MediaRuntimeLibrary;
 class SignalingClient;
 class WindowsIdentityStore;
 
@@ -20,11 +22,13 @@ class SessionRequestCoordinator final : public QObject {
         ResolvingIdentity,
         AwaitingDelivery,
         AwaitingDecision,
+        Accepted,
     };
     Q_ENUM(State)
 
     SessionRequestCoordinator(DeviceProfileStore &profile,
                               WindowsIdentityStore &identity,
+                              MediaRuntimeLibrary &crypto,
                               SignalingClient &signaling,
                               QObject *parent = nullptr);
 
@@ -36,6 +40,11 @@ class SessionRequestCoordinator final : public QObject {
     QByteArray sessionId() const;
     QByteArray signedRequestPayload() const;
     SessionMode mode() const;
+    SessionMode grantedMode() const;
+    quint32 sessionEpoch() const;
+    quint64 permissionEpoch() const;
+    qint64 expiresAt() const;
+    QByteArray acceptanceNonce() const;
 
     bool requestSession(const QString &targetDeviceId,
                         const QString &assistanceCode,
@@ -44,12 +53,16 @@ class SessionRequestCoordinator final : public QObject {
   signals:
     void stateChanged(SessionRequestCoordinator::State state);
     void requestDelivered();
+    void sessionAccepted();
+    void sessionRejected(quint8 reason);
     void failed(const QString &code, const QString &message);
 
   private:
     void handleMessage(const QByteArray &message);
     void handleResolvedIdentity(const QByteArray &message);
     void handleDelivery(const QByteArray &message);
+    void handleAcceptance(const QByteArray &message);
+    void handleRejection(const QByteArray &message);
     void handleSignalingError(const QString &code, const QString &message);
     void handleTimeout();
     void setState(State state);
@@ -58,6 +71,7 @@ class SessionRequestCoordinator final : public QObject {
 
     DeviceProfileStore &m_profile;
     WindowsIdentityStore &m_identity;
+    MediaRuntimeLibrary &m_crypto;
     SignalingClient &m_signaling;
     QTimer m_timeout;
     State m_state = State::Idle;
@@ -66,5 +80,11 @@ class SessionRequestCoordinator final : public QObject {
     QByteArray m_requestId;
     QByteArray m_sessionId;
     QByteArray m_signedRequestPayload;
+    easydesk::client::signaling::SessionRequestFields m_request;
     SessionMode m_mode = SessionMode::ViewOnly;
+    SessionMode m_grantedMode = SessionMode::ViewOnly;
+    quint32 m_sessionEpoch = 0;
+    quint64 m_permissionEpoch = 0;
+    qint64 m_expiresAt = 0;
+    QByteArray m_acceptanceNonce;
 };
