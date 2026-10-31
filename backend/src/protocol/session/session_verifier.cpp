@@ -288,7 +288,8 @@ SessionGatheringCompleteVerificationResult verifySessionGatheringComplete(
 SessionEndVerificationResult verifySessionEnd(
     const SessionEnvelope& envelope,
     const VerifiedSessionRequest& request,
-    const VerifiedSessionAccept& accept) {
+    const VerifiedSessionAccept& accept,
+    const VerifiedSessionRevoke* previousRevoke) {
     if (envelope.type != SessionMessageType::end)
         return SessionVerificationError::wrongMessageType;
     if (envelope.sequence < 2 || !envelope.sessionEpoch || envelope.iceGeneration ||
@@ -316,12 +317,58 @@ SessionEndVerificationResult verifySessionEnd(
     auto payload = parseSessionEndPayload(envelope.signedPayload);
     if (!payload)
         return SessionVerificationError::invalidPayload;
-    if (payload->authorizationDigest != sessionPayloadDigest(accept.envelope.signedPayload) ||
+    const auto& authorizationPayload = previousRevoke
+                                           ? previousRevoke->envelope.signedPayload
+                                           : accept.envelope.signedPayload;
+    if (payload->authorizationDigest != sessionPayloadDigest(authorizationPayload) ||
         payload->sessionEpoch != accept.payload.sessionEpoch ||
         payload->sequence != envelope.sequence || payload->expiresAt != envelope.expiresAt) {
         return SessionVerificationError::envelopeMismatch;
     }
     return VerifiedSessionEnd{.envelope = envelope, .payload = std::move(*payload)};
+}
+
+SessionRevokeVerificationResult verifySessionRevoke(
+    const SessionEnvelope& envelope,
+    const VerifiedSessionRequest& request,
+    const VerifiedSessionAccept& accept,
+    const VerifiedSessionRevoke* previousRevoke) {
+    if (envelope.type != SessionMessageType::revoke)
+        return SessionVerificationError::wrongMessageType;
+    if (envelope.sequence < 2 || !envelope.sessionEpoch || envelope.iceGeneration ||
+        envelope.fromDeviceId != request.envelope.toDeviceId ||
+        envelope.toDeviceId != request.envelope.fromDeviceId ||
+        envelope.requestId != request.envelope.requestId ||
+        envelope.sessionId != request.envelope.sessionId ||
+        *envelope.sessionEpoch != accept.payload.sessionEpoch) {
+        return SessionVerificationError::invalidRoute;
+    }
+    if (!security::verifyEd25519(request.payload.targetPublicKey, envelope.signedPayload,
+                                 envelope.signature)) {
+        return SessionVerificationError::invalidSignature;
+    }
+
+    auto payload = parseSessionRevokePayload(envelope.signedPayload, request.payload);
+    if (!payload)
+        return SessionVerificationError::invalidPayload;
+    const auto& authorizationPayload = previousRevoke
+                                           ? previousRevoke->envelope.signedPayload
+                                           : accept.envelope.signedPayload;
+    const auto& currentGrants = previousRevoke
+                                    ? previousRevoke->payload.grantedGrants
+                                    : accept.payload.grantedGrants;
+    const std::uint64_t currentPermissionEpoch = previousRevoke
+                                                     ? previousRevoke->payload.permissionEpoch
+                                                     : accept.payload.permissionEpoch;
+    if (payload->authorizationDigest != sessionPayloadDigest(authorizationPayload) ||
+        payload->grantedGrants.size() >= currentGrants.size() ||
+        !capabilityGrantsAreSubset(payload->grantedGrants, currentGrants) ||
+        payload->sessionEpoch != accept.payload.sessionEpoch ||
+        payload->permissionEpoch <= currentPermissionEpoch ||
+        payload->sequence != envelope.sequence || payload->expiresAt != envelope.expiresAt) {
+        return SessionVerificationError::envelopeMismatch;
+    }
+    return VerifiedSessionRevoke{.envelope = envelope, .payload = std::move(*payload)};
 }
 
 }  // namespace easydesk::protocol

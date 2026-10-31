@@ -120,7 +120,8 @@ void WebSocketSession::handleSessionEnd(const boost::json::object& object) {
         return;
     }
 
-    auto verified = protocol::verifySessionEnd(envelope, active->request, active->accept);
+    auto verified = protocol::verifySessionEnd(
+        envelope, active->request, active->accept, nullptr);
     if (const auto* error = std::get_if<protocol::SessionVerificationError>(&verified)) {
         sendError(*error == protocol::SessionVerificationError::invalidSignature
                       ? "E_SIGNATURE"

@@ -65,6 +65,11 @@ struct VerifiedSessionEnd {
     SessionEndPayload payload;
 };
 
+struct VerifiedSessionRevoke {
+    SessionEnvelope envelope;
+    SessionRevokePayload payload;
+};
+
 using SessionRequestVerificationResult =
     std::variant<VerifiedSessionRequest, SessionVerificationError>;
 using SessionAcceptVerificationResult =
@@ -83,6 +88,8 @@ using SessionGatheringCompleteVerificationResult =
     std::variant<VerifiedSessionGatheringComplete, SessionVerificationError>;
 using SessionEndVerificationResult =
     std::variant<VerifiedSessionEnd, SessionVerificationError>;
+using SessionRevokeVerificationResult =
+    std::variant<VerifiedSessionRevoke, SessionVerificationError>;
 
 SessionRequestVerificationResult verifySessionRequest(
     const SessionEnvelope& envelope,
@@ -121,6 +128,12 @@ SessionGatheringCompleteVerificationResult verifySessionGatheringComplete(
 SessionEndVerificationResult verifySessionEnd(
     const SessionEnvelope& envelope,
     const VerifiedSessionRequest& request,
-    const VerifiedSessionAccept& accept);
+    const VerifiedSessionAccept& accept,
+    const VerifiedSessionRevoke* previousRevoke);
+SessionRevokeVerificationResult verifySessionRevoke(
+    const SessionEnvelope& envelope,
+    const VerifiedSessionRequest& request,
+    const VerifiedSessionAccept& accept,
+    const VerifiedSessionRevoke* previousRevoke);
 
 }  // namespace easydesk::protocol
