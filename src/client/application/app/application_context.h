@@ -11,6 +11,7 @@ class WindowsIdentityStore;
 class DeviceProfileStore;
 class SignalingClient;
 class SessionRequestCoordinator;
+class SessionInvitationCoordinator;
 
 class ApplicationContext final : public QObject {
   public:
@@ -26,6 +27,7 @@ class ApplicationContext final : public QObject {
     DeviceProfileStore &deviceProfile() const;
     SignalingClient &signaling() const;
     SessionRequestCoordinator &sessionRequests() const;
+    SessionInvitationCoordinator &sessionInvitations() const;
 
   private:
     std::unique_ptr<QSettings> m_settings;
@@ -34,6 +36,7 @@ class ApplicationContext final : public QObject {
     std::unique_ptr<DeviceProfileStore> m_profile;
     std::unique_ptr<SignalingClient> m_signaling;
     std::unique_ptr<SessionRequestCoordinator> m_sessionRequests;
+    std::unique_ptr<SessionInvitationCoordinator> m_sessionInvitations;
     std::unique_ptr<DeviceService> m_devices;
     std::unique_ptr<SessionService> m_sessions;
     std::unique_ptr<TransferService> m_transfers;

@@ -8,6 +8,7 @@
 #include "media/webrtc/media_runtime_library.h"
 #include "network/signaling/client/signaling_client.h"
 #include "network/signaling/service/signaling_session_service.h"
+#include "sessions/session_invitation_coordinator.h"
 #include "sessions/session_request_coordinator.h"
 #include <QDebug>
 #include <QDir>
@@ -44,6 +45,8 @@ ApplicationContext::ApplicationContext() {
     m_signaling = std::make_unique<SignalingClient>(*m_profile, *m_identity);
     m_sessionRequests = std::make_unique<SessionRequestCoordinator>(
         *m_profile, *m_identity, *m_signaling);
+    m_sessionInvitations = std::make_unique<SessionInvitationCoordinator>(
+        *m_profile, *m_identity, *m_media, *m_signaling);
     m_devices = std::make_unique<SettingsDeviceService>(*m_settings);
     m_sessions = std::make_unique<SignalingSessionService>(*m_profile, *m_signaling);
     m_transfers = std::make_unique<LocalTransferService>();
@@ -95,4 +98,8 @@ SignalingClient &ApplicationContext::signaling() const {
 
 SessionRequestCoordinator &ApplicationContext::sessionRequests() const {
     return *m_sessionRequests;
+}
+
+SessionInvitationCoordinator &ApplicationContext::sessionInvitations() const {
+    return *m_sessionInvitations;
 }
