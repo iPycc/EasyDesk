@@ -6,6 +6,7 @@
 #include "protocol/session/session_description.hpp"
 #include "protocol/session/session_envelope.hpp"
 #include "protocol/session/session_request.hpp"
+#include "protocol/session/session_termination.hpp"
 
 #include <variant>
 
@@ -59,6 +60,11 @@ struct VerifiedSessionGatheringComplete {
     SessionGatheringCompletePayload payload;
 };
 
+struct VerifiedSessionEnd {
+    SessionEnvelope envelope;
+    SessionEndPayload payload;
+};
+
 using SessionRequestVerificationResult =
     std::variant<VerifiedSessionRequest, SessionVerificationError>;
 using SessionAcceptVerificationResult =
@@ -75,6 +81,8 @@ using SessionCandidatesVerificationResult =
     std::variant<VerifiedSessionCandidates, SessionVerificationError>;
 using SessionGatheringCompleteVerificationResult =
     std::variant<VerifiedSessionGatheringComplete, SessionVerificationError>;
+using SessionEndVerificationResult =
+    std::variant<VerifiedSessionEnd, SessionVerificationError>;
 
 SessionRequestVerificationResult verifySessionRequest(
     const SessionEnvelope& envelope,
@@ -110,5 +118,9 @@ SessionGatheringCompleteVerificationResult verifySessionGatheringComplete(
     const VerifiedSessionAccept& accept,
     const VerifiedSessionOffer& offer,
     const VerifiedSessionAnswer* answer);
+SessionEndVerificationResult verifySessionEnd(
+    const SessionEnvelope& envelope,
+    const VerifiedSessionRequest& request,
+    const VerifiedSessionAccept& accept);
 
 }  // namespace easydesk::protocol
