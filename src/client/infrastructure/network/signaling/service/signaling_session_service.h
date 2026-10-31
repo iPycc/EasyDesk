@@ -4,6 +4,7 @@
 
 class DeviceProfileStore;
 class SignalingClient;
+class SessionRequestCoordinator;
 
 class SignalingSessionService final : public SessionService {
     Q_OBJECT
@@ -11,6 +12,7 @@ class SignalingSessionService final : public SessionService {
   public:
     SignalingSessionService(DeviceProfileStore &profile,
                             SignalingClient &signaling,
+                            SessionRequestCoordinator &requests,
                             QObject *parent = nullptr);
 
     LocalIdentity localIdentity() const override;
@@ -18,7 +20,9 @@ class SignalingSessionService final : public SessionService {
     QString statusText() const override;
     void refreshAssistanceCode() override;
     QString validateConnection(const QString &id, const QString &code) const override;
-    void start(const QString &deviceId, const SessionOptions &options) override;
+    void start(const QString &deviceId,
+               const QString &assistanceCode,
+               const SessionOptions &options) override;
     void stop() override;
     SessionTelemetry telemetry() const override;
     SessionOptions options() const override;
@@ -28,6 +32,7 @@ class SignalingSessionService final : public SessionService {
   private:
     DeviceProfileStore &m_profile;
     SignalingClient &m_signaling;
+    SessionRequestCoordinator &m_requests;
     SessionOptions m_options;
     SessionTelemetry m_telemetry;
 };

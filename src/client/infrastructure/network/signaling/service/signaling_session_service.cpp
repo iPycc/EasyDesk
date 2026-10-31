@@ -2,13 +2,18 @@
 
 #include "data/settings/identity/device_profile_store.h"
 #include "network/signaling/client/signaling_client.h"
+#include "sessions/session_request_coordinator.h"
 
 #include <QRegularExpression>
 
 SignalingSessionService::SignalingSessionService(DeviceProfileStore &profile,
                                                  SignalingClient &signaling,
+                                                 SessionRequestCoordinator &requests,
                                                  QObject *parent)
-    : SessionService(parent), m_profile(profile), m_signaling(signaling) {
+    : SessionService(parent),
+      m_profile(profile),
+      m_signaling(signaling),
+      m_requests(requests) {
     connect(&m_signaling, &SignalingClient::profileChanged,
             this, &SessionService::identityChanged);
     connect(&m_signaling, &SignalingClient::assistanceCodeChanged,
@@ -17,6 +22,24 @@ SignalingSessionService::SignalingSessionService(DeviceProfileStore &profile,
         emit identityChanged();
         emit availabilityChanged();
     });
+    connect(&m_requests, &SessionRequestCoordinator::stateChanged,
+            this, [this] { emit availabilityChanged(); });
+    connect(&m_requests, &SessionRequestCoordinator::requestDelivered,
+            this, &SessionService::requestDelivered);
+    connect(&m_requests, &SessionRequestCoordinator::sessionAccepted,
+            this, &SessionService::sessionAccepted);
+    connect(&m_requests, &SessionRequestCoordinator::requestCancelled,
+            this, &SessionService::sessionCancelled);
+    connect(&m_requests, &SessionRequestCoordinator::sessionRejected,
+            this, [this](quint8 reason) {
+                emit failed(reason == 1
+                                ? QStringLiteral("对方拒绝了远程请求")
+                                : QStringLiteral("对方当前无法接受远程请求"));
+            });
+    connect(&m_requests, &SessionRequestCoordinator::failed,
+            this, [this](const QString &, const QString &message) {
+                emit failed(message);
+            });
 }
 
 LocalIdentity SignalingSessionService::localIdentity() const {
@@ -29,6 +52,20 @@ bool SignalingSessionService::isAvailable() const {
 }
 
 QString SignalingSessionService::statusText() const {
+    switch (m_requests.state()) {
+    case SessionRequestCoordinator::State::ResolvingIdentity:
+        return QStringLiteral("正在验证协助码");
+    case SessionRequestCoordinator::State::AwaitingDelivery:
+        return QStringLiteral("正在发送远程请求");
+    case SessionRequestCoordinator::State::AwaitingDecision:
+        return QStringLiteral("等待对方确认");
+    case SessionRequestCoordinator::State::AwaitingCancellationDelivery:
+        return QStringLiteral("正在取消请求");
+    case SessionRequestCoordinator::State::Accepted:
+        return QStringLiteral("等待媒体通道");
+    case SessionRequestCoordinator::State::Idle:
+        break;
+    }
     switch (m_signaling.state()) {
     case SignalingClient::State::Offline:
         return QStringLiteral("信令未连接");
@@ -64,11 +101,21 @@ QString SignalingSessionService::validateConnection(const QString &id,
     return {};
 }
 
-void SignalingSessionService::start(const QString &, const SessionOptions &) {
-    emit failed(QStringLiteral("会话协商尚未就绪"));
+void SignalingSessionService::start(const QString &deviceId,
+                                    const QString &assistanceCode,
+                                    const SessionOptions &options) {
+    if (!m_requests.requestSession(deviceId, assistanceCode, options.mode)) {
+        emit failed(QStringLiteral("无法发送远程请求"));
+        return;
+    }
+    m_options = options;
+    emit optionsChanged(m_options);
+    emit availabilityChanged();
 }
 
-void SignalingSessionService::stop() {}
+void SignalingSessionService::stop() {
+    (void)m_requests.cancel();
+}
 
 SessionTelemetry SignalingSessionService::telemetry() const {
     return m_telemetry;

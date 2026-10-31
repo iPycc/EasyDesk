@@ -11,7 +11,9 @@ class SessionService : public QObject {
     virtual QString statusText() const = 0;
     virtual void refreshAssistanceCode() = 0;
     virtual QString validateConnection(const QString &id, const QString &code) const = 0;
-    virtual void start(const QString &deviceId, const SessionOptions &options) = 0;
+    virtual void start(const QString &deviceId,
+                       const QString &assistanceCode,
+                       const SessionOptions &options) = 0;
     virtual void stop() = 0;
     virtual SessionTelemetry telemetry() const = 0;
     virtual SessionOptions options() const = 0;
@@ -22,5 +24,8 @@ class SessionService : public QObject {
     void availabilityChanged();
     void telemetryChanged(const SessionTelemetry &telemetry);
     void optionsChanged(const SessionOptions &options);
+    void requestDelivered();
+    void sessionAccepted();
+    void sessionCancelled();
     void failed(const QString &message);
 };

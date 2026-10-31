@@ -63,7 +63,7 @@ void MainWindow::startSession(const QString &id) {
     requested.frameRate = initialFps;
     requested.quality = initialQuality;
     requested.mode = view->isChecked() ? SessionMode::ViewOnly : SessionMode::Control;
-    m_sessions.start(id, requested);
+    m_sessions.start(id, QString(), requested);
     session->setProperty("fps", initialFps);
     session->setProperty("quality", initialQuality);
     auto *title = dynamic_cast<Ui::TitleBar *>(session->findChild<QFrame *>("titleBar"));
