@@ -32,10 +32,7 @@ Get-ChildItem -LiteralPath $thirdPartyRoot -Recurse -File | Where-Object { $_.Na
     Copy-Item -LiteralPath $_.FullName -Destination $noticeTarget
 }
 Copy-Item -LiteralPath "$projectRoot\docs\PORTABLE_README.txt" -Destination "$targetRoot\README.txt"
-@'
-[Paths]
-Plugins=.
-'@ | Set-Content -Encoding ascii -LiteralPath "$targetRoot\qt.conf"
+Copy-Item -LiteralPath "$projectRoot\packaging\windows\qt.conf" -Destination $targetRoot
 $zipPath = Join-Path $projectRoot 'dist\EasyDesk-0.2.0-dev-win64.zip'
 Compress-Archive -LiteralPath $targetRoot -DestinationPath $zipPath -Force
 Write-Output "Portable application: $targetRoot\EasyDesk.exe"
