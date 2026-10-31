@@ -6,11 +6,13 @@
 #include <array>
 #include <limits>
 #include <string_view>
+#include <utility>
 
 namespace easydesk::protocol {
 namespace {
 
 constexpr std::string_view kEndType = "session.end";
+constexpr std::string_view kRevokeType = "session.revoke";
 
 template <std::size_t Size>
 std::optional<std::array<std::uint8_t, Size>> readFixedBytes(cbor::Reader& reader) {
@@ -75,6 +77,65 @@ std::optional<SessionEndPayload> parseSessionEndPayload(
         .authorizationDigest = *authorizationDigest,
         .sessionEpoch = static_cast<std::uint32_t>(*sessionEpoch),
         .reason = reason,
+        .sequence = *sequence,
+        .expiresAt = static_cast<std::int64_t>(*expiresAt),
+    };
+}
+
+std::optional<std::vector<std::uint8_t>> encodeSessionRevokePayload(
+    const SessionRevokePayload& payload,
+    const SessionRequestPayload& request) {
+    if (payload.sessionEpoch == 0 || payload.permissionEpoch == 0 ||
+        payload.sequence == 0 || payload.expiresAt <= 0 ||
+        !validateCapabilityGrants(payload.grantedGrants,
+                                  requestControllerPublicKey(request),
+                                  requestControlledPublicKey(request))) {
+        return std::nullopt;
+    }
+    cbor::Writer writer;
+    writer.beginArray(8);
+    writer.writeText(kSessionSigningDomain);
+    writer.writeText(kRevokeType);
+    writer.writeBytes(payload.authorizationDigest);
+    writeCapabilityGrants(writer, payload.grantedGrants);
+    writer.writeUnsigned(payload.sessionEpoch);
+    writer.writeUnsigned(payload.permissionEpoch);
+    writer.writeUnsigned(payload.sequence);
+    writer.writeUnsigned(static_cast<std::uint64_t>(payload.expiresAt));
+    return writer.takeBytes();
+}
+
+std::optional<SessionRevokePayload> parseSessionRevokePayload(
+    std::span<const std::uint8_t> signedPayload,
+    const SessionRequestPayload& request) {
+    cbor::Reader reader(signedPayload);
+    const auto arraySize = reader.readArraySize();
+    const auto domain = reader.readText(kSessionSigningDomain.size());
+    const auto type = reader.readText(kRevokeType.size());
+    const auto authorizationDigest = readFixedBytes<kSessionDigestSize>(reader);
+    if (!arraySize || *arraySize != 8 || !domain || *domain != kSessionSigningDomain ||
+        !type || *type != kRevokeType || !authorizationDigest) {
+        return std::nullopt;
+    }
+    auto grantedGrants = readCapabilityGrants(reader,
+                                              requestControllerPublicKey(request),
+                                              requestControlledPublicKey(request));
+    const auto sessionEpoch = reader.readUnsigned();
+    const auto permissionEpoch = reader.readUnsigned();
+    const auto sequence = reader.readUnsigned();
+    const auto expiresAt = reader.readUnsigned();
+    if (!grantedGrants || !sessionEpoch || *sessionEpoch == 0 ||
+        *sessionEpoch > std::numeric_limits<std::uint32_t>::max() ||
+        !permissionEpoch || *permissionEpoch == 0 || !sequence || *sequence == 0 ||
+        !expiresAt || *expiresAt == 0 ||
+        *expiresAt > std::numeric_limits<std::int64_t>::max() || !reader.finished()) {
+        return std::nullopt;
+    }
+    return SessionRevokePayload{
+        .authorizationDigest = *authorizationDigest,
+        .grantedGrants = std::move(*grantedGrants),
+        .sessionEpoch = static_cast<std::uint32_t>(*sessionEpoch),
+        .permissionEpoch = *permissionEpoch,
         .sequence = *sequence,
         .expiresAt = static_cast<std::int64_t>(*expiresAt),
     };
