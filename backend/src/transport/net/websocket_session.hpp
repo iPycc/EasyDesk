@@ -71,6 +71,7 @@ private:
     void handleSessionDecision(const boost::json::object& object,
                                protocol::SessionMessageType expectedType);
     void handleSessionEnd(const boost::json::object& object);
+    void handleSessionRevoke(const boost::json::object& object);
     void handleSessionOffer(const boost::json::object& object);
     void handleSessionAnswer(const boost::json::object& object);
     void handleSessionIceSignal(const boost::json::object& object,

@@ -231,6 +231,8 @@ void WebSocketSession::handleMessage(const std::string& message) {
         handleSessionIceSignal(object, protocol::SessionMessageType::gatheringComplete);
     } else if (type == "session.end") {
         handleSessionEnd(object);
+    } else if (type == "session.revoke") {
+        handleSessionRevoke(object);
     } else if (isPairMessage(type)) {
         handleSignedEnvelope(object);
     } else {
