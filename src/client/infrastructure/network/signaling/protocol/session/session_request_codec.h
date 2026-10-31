@@ -1,26 +1,12 @@
 #pragma once
 
+#include "network/signaling/protocol/session/session_capability.h"
+
 #include <QByteArray>
 #include <QString>
 #include <QVector>
 
 namespace easydesk::client::signaling {
-
-enum class SessionParticipantRole : quint8 {
-    Controller = 1,
-    Controlled = 2,
-};
-
-enum class SessionCapability : quint8 {
-    ViewScreen = 1,
-    SendInput = 2,
-    FileReceive = 3,
-};
-
-struct SessionCapabilityGrant {
-    QByteArray subjectPublicKey;
-    SessionCapability capability = SessionCapability::ViewScreen;
-};
 
 struct SessionRequestFields {
     QByteArray requestId;

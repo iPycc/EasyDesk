@@ -6,8 +6,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
-#include <algorithm>
-
 namespace easydesk::client::signaling {
 namespace {
 
@@ -15,7 +13,6 @@ constexpr qint64 kMaximumExactJsonInteger = 9007199254740991LL;
 constexpr int kSessionIdentifierSize = 16;
 constexpr int kSessionPublicKeySize = 32;
 constexpr int kSessionNonceSize = 32;
-constexpr int kMaximumCapabilityGrants = 4;
 constexpr auto kSessionSigningDomain = "EasyDesk-Session-v2";
 constexpr auto kSessionMessageType = "session.request";
 constexpr auto kSessionProtocolValue = "easydesk-session/2";
@@ -39,29 +36,6 @@ bool isDeviceId(const QString &value) {
 bool isKnownRole(SessionParticipantRole role) {
     return role == SessionParticipantRole::Controller ||
            role == SessionParticipantRole::Controlled;
-}
-
-bool isKnownCapability(SessionCapability capability) {
-    return capability == SessionCapability::ViewScreen ||
-           capability == SessionCapability::SendInput ||
-           capability == SessionCapability::FileReceive;
-}
-
-bool byteArrayLess(const QByteArray &left, const QByteArray &right) {
-    return std::lexicographical_compare(
-        left.cbegin(), left.cend(), right.cbegin(), right.cend(),
-        [](char leftByte, char rightByte) {
-            return static_cast<unsigned char>(leftByte) <
-                   static_cast<unsigned char>(rightByte);
-        });
-}
-
-bool grantLess(const SessionCapabilityGrant &left,
-               const SessionCapabilityGrant &right) {
-    if (left.subjectPublicKey != right.subjectPublicKey)
-        return byteArrayLess(left.subjectPublicKey, right.subjectPublicKey);
-    return static_cast<quint8>(left.capability) <
-           static_cast<quint8>(right.capability);
 }
 
 bool canonicalize(const SessionRequestFields &fields,
@@ -105,36 +79,11 @@ bool canonicalize(const SessionRequestFields &fields,
         error = QStringLiteral("Session request device route is invalid.");
         return false;
     }
-    if (fields.requestedGrants.isEmpty() ||
-        fields.requestedGrants.size() > kMaximumCapabilityGrants) {
-        error = QStringLiteral("Session request capability count is invalid.");
-        return false;
-    }
-
-    std::sort(canonical.fields.requestedGrants.begin(),
-              canonical.fields.requestedGrants.end(), grantLess);
-    bool controllerMayView = false;
-    bool controllerMaySendInput = false;
-    for (int index = 0; index < canonical.fields.requestedGrants.size(); ++index) {
-        const SessionCapabilityGrant &grant = canonical.fields.requestedGrants.at(index);
-        const bool participant = grant.subjectPublicKey == canonical.controllerPublicKey ||
-                                 grant.subjectPublicKey == canonical.controlledPublicKey;
-        const bool controllerOnly = grant.capability == SessionCapability::ViewScreen ||
-                                    grant.capability == SessionCapability::SendInput;
-        if (!isKnownCapability(grant.capability) || !participant ||
-            (controllerOnly && grant.subjectPublicKey != canonical.controllerPublicKey) ||
-            (index > 0 && !grantLess(canonical.fields.requestedGrants.at(index - 1),
-                                    grant))) {
-            error = QStringLiteral("Session request capabilities are invalid.");
-            return false;
-        }
-        controllerMayView = controllerMayView ||
-                            grant.capability == SessionCapability::ViewScreen;
-        controllerMaySendInput = controllerMaySendInput ||
-                                 grant.capability == SessionCapability::SendInput;
-    }
-    if (controllerMaySendInput && !controllerMayView) {
-        error = QStringLiteral("Input control requires screen viewing permission.");
+    if (!canonicalizeSessionCapabilityGrants(
+            canonical.fields.requestedGrants,
+            canonical.controllerPublicKey,
+            canonical.controlledPublicKey,
+            error)) {
         return false;
     }
     error.clear();
