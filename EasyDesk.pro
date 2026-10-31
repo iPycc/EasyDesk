@@ -31,6 +31,7 @@ SOURCES += \
     src/client/infrastructure/network/signaling/protocol/registration/registration_codec.cpp \
     src/client/infrastructure/network/signaling/protocol/session/session_delivery_codec.cpp \
     src/client/infrastructure/network/signaling/protocol/session/session_request_codec.cpp \
+    src/client/infrastructure/network/signaling/protocol/session/session_request_decoder.cpp \
     src/client/infrastructure/network/signaling/service/signaling_session_service.cpp \
     src/client/platform/windows/data/local/windows_system_service.cpp \
     src/client/platform/windows/input/input_lease.cpp \
@@ -92,6 +93,7 @@ HEADERS += \
     src/client/infrastructure/network/signaling/protocol/registration/registration_codec.h \
     src/client/infrastructure/network/signaling/protocol/session/session_delivery_codec.h \
     src/client/infrastructure/network/signaling/protocol/session/session_request_codec.h \
+    src/client/infrastructure/network/signaling/protocol/session/session_request_decoder.h \
     src/client/infrastructure/network/signaling/service/signaling_session_service.h \
     src/client/platform/windows/data/local/windows_system_service.h \
     src/client/platform/windows/input/input_lease.h \
