@@ -23,6 +23,7 @@ SOURCES += \
     src/client/infrastructure/data/local/local_transfer_service.cpp \
     src/client/infrastructure/data/local/settings_device_service.cpp \
     src/client/infrastructure/data/settings/identity/device_profile_store.cpp \
+    src/client/infrastructure/network/signaling/protocol/bootstrap/bootstrap_message_codec.cpp \
     src/client/infrastructure/network/signaling/protocol/encoding/base64url.cpp \
     src/client/infrastructure/network/signaling/protocol/registration/registration_codec.cpp \
     src/client/platform/windows/data/local/windows_system_service.cpp \
@@ -76,6 +77,7 @@ HEADERS += \
     src/client/infrastructure/data/local/local_transfer_service.h \
     src/client/infrastructure/data/local/settings_device_service.h \
     src/client/infrastructure/data/settings/identity/device_profile_store.h \
+    src/client/infrastructure/network/signaling/protocol/bootstrap/bootstrap_message_codec.h \
     src/client/infrastructure/network/signaling/protocol/encoding/base64url.h \
     src/client/infrastructure/network/signaling/protocol/registration/registration_codec.h \
     src/client/platform/windows/data/local/windows_system_service.h \
