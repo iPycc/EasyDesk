@@ -22,6 +22,7 @@ class SessionRequestCoordinator final : public QObject {
         ResolvingIdentity,
         AwaitingDelivery,
         AwaitingDecision,
+        AwaitingCancellationDelivery,
         Accepted,
     };
     Q_ENUM(State)
@@ -49,10 +50,12 @@ class SessionRequestCoordinator final : public QObject {
     bool requestSession(const QString &targetDeviceId,
                         const QString &assistanceCode,
                         SessionMode mode);
+    bool cancel();
 
   signals:
     void stateChanged(SessionRequestCoordinator::State state);
     void requestDelivered();
+    void requestCancelled();
     void sessionAccepted();
     void sessionRejected(quint8 reason);
     void failed(const QString &code, const QString &message);

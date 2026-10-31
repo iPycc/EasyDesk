@@ -6,6 +6,7 @@
 #include "network/signaling/client/signaling_client.h"
 #include "network/signaling/protocol/bootstrap/bootstrap_message_codec.h"
 #include "network/signaling/protocol/session/session_accept_decoder.h"
+#include "network/signaling/protocol/session/session_decision_codec.h"
 #include "network/signaling/protocol/session/session_decision_decoder.h"
 #include "network/signaling/protocol/session/session_delivery_codec.h"
 #include "network/signaling/protocol/session/session_request_codec.h"
@@ -19,6 +20,7 @@ constexpr int kResolveTimeoutMilliseconds = 15000;
 constexpr int kDeliveryTimeoutMilliseconds = 15000;
 constexpr int kDecisionTimeoutMilliseconds = 55000;
 constexpr qint64 kRequestLifetimeSeconds = 45;
+constexpr qint64 kCancellationLifetimeSeconds = 45;
 constexpr qint64 kMaximumDecisionLifetimeSeconds = 60;
 constexpr qint64 kMaximumActiveSessionLifetimeSeconds = 8 * 60 * 60;
 
@@ -152,6 +154,59 @@ bool SessionRequestCoordinator::requestSession(const QString &targetDeviceId,
     return true;
 }
 
+bool SessionRequestCoordinator::cancel() {
+    if (m_state == State::ResolvingIdentity) {
+        m_timeout.stop();
+        clearRequest();
+        setState(State::Idle);
+        emit requestCancelled();
+        return true;
+    }
+    if (m_state != State::AwaitingDelivery &&
+        m_state != State::AwaitingDecision) {
+        return false;
+    }
+
+    QString error;
+    easydesk::client::signaling::SessionDecisionFields fields;
+    fields.request = m_request;
+    fields.signedRequestPayload = m_signedRequestPayload;
+    fields.sequence = 1;
+    fields.expiresAt = QDateTime::currentSecsSinceEpoch() +
+                       kCancellationLifetimeSeconds;
+    const QByteArray signingBytes =
+        easydesk::client::signaling::sessionCancelSigningBytes(
+            fields,
+            easydesk::client::signaling::SessionCancelReason::UserCancelled,
+            error);
+    if (signingBytes.isEmpty()) {
+        failRequest(QStringLiteral("E_PROTOCOL"), error);
+        return false;
+    }
+    const QByteArray signature = m_identity.sign(signingBytes);
+    if (signature.isEmpty()) {
+        failRequest(QStringLiteral("E_SIGNATURE"), m_identity.errorString());
+        return false;
+    }
+    const QByteArray envelope =
+        easydesk::client::signaling::encodeSessionCancelEnvelope(
+            fields,
+            easydesk::client::signaling::SessionCancelReason::UserCancelled,
+            signature,
+            error);
+    if (envelope.isEmpty() || !m_signaling.sendRegisteredMessage(envelope)) {
+        failRequest(QStringLiteral("E_SEND"),
+                    error.isEmpty()
+                        ? QStringLiteral("Session cancellation could not be sent.")
+                        : error);
+        return false;
+    }
+
+    setState(State::AwaitingCancellationDelivery);
+    m_timeout.start(kDeliveryTimeoutMilliseconds);
+    return true;
+}
+
 void SessionRequestCoordinator::handleMessage(const QByteArray &message) {
     easydesk::client::signaling::BootstrapMessage decoded;
     QString error;
@@ -164,7 +219,8 @@ void SessionRequestCoordinator::handleMessage(const QByteArray &message) {
     if (m_state == State::ResolvingIdentity &&
         decoded.kind == easydesk::client::signaling::BootstrapMessage::Kind::AssistanceResolved) {
         handleResolvedIdentity(message);
-    } else if (m_state == State::AwaitingDelivery &&
+    } else if ((m_state == State::AwaitingDelivery ||
+                m_state == State::AwaitingCancellationDelivery) &&
                decoded.type == QStringLiteral("session.delivered")) {
         handleDelivery(message);
     } else if (m_state == State::AwaitingDecision &&
@@ -257,13 +313,33 @@ void SessionRequestCoordinator::handleDelivery(const QByteArray &message) {
     easydesk::client::signaling::SessionDeliveryMessage delivery;
     QString error;
     if (!easydesk::client::signaling::decodeSessionDelivery(message, delivery, error) ||
-        delivery.messageType != QStringLiteral("session.request") ||
         delivery.requestId != m_requestId || delivery.sessionId != m_sessionId ||
         delivery.sequence != 1 || delivery.hasSessionEpoch) {
         failRequest(QStringLiteral("E_PROTOCOL"),
                     error.isEmpty()
                         ? QStringLiteral("Session delivery receipt did not match the request.")
                         : error);
+        return;
+    }
+
+    if (m_state == State::AwaitingCancellationDelivery) {
+        if (delivery.messageType == QStringLiteral("session.request"))
+            return;
+        if (delivery.messageType != QStringLiteral("session.cancel")) {
+            failRequest(QStringLiteral("E_PROTOCOL"),
+                        QStringLiteral("Session cancellation receipt is invalid."));
+            return;
+        }
+        m_timeout.stop();
+        clearRequest();
+        setState(State::Idle);
+        emit requestCancelled();
+        return;
+    }
+
+    if (delivery.messageType != QStringLiteral("session.request")) {
+        failRequest(QStringLiteral("E_PROTOCOL"),
+                    QStringLiteral("Session request receipt is invalid."));
         return;
     }
 
@@ -369,6 +445,10 @@ void SessionRequestCoordinator::handleTimeout() {
     case State::AwaitingDecision:
         failRequest(QStringLiteral("E_DECISION_TIMEOUT"),
                     QStringLiteral("The remote device did not respond in time."));
+        break;
+    case State::AwaitingCancellationDelivery:
+        failRequest(QStringLiteral("E_DELIVERY_TIMEOUT"),
+                    QStringLiteral("Session cancellation delivery timed out."));
         break;
     case State::Accepted:
         break;
