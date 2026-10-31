@@ -147,6 +147,12 @@ void SignalingClient::handleMessage(const QByteArray &message) {
     case Kind::AssistanceCode:
         handleAssistanceCode(message);
         break;
+    case Kind::AssistanceResolved:
+        if (isRegistered())
+            emit messageReceived(message);
+        else
+            failProtocol(QStringLiteral("Assistance identity arrived before registration completed."));
+        break;
     case Kind::Error:
         handleServerError(message);
         break;

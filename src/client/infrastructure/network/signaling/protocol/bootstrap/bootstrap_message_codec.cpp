@@ -1,5 +1,8 @@
 #include "network/signaling/protocol/bootstrap/bootstrap_message_codec.h"
 
+#include "network/signaling/protocol/encoding/base64url.h"
+
+#include <QCryptographicHash>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
@@ -112,6 +115,37 @@ bool decodeBootstrapMessage(const QByteArray &message,
         error.clear();
         return true;
     }
+    if (decoded.type == QStringLiteral("assist.resolved")) {
+        decoded.kind = BootstrapMessage::Kind::AssistanceResolved;
+        QString protocol;
+        QString publicKeyText;
+        if (!textField(object, QStringLiteral("protocol"), 64, protocol) ||
+            protocol != QString::fromLatin1(kSessionProtocol) ||
+            !textField(object, QStringLiteral("device_id"), 9,
+                       decoded.resolved.deviceId) ||
+            !containsDigits(decoded.resolved.deviceId, 9) ||
+            !textField(object, QStringLiteral("public_key"), 64, publicKeyText) ||
+            !textField(object, QStringLiteral("fingerprint"), 64,
+                       decoded.resolved.fingerprint) ||
+            !isFingerprint(decoded.resolved.fingerprint)) {
+            error = QStringLiteral("Resolved assistance identity fields are invalid.");
+            return false;
+        }
+        const auto publicKey = decodeBase64Url(publicKeyText.toLatin1());
+        if (!publicKey || publicKey->size() != 32) {
+            error = QStringLiteral("Resolved assistance public key is invalid.");
+            return false;
+        }
+        const QString expectedFingerprint = QString::fromLatin1(
+            QCryptographicHash::hash(*publicKey, QCryptographicHash::Sha256).toHex());
+        if (decoded.resolved.fingerprint != expectedFingerprint) {
+            error = QStringLiteral("Resolved assistance fingerprint does not match its public key.");
+            return false;
+        }
+        decoded.resolved.publicKey = *publicKey;
+        error.clear();
+        return true;
+    }
     if (decoded.type == QStringLiteral("error")) {
         decoded.kind = BootstrapMessage::Kind::Error;
         if (!textField(object, QStringLiteral("code"), 64, decoded.error.code) ||
@@ -133,6 +167,19 @@ QByteArray encodeAssistanceRefresh() {
     QJsonObject object;
     object.insert(QStringLiteral("type"), QStringLiteral("assist.refresh"));
     object.insert(QStringLiteral("protocol"), QString::fromLatin1(kSessionProtocol));
+    return QJsonDocument(object).toJson(QJsonDocument::Compact);
+}
+
+QByteArray encodeAssistanceResolve(const QString &code, QString &error) {
+    if (!containsDigits(code, 8)) {
+        error = QStringLiteral("Assistance code must contain exactly 8 digits.");
+        return {};
+    }
+    QJsonObject object;
+    object.insert(QStringLiteral("type"), QStringLiteral("assist.resolve"));
+    object.insert(QStringLiteral("protocol"), QString::fromLatin1(kSessionProtocol));
+    object.insert(QStringLiteral("code"), code);
+    error.clear();
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 

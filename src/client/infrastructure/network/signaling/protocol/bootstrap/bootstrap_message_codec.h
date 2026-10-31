@@ -20,6 +20,12 @@ struct AssistanceCodeMessage {
     int expiresInSeconds = 0;
 };
 
+struct AssistanceResolvedMessage {
+    QString deviceId;
+    QByteArray publicKey;
+    QString fingerprint;
+};
+
 struct SignalingErrorMessage {
     QString code;
     QString message;
@@ -30,6 +36,7 @@ struct BootstrapMessage {
         RegistrationChallenge,
         RegistrationResult,
         AssistanceCode,
+        AssistanceResolved,
         Error,
         Other,
     };
@@ -39,6 +46,7 @@ struct BootstrapMessage {
     RegistrationChallenge challenge;
     RegistrationResultMessage registration;
     AssistanceCodeMessage assistance;
+    AssistanceResolvedMessage resolved;
     SignalingErrorMessage error;
 };
 
@@ -46,5 +54,6 @@ bool decodeBootstrapMessage(const QByteArray &message,
                             BootstrapMessage &decoded,
                             QString &error);
 QByteArray encodeAssistanceRefresh();
+QByteArray encodeAssistanceResolve(const QString &code, QString &error);
 
 }  // namespace easydesk::client::signaling
