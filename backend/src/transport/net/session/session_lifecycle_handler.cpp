@@ -121,7 +121,8 @@ void WebSocketSession::handleSessionEnd(const boost::json::object& object) {
     }
 
     auto verified = protocol::verifySessionEnd(
-        envelope, active->request, active->accept, nullptr);
+        envelope, active->request, active->accept,
+        active->revoke ? &*active->revoke : nullptr);
     if (const auto* error = std::get_if<protocol::SessionVerificationError>(&verified)) {
         sendError(*error == protocol::SessionVerificationError::invalidSignature
                       ? "E_SIGNATURE"
@@ -133,6 +134,10 @@ void WebSocketSession::handleSessionEnd(const boost::json::object& object) {
         std::get<protocol::VerifiedSessionEnd>(verified), now);
     if (ended == session::SessionTerminationResult::replay) {
         sendError("E_REPLAY", "session end sequence was already processed", false);
+        return;
+    }
+    if (ended == session::SessionTerminationResult::staleAuthorization) {
+        sendError("E_PERMISSION_EPOCH", "session authorization has changed", false);
         return;
     }
     if (ended != session::SessionTerminationResult::ended) {

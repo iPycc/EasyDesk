@@ -91,6 +91,7 @@ SessionActivationResult SessionRegistry::activate(
             .accept = std::move(accept),
             .offer = std::nullopt,
             .answer = std::nullopt,
+            .revoke = std::nullopt,
             .requesterGatheringComplete = false,
             .responderGatheringComplete = false,
         },
@@ -247,6 +248,46 @@ NegotiationStoreResult SessionRegistry::storeGatheringComplete(
     return NegotiationStoreResult::stored;
 }
 
+PermissionStoreResult SessionRegistry::storeRevoke(
+    protocol::VerifiedSessionRevoke revoke,
+    std::chrono::steady_clock::time_point now) {
+    const std::scoped_lock lock(mutex_);
+    removeExpiredLocked(now);
+    const std::string key = routeKey(revoke.envelope.requestId, revoke.envelope.sessionId);
+    const auto entry = active_.find(key);
+    if (entry == active_.end())
+        return PermissionStoreResult::missingSession;
+
+    const auto& request = entry->second.session.request.envelope;
+    if (revoke.envelope.fromDeviceId != request.toDeviceId ||
+        revoke.envelope.toDeviceId != request.fromDeviceId) {
+        return PermissionStoreResult::missingSession;
+    }
+    if (revoke.envelope.sequence <= entry->second.lastResponderSequence)
+        return PermissionStoreResult::replay;
+
+    const auto& currentAuthorizationPayload = entry->second.session.revoke
+                                                  ? entry->second.session.revoke->envelope.signedPayload
+                                                  : entry->second.session.accept.envelope.signedPayload;
+    const auto& currentGrants = entry->second.session.revoke
+                                    ? entry->second.session.revoke->payload.grantedGrants
+                                    : entry->second.session.accept.payload.grantedGrants;
+    const std::uint64_t currentPermissionEpoch = entry->second.session.revoke
+                                                     ? entry->second.session.revoke->payload.permissionEpoch
+                                                     : entry->second.session.accept.payload.permissionEpoch;
+    if (revoke.payload.authorizationDigest !=
+            protocol::sessionPayloadDigest(currentAuthorizationPayload) ||
+        revoke.payload.grantedGrants.size() >= currentGrants.size() ||
+        !protocol::capabilityGrantsAreSubset(revoke.payload.grantedGrants, currentGrants) ||
+        revoke.payload.permissionEpoch <= currentPermissionEpoch) {
+        return PermissionStoreResult::staleAuthorization;
+    }
+
+    entry->second.lastResponderSequence = revoke.envelope.sequence;
+    entry->second.session.revoke = std::move(revoke);
+    return PermissionStoreResult::stored;
+}
+
 SessionTerminationResult SessionRegistry::endSession(
     const protocol::VerifiedSessionEnd& end,
     std::chrono::steady_clock::time_point now) {
@@ -268,6 +309,14 @@ SessionTerminationResult SessionRegistry::endSession(
     }
     if (end.envelope.sequence <= lastSequence)
         return SessionTerminationResult::replay;
+
+    const auto& currentAuthorizationPayload = entry->second.session.revoke
+                                                  ? entry->second.session.revoke->envelope.signedPayload
+                                                  : entry->second.session.accept.envelope.signedPayload;
+    if (end.payload.authorizationDigest !=
+        protocol::sessionPayloadDigest(currentAuthorizationPayload)) {
+        return SessionTerminationResult::staleAuthorization;
+    }
 
     removeLocked(key);
     return SessionTerminationResult::ended;

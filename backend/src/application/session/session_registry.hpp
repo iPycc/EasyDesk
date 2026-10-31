@@ -26,6 +26,14 @@ enum class SessionTerminationResult {
     ended,
     missingSession,
     replay,
+    staleAuthorization,
+};
+
+enum class PermissionStoreResult {
+    stored,
+    missingSession,
+    replay,
+    staleAuthorization,
 };
 
 enum class NegotiationStoreResult {
@@ -41,6 +49,7 @@ struct ActiveSession {
     protocol::VerifiedSessionAccept accept;
     std::optional<protocol::VerifiedSessionOffer> offer;
     std::optional<protocol::VerifiedSessionAnswer> answer;
+    std::optional<protocol::VerifiedSessionRevoke> revoke;
     bool requesterGatheringComplete = false;
     bool responderGatheringComplete = false;
 };
@@ -82,6 +91,8 @@ public:
     NegotiationStoreResult storeGatheringComplete(
         protocol::VerifiedSessionGatheringComplete complete,
         std::chrono::steady_clock::time_point now);
+    PermissionStoreResult storeRevoke(protocol::VerifiedSessionRevoke revoke,
+                                      std::chrono::steady_clock::time_point now);
     SessionTerminationResult endSession(const protocol::VerifiedSessionEnd& end,
                                         std::chrono::steady_clock::time_point now);
     bool removeSession(const protocol::SessionIdentifier& requestId,
