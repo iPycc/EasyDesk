@@ -2,12 +2,12 @@
 
 #include "features/sessions/session_service.h"
 
-class QSettings;
+class DeviceProfileStore;
 
 class LocalSessionService final : public SessionService {
     Q_OBJECT
   public:
-    explicit LocalSessionService(QSettings &settings, QObject *parent = nullptr);
+    explicit LocalSessionService(DeviceProfileStore &profile, QObject *parent = nullptr);
     LocalIdentity localIdentity() const override {
         return m_identity;
     }
@@ -29,9 +29,8 @@ class LocalSessionService final : public SessionService {
     void setQuality(const QString &quality) override;
 
   private:
-    QSettings &m_settings;
     LocalIdentity m_identity;
     SessionOptions m_options;
     SessionTelemetry m_telemetry;
-    QString generateDigits(int digits) const;
+    QString generateAssistanceCode() const;
 };

@@ -4,6 +4,7 @@
 #include "data/local/local_transfer_service.h"
 #include "data/local/settings_device_service.h"
 #include "data/local/windows_system_service.h"
+#include "data/settings/identity/device_profile_store.h"
 #include "identity/windows_identity_store.h"
 #include "media/webrtc/media_runtime_library.h"
 #include <QDebug>
@@ -26,8 +27,12 @@ ApplicationContext::ApplicationContext() {
     if (!QFile::exists(settingsPath) && QFile::exists(legacyPath))
         QFile::copy(legacyPath, settingsPath);
     m_settings = std::make_unique<QSettings>(settingsPath, QSettings::IniFormat);
+    m_profile = std::make_unique<DeviceProfileStore>(*m_settings);
+    if (!m_profile->initialize())
+        qWarning().noquote() << "EasyDesk device profile initialization failed:"
+                             << m_profile->errorString();
     m_devices = std::make_unique<SettingsDeviceService>(*m_settings);
-    m_sessions = std::make_unique<LocalSessionService>(*m_settings);
+    m_sessions = std::make_unique<LocalSessionService>(*m_profile);
     m_transfers = std::make_unique<LocalTransferService>();
     m_local = std::make_unique<WindowsSystemService>(*m_settings);
     m_media = std::make_unique<MediaRuntimeLibrary>();
@@ -61,4 +66,8 @@ MediaRuntimeLibrary &ApplicationContext::mediaRuntime() const {
 
 WindowsIdentityStore &ApplicationContext::identity() const {
     return *m_identity;
+}
+
+DeviceProfileStore &ApplicationContext::deviceProfile() const {
+    return *m_profile;
 }

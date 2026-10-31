@@ -1,17 +1,13 @@
 #include "data/local/local_session_service.h"
+#include "data/settings/identity/device_profile_store.h"
 
 #include <QRandomGenerator>
 #include <QRegularExpression>
-#include <QSettings>
 
-LocalSessionService::LocalSessionService(QSettings &settings, QObject *parent)
-    : SessionService(parent), m_settings(settings) {
-    m_identity.id = m_settings.value("identity/deviceId").toString();
-    if (!QRegularExpression("^[0-9]{9}$").match(m_identity.id).hasMatch()) {
-        m_identity.id = generateDigits(9);
-        m_settings.setValue("identity/deviceId", m_identity.id);
-    }
-    m_identity.name = m_settings.value("identity/name", QStringLiteral("此设备")).toString();
+LocalSessionService::LocalSessionService(DeviceProfileStore &profile, QObject *parent)
+    : SessionService(parent) {
+    m_identity.id = profile.profile().deviceId;
+    m_identity.name = profile.profile().displayName;
     refreshAssistanceCode();
 }
 
@@ -19,11 +15,11 @@ QString LocalSessionService::statusText() const {
     return QStringLiteral("信令未连接");
 }
 
-QString LocalSessionService::generateDigits(int digits) const {
+QString LocalSessionService::generateAssistanceCode() const {
     QString value;
-    value.reserve(digits);
+    value.reserve(8);
     auto *generator = QRandomGenerator::system();
-    for (int index = 0; index < digits; ++index)
+    for (int index = 0; index < 8; ++index)
         value.append(QChar('0' + generator->bounded(10)));
     if (!value.isEmpty() && value.front() == '0')
         value[0] = QChar('1' + generator->bounded(9));
@@ -31,7 +27,7 @@ QString LocalSessionService::generateDigits(int digits) const {
 }
 
 void LocalSessionService::refreshAssistanceCode() {
-    m_identity.assistanceCode = generateDigits(8);
+    m_identity.assistanceCode = generateAssistanceCode();
     emit identityChanged();
 }
 

@@ -8,6 +8,7 @@ class QSettings;
 class LocalSystemService;
 class MediaRuntimeLibrary;
 class WindowsIdentityStore;
+class DeviceProfileStore;
 
 class ApplicationContext final : public QObject {
   public:
@@ -20,13 +21,15 @@ class ApplicationContext final : public QObject {
     LocalSystemService &localSystem() const;
     MediaRuntimeLibrary &mediaRuntime() const;
     WindowsIdentityStore &identity() const;
+    DeviceProfileStore &deviceProfile() const;
 
   private:
+    std::unique_ptr<QSettings> m_settings;
+    std::unique_ptr<MediaRuntimeLibrary> m_media;
+    std::unique_ptr<WindowsIdentityStore> m_identity;
+    std::unique_ptr<DeviceProfileStore> m_profile;
     std::unique_ptr<DeviceService> m_devices;
     std::unique_ptr<SessionService> m_sessions;
     std::unique_ptr<TransferService> m_transfers;
-    std::unique_ptr<QSettings> m_settings;
     std::unique_ptr<LocalSystemService> m_local;
-    std::unique_ptr<MediaRuntimeLibrary> m_media;
-    std::unique_ptr<WindowsIdentityStore> m_identity;
 };
