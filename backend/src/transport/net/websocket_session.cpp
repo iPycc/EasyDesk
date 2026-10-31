@@ -77,7 +77,8 @@ WebSocketSession::WebSocketSession(beast::tcp_stream stream,
                                    hub::SignalingHub& hub,
                                    session::AssistCodeRegistry& assistCodes,
                                    session::SessionAttemptLimiter& attemptLimiter,
-                                   session::SessionRegistry& sessions)
+                                   session::SessionRegistry& sessions,
+                                   const turn::TurnCredentialIssuer* turnCredentials)
     : strand_(boost::asio::make_strand(
           static_cast<boost::asio::io_context&>(stream.get_executor().context()))),
       websocket_(std::move(stream)),
@@ -86,7 +87,8 @@ WebSocketSession::WebSocketSession(beast::tcp_stream stream,
       hub_(hub),
       assistCodes_(assistCodes),
       attemptLimiter_(attemptLimiter),
-      sessions_(sessions) {}
+      sessions_(sessions),
+      turnCredentials_(turnCredentials) {}
 
 WebSocketSession::~WebSocketSession() {
     if (connectedToHub_) {

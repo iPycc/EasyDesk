@@ -20,6 +20,10 @@ class SessionAttemptLimiter;
 class SessionRegistry;
 }
 
+namespace easydesk::turn {
+class TurnCredentialIssuer;
+}
+
 namespace easydesk::net {
 
 class HttpSession final : public std::enable_shared_from_this<HttpSession> {
@@ -29,7 +33,8 @@ public:
                 hub::SignalingHub& hub,
                 session::AssistCodeRegistry& assistCodes,
                 session::SessionAttemptLimiter& attemptLimiter,
-                session::SessionRegistry& sessions);
+                session::SessionRegistry& sessions,
+                const turn::TurnCredentialIssuer* turnCredentials);
 
     void run();
 
@@ -49,6 +54,7 @@ private:
     session::AssistCodeRegistry& assistCodes_;
     session::SessionAttemptLimiter& attemptLimiter_;
     session::SessionRegistry& sessions_;
+    const turn::TurnCredentialIssuer* turnCredentials_;
 };
 
 }  // namespace easydesk::net

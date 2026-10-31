@@ -3,6 +3,7 @@
 #include "application/session/assist_code_registry.hpp"
 #include "application/session/session_attempt_limiter.hpp"
 #include "application/session/session_registry.hpp"
+#include "application/turn/turn_credential_issuer.hpp"
 #include "infrastructure/devices/device_repository.hpp"
 #include "infrastructure/storage/sqlite_database.hpp"
 #include "transport/net/http_listener.hpp"
@@ -34,13 +35,20 @@ int main() {
         easydesk::session::AssistCodeRegistry assistCodes;
         easydesk::session::SessionAttemptLimiter attemptLimiter;
         easydesk::session::SessionRegistry sessions;
+        std::unique_ptr<easydesk::turn::TurnCredentialIssuer> turnCredentials;
+        if (config.turn) {
+            turnCredentials = std::make_unique<easydesk::turn::TurnCredentialIssuer>(
+                config.turn->sharedSecret, config.turn->urls,
+                config.turn->credentialLifetime);
+        }
 
         boost::asio::io_context context(static_cast<int>(config.workerThreads));
 
         const auto address = boost::asio::ip::make_address(config.bindAddress);
         const boost::asio::ip::tcp::endpoint endpoint(address, config.port);
         std::make_shared<easydesk::net::HttpListener>(context, endpoint, devices, hub,
-                                                      assistCodes, attemptLimiter, sessions)
+                                                      assistCodes, attemptLimiter, sessions,
+                                                      turnCredentials.get())
             ->run();
 
         boost::asio::signal_set signals(context, SIGINT, SIGTERM);

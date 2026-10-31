@@ -37,6 +37,10 @@ class SessionAttemptLimiter;
 class SessionRegistry;
 }
 
+namespace easydesk::turn {
+class TurnCredentialIssuer;
+}
+
 namespace easydesk::net {
 
 class WebSocketSession final : public std::enable_shared_from_this<WebSocketSession>,
@@ -49,7 +53,8 @@ public:
                      hub::SignalingHub& hub,
                      session::AssistCodeRegistry& assistCodes,
                      session::SessionAttemptLimiter& attemptLimiter,
-                     session::SessionRegistry& sessions);
+                     session::SessionRegistry& sessions,
+                     const turn::TurnCredentialIssuer* turnCredentials);
     ~WebSocketSession() override;
 
     void accept(Request request);
@@ -94,6 +99,7 @@ private:
     session::AssistCodeRegistry& assistCodes_;
     session::SessionAttemptLimiter& attemptLimiter_;
     session::SessionRegistry& sessions_;
+    const turn::TurnCredentialIssuer* turnCredentials_;
     boost::beast::flat_buffer buffer_;
     std::deque<std::shared_ptr<const std::string>> outbound_;
     std::string nonce_;

@@ -43,13 +43,15 @@ HttpSession::HttpSession(boost::asio::ip::tcp::socket socket,
                          hub::SignalingHub& hub,
                          session::AssistCodeRegistry& assistCodes,
                          session::SessionAttemptLimiter& attemptLimiter,
-                         session::SessionRegistry& sessions)
+                         session::SessionRegistry& sessions,
+                         const turn::TurnCredentialIssuer* turnCredentials)
     : stream_(std::move(socket)),
       devices_(devices),
       hub_(hub),
       assistCodes_(assistCodes),
       attemptLimiter_(attemptLimiter),
-      sessions_(sessions) {
+      sessions_(sessions),
+      turnCredentials_(turnCredentials) {
     parser_.body_limit(16 * 1024);
 }
 
@@ -72,7 +74,8 @@ void HttpSession::readRequest() {
                              self->stream_.expires_never();
                              std::make_shared<WebSocketSession>(std::move(self->stream_), self->devices_,
                                                                 self->hub_, self->assistCodes_,
-                                                                self->attemptLimiter_, self->sessions_)
+                                                                self->attemptLimiter_, self->sessions_,
+                                                                self->turnCredentials_)
                                  ->accept(std::move(request));
                              return;
                          }
