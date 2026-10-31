@@ -25,6 +25,7 @@ SOURCES += \
     src/client/infrastructure/data/settings/identity/device_profile_store.cpp \
     src/client/infrastructure/network/signaling/client/signaling_client.cpp \
     src/client/infrastructure/network/signaling/protocol/bootstrap/bootstrap_message_codec.cpp \
+    src/client/infrastructure/network/signaling/protocol/cbor/deterministic_cbor_reader.cpp \
     src/client/infrastructure/network/signaling/protocol/cbor/deterministic_cbor_writer.cpp \
     src/client/infrastructure/network/signaling/protocol/encoding/base64url.cpp \
     src/client/infrastructure/network/signaling/protocol/registration/registration_codec.cpp \
@@ -85,6 +86,7 @@ HEADERS += \
     src/client/infrastructure/data/settings/identity/device_profile_store.h \
     src/client/infrastructure/network/signaling/client/signaling_client.h \
     src/client/infrastructure/network/signaling/protocol/bootstrap/bootstrap_message_codec.h \
+    src/client/infrastructure/network/signaling/protocol/cbor/deterministic_cbor_reader.h \
     src/client/infrastructure/network/signaling/protocol/cbor/deterministic_cbor_writer.h \
     src/client/infrastructure/network/signaling/protocol/encoding/base64url.h \
     src/client/infrastructure/network/signaling/protocol/registration/registration_codec.h \
