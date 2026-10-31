@@ -27,6 +27,7 @@ SOURCES += \
     src/client/infrastructure/network/signaling/protocol/cbor/deterministic_cbor_writer.cpp \
     src/client/infrastructure/network/signaling/protocol/encoding/base64url.cpp \
     src/client/infrastructure/network/signaling/protocol/registration/registration_codec.cpp \
+    src/client/infrastructure/network/signaling/protocol/session/session_request_codec.cpp \
     src/client/infrastructure/network/signaling/service/signaling_session_service.cpp \
     src/client/platform/windows/data/local/windows_system_service.cpp \
     src/client/platform/windows/input/input_lease.cpp \
@@ -83,6 +84,7 @@ HEADERS += \
     src/client/infrastructure/network/signaling/protocol/cbor/deterministic_cbor_writer.h \
     src/client/infrastructure/network/signaling/protocol/encoding/base64url.h \
     src/client/infrastructure/network/signaling/protocol/registration/registration_codec.h \
+    src/client/infrastructure/network/signaling/protocol/session/session_request_codec.h \
     src/client/infrastructure/network/signaling/service/signaling_session_service.h \
     src/client/platform/windows/data/local/windows_system_service.h \
     src/client/platform/windows/input/input_lease.h \
