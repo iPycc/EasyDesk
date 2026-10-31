@@ -1,12 +1,12 @@
 #include "identity/windows_identity_store.h"
 
 #include "media/webrtc/media_runtime_library.h"
+#include "security/secure_random.h"
 #include "easydesk_media_abi.h"
 
 #include <QSettings>
 
 #include <windows.h>
-#include <bcrypt.h>
 #include <dpapi.h>
 
 namespace {
@@ -122,17 +122,8 @@ QString WindowsIdentityStore::errorString() const {
 }
 
 QByteArray WindowsIdentityStore::createSeed() {
-    QByteArray seed(static_cast<int>(EASYDESK_IDENTITY_ED25519_SEED_SIZE), '\0');
-    const NTSTATUS status = BCryptGenRandom(
-        nullptr, reinterpret_cast<PUCHAR>(seed.data()), static_cast<ULONG>(seed.size()),
-        BCRYPT_USE_SYSTEM_PREFERRED_RNG);
-    if (status < 0) {
-        seed.fill('\0');
-        seed.clear();
-        m_error = QStringLiteral("Secure identity generation failed (0x%1).")
-                      .arg(static_cast<quint32>(status), 8, 16, QLatin1Char('0'));
-    }
-    return seed;
+    return easydesk::client::windows::generateSecureRandomBytes(
+        static_cast<int>(EASYDESK_IDENTITY_ED25519_SEED_SIZE), m_error);
 }
 
 QByteArray WindowsIdentityStore::protectSeed(const QByteArray &seed) {
