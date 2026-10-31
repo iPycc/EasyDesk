@@ -22,6 +22,12 @@ enum class SessionActivationResult {
     missingPendingRequest,
 };
 
+enum class SessionTerminationResult {
+    ended,
+    missingSession,
+    replay,
+};
+
 enum class NegotiationStoreResult {
     stored,
     missingSession,
@@ -76,6 +82,8 @@ public:
     NegotiationStoreResult storeGatheringComplete(
         protocol::VerifiedSessionGatheringComplete complete,
         std::chrono::steady_clock::time_point now);
+    SessionTerminationResult endSession(const protocol::VerifiedSessionEnd& end,
+                                        std::chrono::steady_clock::time_point now);
     bool removeSession(const protocol::SessionIdentifier& requestId,
                        const protocol::SessionIdentifier& sessionId,
                        const std::string& participantDeviceId);

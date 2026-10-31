@@ -93,4 +93,62 @@ void WebSocketSession::handleSessionDecision(
     sendSessionDelivered(envelope);
 }
 
+void WebSocketSession::handleSessionEnd(const boost::json::object& object) {
+    auto parsed = protocol::parseSessionEnvelope(object);
+    if (const auto* protocolError = std::get_if<protocol::ProtocolError>(&parsed)) {
+        sendError(protocolError->code, protocolError->message, false);
+        return;
+    }
+    auto envelope = std::get<protocol::SessionEnvelope>(std::move(parsed));
+    if (envelope.type != protocol::SessionMessageType::end ||
+        envelope.fromDeviceId != deviceId_) {
+        sendError("E_INVALID_ROUTE", "session end route is invalid", false);
+        return;
+    }
+
+    const std::int64_t nowUnix = unixSeconds();
+    if (envelope.expiresAt < nowUnix ||
+        envelope.expiresAt > nowUnix + kDecisionLifetime.count()) {
+        sendError("E_EXPIRED", "session end is expired or too far in the future", false);
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    const auto active = sessions_.findActiveForParticipant(
+        envelope.requestId, envelope.sessionId, deviceId_, now);
+    if (!active) {
+        sendError("E_SESSION_NOT_ACTIVE", "session is not active", false);
+        return;
+    }
+
+    auto verified = protocol::verifySessionEnd(envelope, active->request, active->accept);
+    if (const auto* error = std::get_if<protocol::SessionVerificationError>(&verified)) {
+        sendError(*error == protocol::SessionVerificationError::invalidSignature
+                      ? "E_SIGNATURE"
+                      : "E_INVALID_SESSION_MESSAGE",
+                  "session end authentication failed", false);
+        return;
+    }
+    const auto ended = sessions_.endSession(
+        std::get<protocol::VerifiedSessionEnd>(verified), now);
+    if (ended == session::SessionTerminationResult::replay) {
+        sendError("E_REPLAY", "session end sequence was already processed", false);
+        return;
+    }
+    if (ended != session::SessionTerminationResult::ended) {
+        sendError("E_SESSION_NOT_ACTIVE", "session is not active", false);
+        return;
+    }
+
+    const auto routeResult =
+        hub_.route(deviceId_, this, envelope.toDeviceId, protocol::sessionEnvelopeToJson(envelope));
+    if (routeResult != hub::RouteResult::delivered) {
+        sendError(routeResult == hub::RouteResult::senderMissing ? "E_CONNECTION_STATE"
+                                                                 : "E_TARGET_OFFLINE",
+                  "session end could not be delivered",
+                  routeResult == hub::RouteResult::senderMissing);
+        return;
+    }
+    sendSessionDelivered(envelope);
+}
+
 }  // namespace easydesk::net

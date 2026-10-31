@@ -247,6 +247,32 @@ NegotiationStoreResult SessionRegistry::storeGatheringComplete(
     return NegotiationStoreResult::stored;
 }
 
+SessionTerminationResult SessionRegistry::endSession(
+    const protocol::VerifiedSessionEnd& end,
+    std::chrono::steady_clock::time_point now) {
+    const std::scoped_lock lock(mutex_);
+    removeExpiredLocked(now);
+    const std::string key = routeKey(end.envelope.requestId, end.envelope.sessionId);
+    const auto entry = active_.find(key);
+    if (entry == active_.end())
+        return SessionTerminationResult::missingSession;
+
+    const auto& request = entry->second.session.request.envelope;
+    std::uint64_t lastSequence = entry->second.lastRequesterSequence;
+    if (end.envelope.fromDeviceId == request.toDeviceId &&
+        end.envelope.toDeviceId == request.fromDeviceId) {
+        lastSequence = entry->second.lastResponderSequence;
+    } else if (end.envelope.fromDeviceId != request.fromDeviceId ||
+               end.envelope.toDeviceId != request.toDeviceId) {
+        return SessionTerminationResult::missingSession;
+    }
+    if (end.envelope.sequence <= lastSequence)
+        return SessionTerminationResult::replay;
+
+    removeLocked(key);
+    return SessionTerminationResult::ended;
+}
+
 bool SessionRegistry::removeSession(const protocol::SessionIdentifier& requestId,
                                     const protocol::SessionIdentifier& sessionId,
                                     const std::string& participantDeviceId) {

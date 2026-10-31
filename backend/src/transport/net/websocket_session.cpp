@@ -229,6 +229,8 @@ void WebSocketSession::handleMessage(const std::string& message) {
         handleSessionIceSignal(object, protocol::SessionMessageType::candidates);
     } else if (type == "session.gathering_complete") {
         handleSessionIceSignal(object, protocol::SessionMessageType::gatheringComplete);
+    } else if (type == "session.end") {
+        handleSessionEnd(object);
     } else if (isPairMessage(type)) {
         handleSignedEnvelope(object);
     } else {
