@@ -4,7 +4,9 @@
 #include "data/local/local_transfer_service.h"
 #include "data/local/settings_device_service.h"
 #include "data/local/windows_system_service.h"
+#include "identity/windows_identity_store.h"
 #include "media/webrtc/media_runtime_library.h"
+#include <QDebug>
 #include <QDir>
 #include <QFile>
 #include <QSettings>
@@ -30,6 +32,10 @@ ApplicationContext::ApplicationContext() {
     m_local = std::make_unique<WindowsSystemService>(*m_settings);
     m_media = std::make_unique<MediaRuntimeLibrary>();
     m_media->start();
+    m_identity = std::make_unique<WindowsIdentityStore>(*m_settings, *m_media);
+    if (!m_identity->initialize())
+        qWarning().noquote() << "EasyDesk identity initialization failed:"
+                             << m_identity->errorString();
 }
 ApplicationContext::~ApplicationContext() = default;
 DeviceService &ApplicationContext::devices() const {
@@ -51,4 +57,8 @@ LocalSystemService &ApplicationContext::localSystem() const {
 
 MediaRuntimeLibrary &ApplicationContext::mediaRuntime() const {
     return *m_media;
+}
+
+WindowsIdentityStore &ApplicationContext::identity() const {
+    return *m_identity;
 }
