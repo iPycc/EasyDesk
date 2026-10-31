@@ -31,6 +31,7 @@ SOURCES += \
     src/client/infrastructure/network/signaling/protocol/registration/registration_codec.cpp \
     src/client/infrastructure/network/signaling/protocol/session/session_accept_codec.cpp \
     src/client/infrastructure/network/signaling/protocol/session/session_capability.cpp \
+    src/client/infrastructure/network/signaling/protocol/session/session_decision_codec.cpp \
     src/client/infrastructure/network/signaling/protocol/session/session_delivery_codec.cpp \
     src/client/infrastructure/network/signaling/protocol/session/session_request_codec.cpp \
     src/client/infrastructure/network/signaling/protocol/session/session_request_decoder.cpp \
@@ -95,6 +96,7 @@ HEADERS += \
     src/client/infrastructure/network/signaling/protocol/registration/registration_codec.h \
     src/client/infrastructure/network/signaling/protocol/session/session_accept_codec.h \
     src/client/infrastructure/network/signaling/protocol/session/session_capability.h \
+    src/client/infrastructure/network/signaling/protocol/session/session_decision_codec.h \
     src/client/infrastructure/network/signaling/protocol/session/session_delivery_codec.h \
     src/client/infrastructure/network/signaling/protocol/session/session_request_codec.h \
     src/client/infrastructure/network/signaling/protocol/session/session_request_decoder.h \
