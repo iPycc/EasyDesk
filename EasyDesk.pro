@@ -15,6 +15,7 @@ INCLUDEPATH += \
 SOURCES += \
     src/client/application/app/application_context.cpp \
     src/client/application/app/main.cpp \
+    src/client/application/sessions/session_request_coordinator.cpp \
     src/client/domain/core/device.cpp \
     src/client/domain/features/devices/device_service.cpp \
     src/client/domain/features/sessions/model/session_access.cpp \
@@ -67,6 +68,7 @@ SOURCES += \
     src/client/presentation/ui/windows/window_chrome.cpp
 HEADERS += \
     src/client/application/app/application_context.h \
+    src/client/application/sessions/session_request_coordinator.h \
     src/client/domain/core/device.h \
     src/client/domain/core/local_computer.h \
     src/client/domain/core/session.h \

@@ -8,6 +8,7 @@
 #include "media/webrtc/media_runtime_library.h"
 #include "network/signaling/client/signaling_client.h"
 #include "network/signaling/service/signaling_session_service.h"
+#include "sessions/session_request_coordinator.h"
 #include <QDebug>
 #include <QDir>
 #include <QFile>
@@ -41,6 +42,8 @@ ApplicationContext::ApplicationContext() {
         qWarning().noquote() << "EasyDesk device profile initialization failed:"
                              << m_profile->errorString();
     m_signaling = std::make_unique<SignalingClient>(*m_profile, *m_identity);
+    m_sessionRequests = std::make_unique<SessionRequestCoordinator>(
+        *m_profile, *m_identity, *m_signaling);
     m_devices = std::make_unique<SettingsDeviceService>(*m_settings);
     m_sessions = std::make_unique<SignalingSessionService>(*m_profile, *m_signaling);
     m_transfers = std::make_unique<LocalTransferService>();
@@ -88,4 +91,8 @@ DeviceProfileStore &ApplicationContext::deviceProfile() const {
 
 SignalingClient &ApplicationContext::signaling() const {
     return *m_signaling;
+}
+
+SessionRequestCoordinator &ApplicationContext::sessionRequests() const {
+    return *m_sessionRequests;
 }
