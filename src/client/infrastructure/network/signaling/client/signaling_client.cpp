@@ -98,6 +98,10 @@ bool SignalingClient::refreshAssistanceCode() {
         easydesk::client::signaling::encodeAssistanceRefresh());
 }
 
+bool SignalingClient::sendRegisteredMessage(const QByteArray &message) {
+    return isRegistered() && !message.isEmpty() && m_transport.sendText(message);
+}
+
 void SignalingClient::connectNow() {
     if (!m_shouldRun)
         return;

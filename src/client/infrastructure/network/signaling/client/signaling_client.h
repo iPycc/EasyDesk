@@ -35,6 +35,7 @@ class SignalingClient final : public QObject {
     bool start(const QUrl &endpoint, bool allowInsecureLoopback = false);
     void stop();
     bool refreshAssistanceCode();
+    bool sendRegisteredMessage(const QByteArray &message);
 
   signals:
     void stateChanged(SignalingClient::State state);
