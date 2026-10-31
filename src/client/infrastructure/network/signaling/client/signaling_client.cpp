@@ -133,6 +133,9 @@ void SignalingClient::handleTransportState(WinHttpWebSocketTransport::State stat
 }
 
 void SignalingClient::handleMessage(const QByteArray &message) {
+    if (!m_shouldRun)
+        return;
+
     easydesk::client::signaling::BootstrapMessage decoded;
     QString error;
     if (!easydesk::client::signaling::decodeBootstrapMessage(message, decoded, error)) {
