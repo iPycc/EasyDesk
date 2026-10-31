@@ -28,6 +28,7 @@ SOURCES += \
     src/client/platform/windows/input/windows_input_controller.cpp \
     src/client/platform/windows/identity/windows_identity_store.cpp \
     src/client/platform/windows/network/winhttp/winhttp_websocket_connection.cpp \
+    src/client/platform/windows/network/winhttp/winhttp_websocket_transport.cpp \
     src/client/platform/windows/media/capture/dxgi_desktop_capture.cpp \
     src/client/platform/windows/media/webrtc/media_runtime_state.cpp \
     src/client/platform/windows/media/webrtc/media_runtime_library.cpp \
@@ -77,6 +78,7 @@ HEADERS += \
     src/client/platform/windows/input/windows_input_controller.h \
     src/client/platform/windows/identity/windows_identity_store.h \
     src/client/platform/windows/network/winhttp/winhttp_websocket_connection.h \
+    src/client/platform/windows/network/winhttp/winhttp_websocket_transport.h \
     src/client/platform/windows/media/capture/desktop_capture_frame.h \
     src/client/platform/windows/media/capture/dxgi_desktop_capture.h \
     src/client/platform/windows/media/webrtc/media_api.h \
