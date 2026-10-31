@@ -15,10 +15,14 @@
 extern "C" {
 #endif
 
-#define EASYDESK_MEDIA_ABI_VERSION 2u
+#define EASYDESK_MEDIA_ABI_VERSION 3u
 #define EASYDESK_MEDIA_ERROR_MESSAGE_CAPACITY 256u
 #define EASYDESK_MEDIA_SESSION_ID_SIZE 16u
 #define EASYDESK_MEDIA_MAX_EVENT_PAYLOAD_SIZE (256u * 1024u)
+#define EASYDESK_IDENTITY_ED25519_SEED_SIZE 32u
+#define EASYDESK_IDENTITY_ED25519_PUBLIC_KEY_SIZE 32u
+#define EASYDESK_IDENTITY_ED25519_PRIVATE_KEY_SIZE 64u
+#define EASYDESK_IDENTITY_ED25519_SIGNATURE_SIZE 64u
 
 typedef struct EasyDeskMediaRuntime EasyDeskMediaRuntime;
 typedef struct EasyDeskMediaSession EasyDeskMediaSession;
@@ -138,6 +142,26 @@ typedef struct EasyDeskMediaError {
 } EasyDeskMediaError;
 
 EASYDESK_MEDIA_API uint32_t easydesk_media_abi_version(void);
+
+EASYDESK_MEDIA_API EasyDeskMediaStatus easydesk_identity_ed25519_keypair_from_seed(
+    const uint8_t seed[EASYDESK_IDENTITY_ED25519_SEED_SIZE],
+    uint8_t public_key[EASYDESK_IDENTITY_ED25519_PUBLIC_KEY_SIZE],
+    uint8_t private_key[EASYDESK_IDENTITY_ED25519_PRIVATE_KEY_SIZE],
+    EasyDeskMediaError *error);
+
+EASYDESK_MEDIA_API EasyDeskMediaStatus easydesk_identity_ed25519_sign(
+    const uint8_t private_key[EASYDESK_IDENTITY_ED25519_PRIVATE_KEY_SIZE],
+    const uint8_t *message,
+    uint32_t message_size,
+    uint8_t signature[EASYDESK_IDENTITY_ED25519_SIGNATURE_SIZE],
+    EasyDeskMediaError *error);
+
+EASYDESK_MEDIA_API EasyDeskMediaStatus easydesk_identity_ed25519_verify(
+    const uint8_t public_key[EASYDESK_IDENTITY_ED25519_PUBLIC_KEY_SIZE],
+    const uint8_t *message,
+    uint32_t message_size,
+    const uint8_t signature[EASYDESK_IDENTITY_ED25519_SIGNATURE_SIZE],
+    EasyDeskMediaError *error);
 
 EASYDESK_MEDIA_API EasyDeskMediaStatus easydesk_media_runtime_create(
     const EasyDeskMediaRuntimeConfig *config,

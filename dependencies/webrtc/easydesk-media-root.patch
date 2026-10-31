@@ -13,13 +13,14 @@ diff --git a/BUILD.gn b/BUILD.gn
      if (rtc_build_examples) {
        deps += [ "examples" ]
      }
-@@ -516,8 +519,37 @@
+@@ -516,8 +519,39 @@
 +rtc_shared_library("easydesk_media") {
 +  output_name = "easydesk_media"
 +  sources = [
 +    "//easydesk_media_bridge/common/media_error.cpp",
 +    "//easydesk_media_bridge/common/media_error.h",
 +    "//easydesk_media_bridge/include/easydesk_media_abi.h",
++    "//easydesk_media_bridge/identity/ed25519_identity.cpp",
 +    "//easydesk_media_bridge/runtime/media_runtime.cpp",
 +    "//easydesk_media_bridge/runtime/media_runtime_internal.h",
 +    "//easydesk_media_bridge/session/media_event_queue.cpp",
@@ -39,6 +40,7 @@ diff --git a/BUILD.gn b/BUILD.gn
 +    ":webrtc",
 +    "//api/video_codecs:builtin_video_decoder_factory",
 +    "//api/video_codecs:builtin_video_encoder_factory",
++    "//third_party/boringssl",
 +  ]
 +}
 +
