@@ -55,12 +55,14 @@ class SessionInvitationCoordinator final : public QObject {
     void invitationReceived(const IncomingSessionInvitation &invitation);
     void sessionAccepted();
     void invitationRejected();
+    void invitationCancelled(quint8 reason);
     void failed(const QString &code, const QString &message);
 
   private:
     void handleMessage(const QByteArray &message);
     void handleRequest(const QByteArray &message);
     void handleDelivery(const QByteArray &message);
+    void handleCancellation(const QByteArray &message);
     void handleSignalingError(const QString &code, const QString &message);
     void handleTimeout();
     bool sendRejection(easydesk::client::signaling::SessionRejectReason reason);

@@ -7,6 +7,7 @@
 #include "network/signaling/protocol/bootstrap/bootstrap_message_codec.h"
 #include "network/signaling/protocol/session/session_accept_codec.h"
 #include "network/signaling/protocol/session/session_decision_codec.h"
+#include "network/signaling/protocol/session/session_decision_decoder.h"
 #include "network/signaling/protocol/session/session_delivery_codec.h"
 #include "security/secure_random.h"
 
@@ -19,6 +20,7 @@ namespace {
 constexpr int kConsentTimeoutMilliseconds = 45000;
 constexpr int kDeliveryTimeoutMilliseconds = 15000;
 constexpr qint64 kDecisionLifetimeSeconds = 45;
+constexpr qint64 kMaximumDecisionLifetimeSeconds = 60;
 constexpr qint64 kActiveSessionLifetimeSeconds = 4 * 60 * 60;
 
 bool containsCapability(
@@ -182,6 +184,9 @@ void SessionInvitationCoordinator::handleMessage(const QByteArray &message) {
 
     if (m_state == State::Idle && decoded.type == QStringLiteral("session.request")) {
         handleRequest(message);
+    } else if (m_state == State::AwaitingConsent &&
+               decoded.type == QStringLiteral("session.cancel")) {
+        handleCancellation(message);
     } else if ((m_state == State::AwaitingAcceptanceDelivery ||
                 m_state == State::AwaitingRejectionDelivery) &&
                decoded.type == QStringLiteral("session.delivered")) {
@@ -232,6 +237,46 @@ void SessionInvitationCoordinator::handleRequest(const QByteArray &message) {
     setState(State::AwaitingConsent);
     m_timeout.start(kConsentTimeoutMilliseconds);
     emit invitationReceived(m_invitation);
+}
+
+void SessionInvitationCoordinator::handleCancellation(const QByteArray &message) {
+    easydesk::client::signaling::DecodedSessionDecision cancellation;
+    QString error;
+    if (!easydesk::client::signaling::decodeSessionDecisionEnvelope(
+            message,
+            m_request.fields,
+            m_request.signedPayload,
+            cancellation,
+            error) ||
+        cancellation.kind !=
+            easydesk::client::signaling::SessionDecisionKind::Cancel ||
+        cancellation.sequence != 1) {
+        failInvitation(QStringLiteral("E_PROTOCOL"),
+                       error.isEmpty()
+                           ? QStringLiteral("Session cancellation is invalid.")
+                           : error);
+        return;
+    }
+
+    const qint64 now = QDateTime::currentSecsSinceEpoch();
+    if (cancellation.expiresAt < now ||
+        cancellation.expiresAt > now + kMaximumDecisionLifetimeSeconds) {
+        failInvitation(QStringLiteral("E_EXPIRED"),
+                       QStringLiteral("Session cancellation lifetime is invalid."));
+        return;
+    }
+    if (!m_crypto.verifyEd25519(m_request.fields.requesterPublicKey,
+                                cancellation.signedPayload,
+                                cancellation.signature)) {
+        failInvitation(QStringLiteral("E_SIGNATURE"), m_crypto.errorString());
+        return;
+    }
+
+    const quint8 reason = cancellation.reason;
+    m_timeout.stop();
+    clearInvitation();
+    setState(State::Idle);
+    emit invitationCancelled(reason);
 }
 
 void SessionInvitationCoordinator::handleDelivery(const QByteArray &message) {
