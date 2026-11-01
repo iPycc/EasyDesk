@@ -7,6 +7,7 @@
 #include "sessions/negotiation/transport/session_transport_state.h"
 #include "sessions/negotiation/turn/session_turn_binding.h"
 #include "sessions/termination/session_termination_receiver.h"
+#include "sessions/termination/session_termination_sender.h"
 
 #include <QObject>
 #include <QTimer>
@@ -32,6 +33,7 @@ class SessionNegotiationCoordinator final : public QObject {
         AwaitingRemoteAnswer,
         ApplyingRemoteAnswer,
         AwaitingIce,
+        Ending,
     };
     Q_ENUM(State)
 
@@ -47,6 +49,7 @@ class SessionNegotiationCoordinator final : public QObject {
     SessionTransportState::State transportState() const;
 
     bool begin(const SessionNegotiationContext &context);
+    bool endSession(easydesk::client::signaling::SessionEndReason reason);
     void stop();
 
   signals:
@@ -61,6 +64,12 @@ class SessionNegotiationCoordinator final : public QObject {
     void transportStateChanged(SessionTransportState::State state);
     void transportConnected();
     void remoteSessionEnded(
+        easydesk::client::signaling::SessionEndReason reason,
+        quint64 sequence);
+    void localSessionEndSent(
+        easydesk::client::signaling::SessionEndReason reason,
+        quint64 sequence);
+    void localSessionEnded(
         easydesk::client::signaling::SessionEndReason reason,
         quint64 sequence);
     void failed(const QString &code, const QString &message);
@@ -80,6 +89,7 @@ class SessionNegotiationCoordinator final : public QObject {
                                         quint32 sdpType);
     void sendLocalAnswer(const QString &sdp);
     bool startMediaSession(QString &error);
+    void closeMediaSession();
     void setState(State state);
     void fail(const QString &code, const QString &message);
 
@@ -92,6 +102,7 @@ class SessionNegotiationCoordinator final : public QObject {
     SessionIceSignalSender m_iceSender;
     SessionIceSignalReceiver m_iceReceiver;
     SessionTerminationReceiver m_terminationReceiver;
+    SessionTerminationSender m_terminationSender;
     State m_state = State::Idle;
     SessionNegotiationContext m_context;
     SessionTurnConfiguration m_turn;

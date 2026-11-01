@@ -31,7 +31,8 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
       m_signaling(signaling),
       m_iceSender(identity, signaling, this),
       m_iceReceiver(media, this),
-      m_terminationReceiver(media, this) {
+      m_terminationReceiver(media, this),
+      m_terminationSender(identity, signaling, this) {
     m_timeout.setSingleShot(true);
     connect(&m_timeout, &QTimer::timeout,
             this, &SessionNegotiationCoordinator::handleTimeout);
@@ -67,6 +68,18 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
     connect(&m_iceSender, &SessionIceSignalSender::failed,
             this, [this](const QString &code, const QString &message) {
                 fail(code, message);
+            });
+    connect(&m_iceSender, &SessionIceSignalSender::candidatesSent,
+            this, [this](int, quint64 sequence) {
+                QString error;
+                if (!m_terminationSender.noteLocalSequence(sequence, error))
+                    fail(QStringLiteral("E_LOCAL_SEQUENCE"), error);
+            });
+    connect(&m_iceSender, &SessionIceSignalSender::gatheringCompleteSent,
+            this, [this](quint64 sequence) {
+                QString error;
+                if (!m_terminationSender.noteLocalSequence(sequence, error))
+                    fail(QStringLiteral("E_LOCAL_SEQUENCE"), error);
             });
     connect(&m_iceReceiver, &SessionIceSignalReceiver::candidateBatchApplied,
             this, [this](int count, quint64 sequence) {
@@ -107,6 +120,25 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
                 emit remoteSessionEnded(reason, sequence);
             });
     connect(&m_terminationReceiver, &SessionTerminationReceiver::failed,
+            this, [this](const QString &code, const QString &message) {
+                fail(code, message);
+            });
+    connect(&m_terminationSender, &SessionTerminationSender::sent,
+            this, [this](
+                      easydesk::client::signaling::SessionEndReason reason,
+                      quint64 sequence) {
+                closeMediaSession();
+                setState(State::Ending);
+                emit localSessionEndSent(reason, sequence);
+            });
+    connect(&m_terminationSender, &SessionTerminationSender::delivered,
+            this, [this](
+                      easydesk::client::signaling::SessionEndReason reason,
+                      quint64 sequence) {
+                stop();
+                emit localSessionEnded(reason, sequence);
+            });
+    connect(&m_terminationSender, &SessionTerminationSender::failed,
             this, [this](const QString &code, const QString &message) {
                 fail(code, message);
             });
@@ -154,25 +186,30 @@ bool SessionNegotiationCoordinator::begin(
         emit failed(QStringLiteral("E_TERMINATION_RECEIVER"), error);
         return false;
     }
+    if (!m_terminationSender.begin(context, error)) {
+        m_terminationReceiver.stop();
+        m_iceSender.stop();
+        m_context = {};
+        emit failed(QStringLiteral("E_TERMINATION_SENDER"), error);
+        return false;
+    }
     setState(State::AwaitingTurnCredentials);
     m_timeout.start(kTurnCredentialTimeoutMilliseconds);
     return true;
 }
 
+bool SessionNegotiationCoordinator::endSession(
+    easydesk::client::signaling::SessionEndReason reason) {
+    if (m_state == State::Idle || m_state == State::Ending)
+        return false;
+    return m_terminationSender.end(reason);
+}
+
 void SessionNegotiationCoordinator::stop() {
-    m_timeout.stop();
-    m_eventPump.stop();
-    m_transportState.stop();
-    m_iceSender.stop();
-    m_iceReceiver.stop();
-    m_terminationReceiver.stop();
-    m_mediaSession.reset();
+    closeMediaSession();
+    m_terminationSender.stop();
     m_context = {};
     m_turn = {};
-    m_signedLocalDescriptionPayload.clear();
-    m_localDescriptionSequence = 0;
-    m_signedRemoteDescriptionPayload.clear();
-    m_remoteDescriptionSequence = 0;
     setState(State::Idle);
 }
 
@@ -194,6 +231,9 @@ void SessionNegotiationCoordinator::handleMessage(const QByteArray &message) {
     } else if (bootstrap.type == QStringLiteral("session.end") &&
                m_terminationReceiver.isActive()) {
         m_terminationReceiver.handleEnd(message);
+    } else if (bootstrap.type == QStringLiteral("session.delivered") &&
+               m_terminationSender.isAwaitingDelivery()) {
+        m_terminationSender.handleDelivery(message);
     } else if (m_state == State::AwaitingRemoteOffer &&
                bootstrap.type == QStringLiteral("session.offer")) {
         handleRemoteOffer(message);
@@ -463,6 +503,11 @@ void SessionNegotiationCoordinator::handleLocalDescription(
 
     m_signedLocalDescriptionPayload = signingBytes;
     m_localDescriptionSequence = fields.route.sequence;
+    if (!m_terminationSender.noteLocalSequence(
+            m_localDescriptionSequence, error)) {
+        fail(QStringLiteral("E_LOCAL_SEQUENCE"), error);
+        return;
+    }
     if (!m_iceSender.bindLocalDescription(
             m_signedLocalDescriptionPayload,
             m_localDescriptionSequence,
@@ -559,6 +604,11 @@ void SessionNegotiationCoordinator::sendLocalAnswer(const QString &sdp) {
     m_timeout.stop();
     m_signedLocalDescriptionPayload = signingBytes;
     m_localDescriptionSequence = fields.route.sequence;
+    if (!m_terminationSender.noteLocalSequence(
+            m_localDescriptionSequence, error)) {
+        fail(QStringLiteral("E_LOCAL_SEQUENCE"), error);
+        return;
+    }
     if (!m_iceSender.bindLocalDescription(
             m_signedLocalDescriptionPayload,
             m_localDescriptionSequence,
@@ -618,6 +668,20 @@ bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
     }
     error.clear();
     return true;
+}
+
+void SessionNegotiationCoordinator::closeMediaSession() {
+    m_timeout.stop();
+    m_eventPump.stop();
+    m_transportState.stop();
+    m_iceSender.stop();
+    m_iceReceiver.stop();
+    m_terminationReceiver.stop();
+    m_mediaSession.reset();
+    m_signedLocalDescriptionPayload.clear();
+    m_localDescriptionSequence = 0;
+    m_signedRemoteDescriptionPayload.clear();
+    m_remoteDescriptionSequence = 0;
 }
 
 void SessionNegotiationCoordinator::setState(State state) {
