@@ -49,7 +49,7 @@ ApplicationContext::ApplicationContext() {
     m_sessionInvitations = std::make_unique<SessionInvitationCoordinator>(
         *m_profile, *m_identity, *m_media, *m_signaling);
     m_sessionNegotiation = std::make_unique<SessionNegotiationCoordinator>(
-        *m_signaling);
+        *m_media, *m_signaling);
     connect(m_sessionRequests.get(), &SessionRequestCoordinator::sessionAccepted,
             this, [this] {
                 (void)m_sessionNegotiation->begin(

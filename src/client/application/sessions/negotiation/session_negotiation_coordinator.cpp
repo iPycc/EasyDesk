@@ -1,5 +1,7 @@
 #include "sessions/negotiation/session_negotiation_coordinator.h"
 
+#include "media/webrtc/media_runtime_library.h"
+#include "media/webrtc/media_session.h"
 #include "network/signaling/client/signaling_client.h"
 #include "network/signaling/protocol/bootstrap/bootstrap_message_codec.h"
 
@@ -14,9 +16,10 @@ constexpr int kTurnCredentialTimeoutMilliseconds = 15000;
 }  // namespace
 
 SessionNegotiationCoordinator::SessionNegotiationCoordinator(
+    MediaRuntimeLibrary &media,
     SignalingClient &signaling,
     QObject *parent)
-    : QObject(parent), m_signaling(signaling) {
+    : QObject(parent), m_media(media), m_signaling(signaling) {
     m_timeout.setSingleShot(true);
     connect(&m_timeout, &QTimer::timeout,
             this, &SessionNegotiationCoordinator::handleTimeout);
@@ -25,6 +28,8 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
     connect(&m_signaling, &SignalingClient::stateChanged,
             this, &SessionNegotiationCoordinator::handleSignalingStateChanged);
 }
+
+SessionNegotiationCoordinator::~SessionNegotiationCoordinator() = default;
 
 SessionNegotiationCoordinator::State SessionNegotiationCoordinator::state() const {
     return m_state;
@@ -56,6 +61,7 @@ bool SessionNegotiationCoordinator::begin(
 
 void SessionNegotiationCoordinator::stop() {
     m_timeout.stop();
+    m_mediaSession.reset();
     m_context = {};
     m_turn = {};
     setState(State::Idle);
@@ -84,8 +90,14 @@ void SessionNegotiationCoordinator::handleMessage(const QByteArray &message) {
     }
     m_timeout.stop();
     m_turn = std::move(configuration);
-    setState(State::RelayReady);
+    if (!startMediaSession(error)) {
+        fail(QStringLiteral("E_MEDIA_START"), error);
+        return;
+    }
+    setState(m_context.offerer ? State::AwaitingLocalOffer
+                               : State::AwaitingRemoteOffer);
     emit relayReady();
+    emit mediaStarted();
 }
 
 void SessionNegotiationCoordinator::handleSignalingStateChanged() {
@@ -100,6 +112,34 @@ void SessionNegotiationCoordinator::handleTimeout() {
         fail(QStringLiteral("E_TURN_TIMEOUT"),
              QStringLiteral("TURN credentials were not received in time."));
     }
+}
+
+bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
+    MediaSessionConfig config;
+    config.sessionId = m_context.sessionId;
+    config.sessionEpoch = m_context.sessionEpoch;
+    config.permissionEpoch = m_context.permissionEpoch;
+    config.role = m_context.role;
+    config.capabilities = m_context.capabilities;
+    config.iceGeneration = 1;
+    config.iceServers.reserve(m_turn.servers.size());
+    for (const SessionTurnServer &server : m_turn.servers) {
+        config.iceServers.append(
+            {server.url, server.username, server.credential});
+    }
+
+    m_mediaSession = m_media.createSession(config);
+    if (!m_mediaSession) {
+        error = m_media.errorString();
+        return false;
+    }
+    if (m_context.offerer && !m_mediaSession->createOffer()) {
+        error = m_mediaSession->errorString();
+        m_mediaSession.reset();
+        return false;
+    }
+    error.clear();
+    return true;
 }
 
 void SessionNegotiationCoordinator::setState(State state) {
