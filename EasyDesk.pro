@@ -26,6 +26,7 @@ SOURCES += \
     src/client/application/sessions/negotiation/turn/session_turn_binding.cpp \
     src/client/application/sessions/session_invitation_coordinator.cpp \
     src/client/application/sessions/session_request_coordinator.cpp \
+    src/client/application/sessions/termination/session_termination_receiver.cpp \
     src/client/domain/core/device.cpp \
     src/client/domain/features/devices/device_service.cpp \
     src/client/domain/features/sessions/model/session_access.cpp \
@@ -104,6 +105,7 @@ HEADERS += \
     src/client/application/sessions/negotiation/turn/session_turn_binding.h \
     src/client/application/sessions/session_invitation_coordinator.h \
     src/client/application/sessions/session_request_coordinator.h \
+    src/client/application/sessions/termination/session_termination_receiver.h \
     src/client/domain/core/device.h \
     src/client/domain/core/local_computer.h \
     src/client/domain/core/session.h \

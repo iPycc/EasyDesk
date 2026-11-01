@@ -30,7 +30,8 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
       m_identity(identity),
       m_signaling(signaling),
       m_iceSender(identity, signaling, this),
-      m_iceReceiver(media, this) {
+      m_iceReceiver(media, this),
+      m_terminationReceiver(media, this) {
     m_timeout.setSingleShot(true);
     connect(&m_timeout, &QTimer::timeout,
             this, &SessionNegotiationCoordinator::handleTimeout);
@@ -68,10 +69,24 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
                 fail(code, message);
             });
     connect(&m_iceReceiver, &SessionIceSignalReceiver::candidateBatchApplied,
-            this, &SessionNegotiationCoordinator::remoteCandidatesApplied);
+            this, [this](int count, quint64 sequence) {
+                QString error;
+                if (!m_terminationReceiver.noteRemoteSequence(sequence, error)) {
+                    fail(QStringLiteral("E_REMOTE_SEQUENCE"), error);
+                    return;
+                }
+                emit remoteCandidatesApplied(count, sequence);
+            });
     connect(&m_iceReceiver,
             &SessionIceSignalReceiver::gatheringCompleteReceived,
-            this, &SessionNegotiationCoordinator::remoteGatheringComplete);
+            this, [this](quint64 sequence) {
+                QString error;
+                if (!m_terminationReceiver.noteRemoteSequence(sequence, error)) {
+                    fail(QStringLiteral("E_REMOTE_SEQUENCE"), error);
+                    return;
+                }
+                emit remoteGatheringComplete(sequence);
+            });
     connect(&m_iceReceiver, &SessionIceSignalReceiver::failed,
             this, [this](const QString &code, const QString &message) {
                 fail(code, message);
@@ -81,6 +96,17 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
     connect(&m_transportState, &SessionTransportState::connected,
             this, &SessionNegotiationCoordinator::transportConnected);
     connect(&m_transportState, &SessionTransportState::failed,
+            this, [this](const QString &code, const QString &message) {
+                fail(code, message);
+            });
+    connect(&m_terminationReceiver, &SessionTerminationReceiver::ended,
+            this, [this](
+                      easydesk::client::signaling::SessionEndReason reason,
+                      quint64 sequence) {
+                stop();
+                emit remoteSessionEnded(reason, sequence);
+            });
+    connect(&m_terminationReceiver, &SessionTerminationReceiver::failed,
             this, [this](const QString &code, const QString &message) {
                 fail(code, message);
             });
@@ -122,6 +148,12 @@ bool SessionNegotiationCoordinator::begin(
         emit failed(QStringLiteral("E_ICE_SENDER"), error);
         return false;
     }
+    if (!m_terminationReceiver.begin(context, error)) {
+        m_iceSender.stop();
+        m_context = {};
+        emit failed(QStringLiteral("E_TERMINATION_RECEIVER"), error);
+        return false;
+    }
     setState(State::AwaitingTurnCredentials);
     m_timeout.start(kTurnCredentialTimeoutMilliseconds);
     return true;
@@ -133,6 +165,7 @@ void SessionNegotiationCoordinator::stop() {
     m_transportState.stop();
     m_iceSender.stop();
     m_iceReceiver.stop();
+    m_terminationReceiver.stop();
     m_mediaSession.reset();
     m_context = {};
     m_turn = {};
@@ -158,6 +191,9 @@ void SessionNegotiationCoordinator::handleMessage(const QByteArray &message) {
     } else if (bootstrap.type ==
                QStringLiteral("session.gathering_complete")) {
         m_iceReceiver.handleGatheringComplete(message);
+    } else if (bootstrap.type == QStringLiteral("session.end") &&
+               m_terminationReceiver.isActive()) {
+        m_terminationReceiver.handleEnd(message);
     } else if (m_state == State::AwaitingRemoteOffer &&
                bootstrap.type == QStringLiteral("session.offer")) {
         handleRemoteOffer(message);
@@ -250,6 +286,11 @@ void SessionNegotiationCoordinator::handleRemoteOffer(
 
     m_signedRemoteDescriptionPayload = offer.signedPayload;
     m_remoteDescriptionSequence = offer.fields.route.sequence;
+    if (!m_terminationReceiver.noteRemoteSequence(
+            m_remoteDescriptionSequence, error)) {
+        fail(QStringLiteral("E_REMOTE_SEQUENCE"), error);
+        return;
+    }
     setState(State::ApplyingRemoteOffer);
     m_timeout.start(kDescriptionTimeoutMilliseconds);
 }
@@ -317,6 +358,11 @@ void SessionNegotiationCoordinator::handleRemoteAnswer(
 
     m_signedRemoteDescriptionPayload = answer.signedPayload;
     m_remoteDescriptionSequence = answer.fields.route.sequence;
+    if (!m_terminationReceiver.noteRemoteSequence(
+            m_remoteDescriptionSequence, error)) {
+        fail(QStringLiteral("E_REMOTE_SEQUENCE"), error);
+        return;
+    }
     setState(State::ApplyingRemoteAnswer);
     m_timeout.start(kDescriptionTimeoutMilliseconds);
 }

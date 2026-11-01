@@ -6,6 +6,7 @@
 #include "sessions/negotiation/session_negotiation_context.h"
 #include "sessions/negotiation/transport/session_transport_state.h"
 #include "sessions/negotiation/turn/session_turn_binding.h"
+#include "sessions/termination/session_termination_receiver.h"
 
 #include <QObject>
 #include <QTimer>
@@ -59,6 +60,9 @@ class SessionNegotiationCoordinator final : public QObject {
     void remoteGatheringComplete(quint64 sequence);
     void transportStateChanged(SessionTransportState::State state);
     void transportConnected();
+    void remoteSessionEnded(
+        easydesk::client::signaling::SessionEndReason reason,
+        quint64 sequence);
     void failed(const QString &code, const QString &message);
 
   private:
@@ -87,6 +91,7 @@ class SessionNegotiationCoordinator final : public QObject {
     SessionTransportState m_transportState;
     SessionIceSignalSender m_iceSender;
     SessionIceSignalReceiver m_iceReceiver;
+    SessionTerminationReceiver m_terminationReceiver;
     State m_state = State::Idle;
     SessionNegotiationContext m_context;
     SessionTurnConfiguration m_turn;
