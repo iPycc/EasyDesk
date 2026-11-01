@@ -53,6 +53,7 @@ SOURCES += \
     src/client/infrastructure/network/signaling/protocol/session/session_request_codec.cpp \
     src/client/infrastructure/network/signaling/protocol/session/session_request_decoder.cpp \
     src/client/infrastructure/network/signaling/protocol/session/termination/session_end_codec.cpp \
+    src/client/infrastructure/network/signaling/protocol/session/termination/session_end_decoder.cpp \
     src/client/infrastructure/network/signaling/protocol/turn/turn_credentials_decoder.cpp \
     src/client/infrastructure/network/signaling/service/signaling_session_service.cpp \
     src/client/platform/windows/data/local/windows_system_service.cpp \
@@ -137,6 +138,7 @@ HEADERS += \
     src/client/infrastructure/network/signaling/protocol/session/session_request_codec.h \
     src/client/infrastructure/network/signaling/protocol/session/session_request_decoder.h \
     src/client/infrastructure/network/signaling/protocol/session/termination/session_end_codec.h \
+    src/client/infrastructure/network/signaling/protocol/session/termination/session_end_decoder.h \
     src/client/infrastructure/network/signaling/protocol/turn/turn_credentials_decoder.h \
     src/client/infrastructure/network/signaling/service/signaling_session_service.h \
     src/client/platform/windows/data/local/windows_system_service.h \
