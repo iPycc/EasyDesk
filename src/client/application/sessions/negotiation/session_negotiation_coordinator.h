@@ -25,8 +25,8 @@ class SessionNegotiationCoordinator final : public QObject {
         AwaitingRemoteOffer,
         ApplyingRemoteOffer,
         AwaitingLocalAnswer,
-        LocalAnswerReady,
         AwaitingRemoteAnswer,
+        AwaitingIce,
     };
     Q_ENUM(State)
 
@@ -48,7 +48,7 @@ class SessionNegotiationCoordinator final : public QObject {
     void relayReady();
     void mediaStarted();
     void localOfferSent();
-    void localAnswerReady();
+    void localAnswerSent();
     void failed(const QString &code, const QString &message);
 
   private:
@@ -63,6 +63,7 @@ class SessionNegotiationCoordinator final : public QObject {
                                 const QByteArray &sdp);
     void handleRemoteDescriptionApplied(quint32 iceGeneration,
                                         quint32 sdpType);
+    void sendLocalAnswer(const QString &sdp);
     bool startMediaSession(QString &error);
     void setState(State state);
     void fail(const QString &code, const QString &message);
@@ -80,5 +81,4 @@ class SessionNegotiationCoordinator final : public QObject {
     quint64 m_localDescriptionSequence = 0;
     QByteArray m_signedRemoteDescriptionPayload;
     quint64 m_remoteDescriptionSequence = 0;
-    QByteArray m_pendingLocalAnswer;
 };

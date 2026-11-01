@@ -93,7 +93,6 @@ void SessionNegotiationCoordinator::stop() {
     m_localDescriptionSequence = 0;
     m_signedRemoteDescriptionPayload.clear();
     m_remoteDescriptionSequence = 0;
-    m_pendingLocalAnswer.clear();
     setState(State::Idle);
 }
 
@@ -243,10 +242,7 @@ void SessionNegotiationCoordinator::handleLocalDescription(
         return;
     }
     if (localAnswer) {
-        m_timeout.stop();
-        m_pendingLocalAnswer = sdp;
-        setState(State::LocalAnswerReady);
-        emit localAnswerReady();
+        sendLocalAnswer(description);
         return;
     }
 
@@ -312,6 +308,58 @@ void SessionNegotiationCoordinator::handleRemoteDescriptionApplied(
     }
     setState(State::AwaitingLocalAnswer);
     m_timeout.start(kDescriptionTimeoutMilliseconds);
+}
+
+void SessionNegotiationCoordinator::sendLocalAnswer(const QString &sdp) {
+    if (m_state != State::AwaitingLocalAnswer || m_context.offerer ||
+        m_signedRemoteDescriptionPayload.isEmpty()) {
+        fail(QStringLiteral("E_PROTOCOL"),
+             QStringLiteral("Local session answer context is invalid."));
+        return;
+    }
+
+    const qint64 now = QDateTime::currentSecsSinceEpoch();
+    easydesk::client::signaling::SessionAnswerFields fields;
+    fields.route.requestId = m_context.requestId;
+    fields.route.sessionId = m_context.sessionId;
+    fields.route.sessionEpoch = m_context.sessionEpoch;
+    fields.route.iceGeneration = 1;
+    fields.route.sequence = 2;
+    fields.route.expiresAt =
+        qMin(now + kDescriptionLifetimeSeconds, m_context.expiresAt);
+    fields.route.fromDeviceId = m_context.localDeviceId;
+    fields.route.toDeviceId = m_context.peerDeviceId;
+    fields.signedOfferPayload = m_signedRemoteDescriptionPayload;
+    fields.sdp = sdp;
+
+    QString error;
+    const QByteArray signingBytes =
+        easydesk::client::signaling::sessionAnswerSigningBytes(fields, error);
+    if (signingBytes.isEmpty()) {
+        fail(QStringLiteral("E_PROTOCOL"), error);
+        return;
+    }
+    const QByteArray signature = m_identity.sign(signingBytes);
+    if (signature.isEmpty()) {
+        fail(QStringLiteral("E_SIGNATURE"), m_identity.errorString());
+        return;
+    }
+    const QByteArray envelope =
+        easydesk::client::signaling::encodeSessionAnswerEnvelope(
+            fields, signature, error);
+    if (envelope.isEmpty() || !m_signaling.sendRegisteredMessage(envelope)) {
+        fail(QStringLiteral("E_ANSWER_SEND"),
+             error.isEmpty()
+                 ? QStringLiteral("Session answer could not be sent.")
+                 : error);
+        return;
+    }
+
+    m_timeout.stop();
+    m_signedLocalDescriptionPayload = signingBytes;
+    m_localDescriptionSequence = fields.route.sequence;
+    setState(State::AwaitingIce);
+    emit localAnswerSent();
 }
 
 bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
