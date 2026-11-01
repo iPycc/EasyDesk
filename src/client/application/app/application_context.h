@@ -12,6 +12,7 @@ class DeviceProfileStore;
 class SignalingClient;
 class SessionRequestCoordinator;
 class SessionInvitationCoordinator;
+class SessionNegotiationCoordinator;
 
 class ApplicationContext final : public QObject {
   public:
@@ -28,6 +29,7 @@ class ApplicationContext final : public QObject {
     SignalingClient &signaling() const;
     SessionRequestCoordinator &sessionRequests() const;
     SessionInvitationCoordinator &sessionInvitations() const;
+    SessionNegotiationCoordinator &sessionNegotiation() const;
 
   private:
     std::unique_ptr<QSettings> m_settings;
@@ -37,6 +39,7 @@ class ApplicationContext final : public QObject {
     std::unique_ptr<SignalingClient> m_signaling;
     std::unique_ptr<SessionRequestCoordinator> m_sessionRequests;
     std::unique_ptr<SessionInvitationCoordinator> m_sessionInvitations;
+    std::unique_ptr<SessionNegotiationCoordinator> m_sessionNegotiation;
     std::unique_ptr<DeviceService> m_devices;
     std::unique_ptr<SessionService> m_sessions;
     std::unique_ptr<TransferService> m_transfers;

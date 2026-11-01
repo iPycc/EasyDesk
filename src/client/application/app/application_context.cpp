@@ -9,6 +9,7 @@
 #include "network/signaling/client/signaling_client.h"
 #include "network/signaling/service/signaling_session_service.h"
 #include "sessions/session_invitation_coordinator.h"
+#include "sessions/negotiation/session_negotiation_coordinator.h"
 #include "sessions/session_request_coordinator.h"
 #include <QDebug>
 #include <QDir>
@@ -47,6 +48,23 @@ ApplicationContext::ApplicationContext() {
         *m_profile, *m_identity, *m_media, *m_signaling);
     m_sessionInvitations = std::make_unique<SessionInvitationCoordinator>(
         *m_profile, *m_identity, *m_media, *m_signaling);
+    m_sessionNegotiation = std::make_unique<SessionNegotiationCoordinator>(
+        *m_signaling);
+    connect(m_sessionRequests.get(), &SessionRequestCoordinator::sessionAccepted,
+            this, [this] {
+                (void)m_sessionNegotiation->begin(
+                    m_sessionRequests->negotiationContext());
+            });
+    connect(m_sessionInvitations.get(), &SessionInvitationCoordinator::sessionAccepted,
+            this, [this] {
+                (void)m_sessionNegotiation->begin(
+                    m_sessionInvitations->negotiationContext());
+            });
+    connect(m_sessionNegotiation.get(), &SessionNegotiationCoordinator::failed,
+            this, [](const QString &code, const QString &message) {
+                qWarning().noquote() << "EasyDesk session negotiation failed:"
+                                     << code << message;
+            });
     m_devices = std::make_unique<SettingsDeviceService>(*m_settings);
     m_sessions = std::make_unique<SignalingSessionService>(
         *m_profile, *m_signaling, *m_sessionRequests);
@@ -103,4 +121,8 @@ SessionRequestCoordinator &ApplicationContext::sessionRequests() const {
 
 SessionInvitationCoordinator &ApplicationContext::sessionInvitations() const {
     return *m_sessionInvitations;
+}
+
+SessionNegotiationCoordinator &ApplicationContext::sessionNegotiation() const {
+    return *m_sessionNegotiation;
 }
