@@ -22,6 +22,7 @@ SOURCES += \
     src/client/application/sessions/negotiation/media/session_media_event_pump.cpp \
     src/client/application/sessions/negotiation/session_negotiation_coordinator.cpp \
     src/client/application/sessions/negotiation/session_negotiation_context.cpp \
+    src/client/application/sessions/negotiation/transport/session_transport_state.cpp \
     src/client/application/sessions/negotiation/turn/session_turn_binding.cpp \
     src/client/application/sessions/session_invitation_coordinator.cpp \
     src/client/application/sessions/session_request_coordinator.cpp \
@@ -97,6 +98,7 @@ HEADERS += \
     src/client/application/sessions/negotiation/media/session_media_event_pump.h \
     src/client/application/sessions/negotiation/session_negotiation_coordinator.h \
     src/client/application/sessions/negotiation/session_negotiation_context.h \
+    src/client/application/sessions/negotiation/transport/session_transport_state.h \
     src/client/application/sessions/negotiation/turn/session_turn_binding.h \
     src/client/application/sessions/session_invitation_coordinator.h \
     src/client/application/sessions/session_request_coordinator.h \

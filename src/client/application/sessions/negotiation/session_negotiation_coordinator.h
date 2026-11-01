@@ -4,6 +4,7 @@
 #include "sessions/negotiation/ice/session_ice_signal_receiver.h"
 #include "sessions/negotiation/media/session_media_event_pump.h"
 #include "sessions/negotiation/session_negotiation_context.h"
+#include "sessions/negotiation/transport/session_transport_state.h"
 #include "sessions/negotiation/turn/session_turn_binding.h"
 
 #include <QObject>
@@ -42,6 +43,7 @@ class SessionNegotiationCoordinator final : public QObject {
     State state() const;
     SessionNegotiationContext context() const;
     SessionTurnConfiguration turnConfiguration() const;
+    SessionTransportState::State transportState() const;
 
     bool begin(const SessionNegotiationContext &context);
     void stop();
@@ -55,6 +57,8 @@ class SessionNegotiationCoordinator final : public QObject {
     void descriptionsExchanged();
     void remoteCandidatesApplied(int count, quint64 sequence);
     void remoteGatheringComplete(quint64 sequence);
+    void transportStateChanged(SessionTransportState::State state);
+    void transportConnected();
     void failed(const QString &code, const QString &message);
 
   private:
@@ -80,6 +84,7 @@ class SessionNegotiationCoordinator final : public QObject {
     SignalingClient &m_signaling;
     QTimer m_timeout;
     SessionMediaEventPump m_eventPump;
+    SessionTransportState m_transportState;
     SessionIceSignalSender m_iceSender;
     SessionIceSignalReceiver m_iceReceiver;
     State m_state = State::Idle;

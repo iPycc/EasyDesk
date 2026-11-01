@@ -46,6 +46,12 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
             &m_iceSender, &SessionIceSignalSender::enqueueCandidate);
     connect(&m_eventPump, &SessionMediaEventPump::gatheringComplete,
             &m_iceSender, &SessionIceSignalSender::markGatheringComplete);
+    connect(&m_eventPump, &SessionMediaEventPump::connectionStateChanged,
+            &m_transportState,
+            &SessionTransportState::updatePeerConnectionState);
+    connect(&m_eventPump, &SessionMediaEventPump::iceConnectionStateChanged,
+            &m_transportState,
+            &SessionTransportState::updateIceConnectionState);
     connect(&m_eventPump, &SessionMediaEventPump::remoteDescriptionApplied,
             this, &SessionNegotiationCoordinator::handleRemoteDescriptionApplied);
     connect(&m_eventPump, &SessionMediaEventPump::failed,
@@ -70,6 +76,14 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
             this, [this](const QString &code, const QString &message) {
                 fail(code, message);
             });
+    connect(&m_transportState, &SessionTransportState::stateChanged,
+            this, &SessionNegotiationCoordinator::transportStateChanged);
+    connect(&m_transportState, &SessionTransportState::connected,
+            this, &SessionNegotiationCoordinator::transportConnected);
+    connect(&m_transportState, &SessionTransportState::failed,
+            this, [this](const QString &code, const QString &message) {
+                fail(code, message);
+            });
 }
 
 SessionNegotiationCoordinator::~SessionNegotiationCoordinator() = default;
@@ -84,6 +98,11 @@ SessionNegotiationContext SessionNegotiationCoordinator::context() const {
 
 SessionTurnConfiguration SessionNegotiationCoordinator::turnConfiguration() const {
     return m_turn;
+}
+
+SessionTransportState::State
+SessionNegotiationCoordinator::transportState() const {
+    return m_transportState.state();
 }
 
 bool SessionNegotiationCoordinator::begin(
@@ -111,6 +130,7 @@ bool SessionNegotiationCoordinator::begin(
 void SessionNegotiationCoordinator::stop() {
     m_timeout.stop();
     m_eventPump.stop();
+    m_transportState.stop();
     m_iceSender.stop();
     m_iceReceiver.stop();
     m_mediaSession.reset();
@@ -525,12 +545,19 @@ bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
         error = m_media.errorString();
         return false;
     }
+    if (!m_transportState.start(1)) {
+        error = QStringLiteral("Media transport state could not be started.");
+        m_mediaSession.reset();
+        return false;
+    }
     if (!m_iceReceiver.begin(m_context, *m_mediaSession, 1, error)) {
+        m_transportState.stop();
         m_mediaSession.reset();
         return false;
     }
     if (!m_eventPump.start(*m_mediaSession)) {
         error = QStringLiteral("Media event pump could not be started.");
+        m_transportState.stop();
         m_iceReceiver.stop();
         m_mediaSession.reset();
         return false;
@@ -538,6 +565,7 @@ bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
     if (m_context.offerer && !m_mediaSession->createOffer()) {
         error = m_mediaSession->errorString();
         m_eventPump.stop();
+        m_transportState.stop();
         m_iceReceiver.stop();
         m_mediaSession.reset();
         return false;
