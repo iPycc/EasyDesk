@@ -29,7 +29,8 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
       m_media(media),
       m_identity(identity),
       m_signaling(signaling),
-      m_iceSender(identity, signaling, this) {
+      m_iceSender(identity, signaling, this),
+      m_iceReceiver(media, this) {
     m_timeout.setSingleShot(true);
     connect(&m_timeout, &QTimer::timeout,
             this, &SessionNegotiationCoordinator::handleTimeout);
@@ -57,6 +58,12 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
                      QStringLiteral("The media session closed unexpectedly."));
             });
     connect(&m_iceSender, &SessionIceSignalSender::failed,
+            this, [this](const QString &code, const QString &message) {
+                fail(code, message);
+            });
+    connect(&m_iceReceiver, &SessionIceSignalReceiver::candidateBatchApplied,
+            this, &SessionNegotiationCoordinator::remoteCandidatesApplied);
+    connect(&m_iceReceiver, &SessionIceSignalReceiver::failed,
             this, [this](const QString &code, const QString &message) {
                 fail(code, message);
             });
@@ -102,6 +109,7 @@ void SessionNegotiationCoordinator::stop() {
     m_timeout.stop();
     m_eventPump.stop();
     m_iceSender.stop();
+    m_iceReceiver.stop();
     m_mediaSession.reset();
     m_context = {};
     m_turn = {};
@@ -122,6 +130,8 @@ void SessionNegotiationCoordinator::handleMessage(const QByteArray &message) {
     if (m_state == State::AwaitingTurnCredentials &&
         bootstrap.type == QStringLiteral("turn.credentials")) {
         handleTurnCredentials(message);
+    } else if (bootstrap.type == QStringLiteral("session.candidates")) {
+        m_iceReceiver.handleCandidates(message);
     } else if (m_state == State::AwaitingRemoteOffer &&
                bootstrap.type == QStringLiteral("session.offer")) {
         handleRemoteOffer(message);
@@ -203,6 +213,14 @@ void SessionNegotiationCoordinator::handleRemoteOffer(
              m_mediaSession->errorString());
         return;
     }
+    if (!m_iceReceiver.bindRemoteDescription(
+            offer.signedPayload,
+            offer.fields.route.sequence,
+            offer.fields.sdp.toUtf8(),
+            error)) {
+        fail(QStringLiteral("E_REMOTE_ICE_BINDING"), error);
+        return;
+    }
 
     m_signedRemoteDescriptionPayload = offer.signedPayload;
     m_remoteDescriptionSequence = offer.fields.route.sequence;
@@ -260,6 +278,14 @@ void SessionNegotiationCoordinator::handleRemoteAnswer(
             answer.fields.sdp.toUtf8())) {
         fail(QStringLiteral("E_REMOTE_DESCRIPTION"),
              m_mediaSession->errorString());
+        return;
+    }
+    if (!m_iceReceiver.bindRemoteDescription(
+            answer.signedPayload,
+            answer.fields.route.sequence,
+            answer.fields.sdp.toUtf8(),
+            error)) {
+        fail(QStringLiteral("E_REMOTE_ICE_BINDING"), error);
         return;
     }
 
@@ -393,6 +419,11 @@ void SessionNegotiationCoordinator::handleRemoteDescriptionApplied(
              QStringLiteral("Unexpected remote description confirmation."));
         return;
     }
+    QString error;
+    if (!m_iceReceiver.markRemoteDescriptionApplied(iceGeneration, error)) {
+        fail(QStringLiteral("E_REMOTE_ICE_APPLY"), error);
+        return;
+    }
     if (remoteAnswer) {
         m_timeout.stop();
         setState(State::AwaitingIce);
@@ -488,14 +519,20 @@ bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
         error = m_media.errorString();
         return false;
     }
+    if (!m_iceReceiver.begin(m_context, *m_mediaSession, 1, error)) {
+        m_mediaSession.reset();
+        return false;
+    }
     if (!m_eventPump.start(*m_mediaSession)) {
         error = QStringLiteral("Media event pump could not be started.");
+        m_iceReceiver.stop();
         m_mediaSession.reset();
         return false;
     }
     if (m_context.offerer && !m_mediaSession->createOffer()) {
         error = m_mediaSession->errorString();
         m_eventPump.stop();
+        m_iceReceiver.stop();
         m_mediaSession.reset();
         return false;
     }

@@ -17,6 +17,7 @@ SOURCES += \
     src/client/application/app/main.cpp \
     src/client/application/sessions/negotiation/ice/local_ice_candidate_buffer.cpp \
     src/client/application/sessions/negotiation/ice/session_ice_description_binding.cpp \
+    src/client/application/sessions/negotiation/ice/session_ice_signal_receiver.cpp \
     src/client/application/sessions/negotiation/ice/session_ice_signal_sender.cpp \
     src/client/application/sessions/negotiation/media/session_media_event_pump.cpp \
     src/client/application/sessions/negotiation/session_negotiation_coordinator.cpp \
@@ -91,6 +92,7 @@ HEADERS += \
     src/client/application/app/application_context.h \
     src/client/application/sessions/negotiation/ice/local_ice_candidate_buffer.h \
     src/client/application/sessions/negotiation/ice/session_ice_description_binding.h \
+    src/client/application/sessions/negotiation/ice/session_ice_signal_receiver.h \
     src/client/application/sessions/negotiation/ice/session_ice_signal_sender.h \
     src/client/application/sessions/negotiation/media/session_media_event_pump.h \
     src/client/application/sessions/negotiation/session_negotiation_coordinator.h \

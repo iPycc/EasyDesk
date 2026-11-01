@@ -1,6 +1,7 @@
 #pragma once
 
 #include "sessions/negotiation/ice/session_ice_signal_sender.h"
+#include "sessions/negotiation/ice/session_ice_signal_receiver.h"
 #include "sessions/negotiation/media/session_media_event_pump.h"
 #include "sessions/negotiation/session_negotiation_context.h"
 #include "sessions/negotiation/turn/session_turn_binding.h"
@@ -52,6 +53,7 @@ class SessionNegotiationCoordinator final : public QObject {
     void localOfferSent();
     void localAnswerSent();
     void descriptionsExchanged();
+    void remoteCandidatesApplied(int count, quint64 sequence);
     void failed(const QString &code, const QString &message);
 
   private:
@@ -78,6 +80,7 @@ class SessionNegotiationCoordinator final : public QObject {
     QTimer m_timeout;
     SessionMediaEventPump m_eventPump;
     SessionIceSignalSender m_iceSender;
+    SessionIceSignalReceiver m_iceReceiver;
     State m_state = State::Idle;
     SessionNegotiationContext m_context;
     SessionTurnConfiguration m_turn;
