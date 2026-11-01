@@ -45,10 +45,13 @@ bool SessionIceSignalSender::begin(const SessionNegotiationContext &context,
 bool SessionIceSignalSender::bindLocalDescription(
     const QByteArray &signedDescriptionPayload,
     quint64 descriptionSequence,
+    const QByteArray &sdp,
     QString &error) {
     if (!m_active || signedDescriptionPayload.isEmpty() ||
-        descriptionSequence < 2 || !m_signedDescriptionPayload.isEmpty()) {
-        error = QStringLiteral("Local ICE description binding is invalid.");
+        descriptionSequence < 2 || !m_signedDescriptionPayload.isEmpty() ||
+        !m_descriptionBinding.parse(sdp, error)) {
+        if (error.isEmpty())
+            error = QStringLiteral("Local ICE description binding is invalid.");
         return false;
     }
     m_signedDescriptionPayload = signedDescriptionPayload;
@@ -62,6 +65,7 @@ void SessionIceSignalSender::stop() {
     m_flushTimer.stop();
     m_context = {};
     m_buffer.clear();
+    m_descriptionBinding.clear();
     m_signedDescriptionPayload.clear();
     m_iceGeneration = 0;
     m_lastSequence = 0;
@@ -149,6 +153,12 @@ void SessionIceSignalSender::flushCandidates() {
     fields.candidates = m_buffer.takeBatch();
 
     QString error;
+    for (const auto &candidate : fields.candidates) {
+        if (!m_descriptionBinding.matches(candidate, error)) {
+            fail(QStringLiteral("E_CANDIDATE_BINDING"), error);
+            return;
+        }
+    }
     const QByteArray signingBytes =
         easydesk::client::signaling::sessionCandidatesSigningBytes(fields,
                                                                    error);

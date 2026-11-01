@@ -368,6 +368,7 @@ void SessionNegotiationCoordinator::handleLocalDescription(
     if (!m_iceSender.bindLocalDescription(
             m_signedLocalDescriptionPayload,
             m_localDescriptionSequence,
+            sdp,
             error)) {
         fail(QStringLiteral("E_ICE_BINDING"), error);
         return;
@@ -458,6 +459,7 @@ void SessionNegotiationCoordinator::sendLocalAnswer(const QString &sdp) {
     if (!m_iceSender.bindLocalDescription(
             m_signedLocalDescriptionPayload,
             m_localDescriptionSequence,
+            sdp.toUtf8(),
             error)) {
         fail(QStringLiteral("E_ICE_BINDING"), error);
         return;

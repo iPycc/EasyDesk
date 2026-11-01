@@ -1,6 +1,7 @@
 #pragma once
 
 #include "sessions/negotiation/ice/local_ice_candidate_buffer.h"
+#include "sessions/negotiation/ice/session_ice_description_binding.h"
 #include "sessions/negotiation/session_negotiation_context.h"
 
 #include <QObject>
@@ -22,6 +23,7 @@ class SessionIceSignalSender final : public QObject {
                QString &error);
     bool bindLocalDescription(const QByteArray &signedDescriptionPayload,
                               quint64 descriptionSequence,
+                              const QByteArray &sdp,
                               QString &error);
     void stop();
 
@@ -50,6 +52,7 @@ class SessionIceSignalSender final : public QObject {
     QTimer m_flushTimer;
     SessionNegotiationContext m_context;
     LocalIceCandidateBuffer m_buffer;
+    SessionIceDescriptionBinding m_descriptionBinding;
     QByteArray m_signedDescriptionPayload;
     quint32 m_iceGeneration = 0;
     quint64 m_lastSequence = 0;
