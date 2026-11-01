@@ -32,14 +32,17 @@ class SessionIceSignalSender final : public QObject {
                           const QByteArray &sdpMid,
                           qint32 sdpMlineIndex,
                           const QByteArray &candidate);
+    void markGatheringComplete(quint32 iceGeneration);
 
   signals:
     void candidatesSent(int count, quint64 sequence);
+    void gatheringCompleteSent(quint64 sequence);
     void failed(const QString &code, const QString &message);
 
   private:
     void scheduleFlush();
     void flushCandidates();
+    bool sendGatheringComplete();
     void fail(const QString &code, const QString &message);
 
     WindowsIdentityStore &m_identity;
@@ -50,5 +53,7 @@ class SessionIceSignalSender final : public QObject {
     QByteArray m_signedDescriptionPayload;
     quint32 m_iceGeneration = 0;
     quint64 m_lastSequence = 0;
+    bool m_gatheringCompletePending = false;
+    bool m_gatheringCompleteSent = false;
     bool m_active = false;
 };

@@ -43,6 +43,8 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
             this, &SessionNegotiationCoordinator::handleLocalDescription);
     connect(&m_eventPump, &SessionMediaEventPump::localCandidate,
             &m_iceSender, &SessionIceSignalSender::enqueueCandidate);
+    connect(&m_eventPump, &SessionMediaEventPump::gatheringComplete,
+            &m_iceSender, &SessionIceSignalSender::markGatheringComplete);
     connect(&m_eventPump, &SessionMediaEventPump::remoteDescriptionApplied,
             this, &SessionNegotiationCoordinator::handleRemoteDescriptionApplied);
     connect(&m_eventPump, &SessionMediaEventPump::failed,
