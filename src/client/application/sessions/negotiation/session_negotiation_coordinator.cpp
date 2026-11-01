@@ -109,6 +109,9 @@ void SessionNegotiationCoordinator::handleMessage(const QByteArray &message) {
     } else if (m_state == State::AwaitingRemoteOffer &&
                bootstrap.type == QStringLiteral("session.offer")) {
         handleRemoteOffer(message);
+    } else if (m_state == State::AwaitingRemoteAnswer &&
+               bootstrap.type == QStringLiteral("session.answer")) {
+        handleRemoteAnswer(message);
     }
 }
 
@@ -191,6 +194,65 @@ void SessionNegotiationCoordinator::handleRemoteOffer(
     m_timeout.start(kDescriptionTimeoutMilliseconds);
 }
 
+void SessionNegotiationCoordinator::handleRemoteAnswer(
+    const QByteArray &message) {
+    if (!m_context.offerer || !m_mediaSession ||
+        m_signedLocalDescriptionPayload.isEmpty()) {
+        fail(QStringLiteral("E_PROTOCOL"),
+             QStringLiteral("Unexpected remote session answer."));
+        return;
+    }
+
+    easydesk::client::signaling::SessionDescriptionContext description;
+    description.requestId = m_context.requestId;
+    description.sessionId = m_context.sessionId;
+    description.sessionEpoch = m_context.sessionEpoch;
+    description.offererDeviceId = m_context.localDeviceId;
+    description.answererDeviceId = m_context.peerDeviceId;
+    description.signedAcceptPayload = m_context.signedAcceptPayload;
+
+    easydesk::client::signaling::DecodedSessionAnswer answer;
+    QString error;
+    if (!easydesk::client::signaling::decodeSessionAnswerEnvelope(
+            message,
+            description,
+            m_signedLocalDescriptionPayload,
+            answer,
+            error)) {
+        fail(QStringLiteral("E_PROTOCOL"), error);
+        return;
+    }
+    const qint64 now = QDateTime::currentSecsSinceEpoch();
+    if (answer.fields.route.iceGeneration != 1 ||
+        answer.fields.route.sequence != 2 ||
+        answer.fields.route.expiresAt < now ||
+        answer.fields.route.expiresAt > now + kDescriptionLifetimeSeconds ||
+        answer.fields.route.expiresAt > m_context.expiresAt) {
+        fail(QStringLiteral("E_EXPIRED"),
+             QStringLiteral("Remote session answer lifetime is invalid."));
+        return;
+    }
+    if (!m_media.verifyEd25519(m_context.peerPublicKey,
+                               answer.signedPayload,
+                               answer.signature)) {
+        fail(QStringLiteral("E_SIGNATURE"), m_media.errorString());
+        return;
+    }
+    if (!m_mediaSession->setRemoteDescription(
+            answer.fields.route.iceGeneration,
+            EASYDESK_MEDIA_SDP_ANSWER,
+            answer.fields.sdp.toUtf8())) {
+        fail(QStringLiteral("E_REMOTE_DESCRIPTION"),
+             m_mediaSession->errorString());
+        return;
+    }
+
+    m_signedRemoteDescriptionPayload = answer.signedPayload;
+    m_remoteDescriptionSequence = answer.fields.route.sequence;
+    setState(State::ApplyingRemoteAnswer);
+    m_timeout.start(kDescriptionTimeoutMilliseconds);
+}
+
 void SessionNegotiationCoordinator::handleSignalingStateChanged() {
     if (m_state != State::Idle && !m_signaling.isRegistered()) {
         fail(QStringLiteral("E_CONNECTION_STATE"),
@@ -213,7 +275,8 @@ void SessionNegotiationCoordinator::handleTimeout() {
                m_state == State::AwaitingRemoteOffer ||
                m_state == State::ApplyingRemoteOffer ||
                m_state == State::AwaitingLocalAnswer ||
-               m_state == State::AwaitingRemoteAnswer) {
+               m_state == State::AwaitingRemoteAnswer ||
+               m_state == State::ApplyingRemoteAnswer) {
         fail(QStringLiteral("E_DESCRIPTION_TIMEOUT"),
              QStringLiteral("Session description negotiation timed out."));
     }
@@ -294,11 +357,22 @@ void SessionNegotiationCoordinator::handleLocalDescription(
 void SessionNegotiationCoordinator::handleRemoteDescriptionApplied(
     quint32 iceGeneration,
     quint32 sdpType) {
-    if (m_state != State::ApplyingRemoteOffer || m_context.offerer ||
-        !m_mediaSession || iceGeneration != 1 ||
-        sdpType != EASYDESK_MEDIA_SDP_OFFER) {
+    const bool remoteOffer = m_state == State::ApplyingRemoteOffer &&
+                             !m_context.offerer &&
+                             sdpType == EASYDESK_MEDIA_SDP_OFFER;
+    const bool remoteAnswer = m_state == State::ApplyingRemoteAnswer &&
+                              m_context.offerer &&
+                              sdpType == EASYDESK_MEDIA_SDP_ANSWER;
+    if ((!remoteOffer && !remoteAnswer) || !m_mediaSession ||
+        iceGeneration != 1) {
         fail(QStringLiteral("E_MEDIA_EVENT"),
              QStringLiteral("Unexpected remote description confirmation."));
+        return;
+    }
+    if (remoteAnswer) {
+        m_timeout.stop();
+        setState(State::AwaitingIce);
+        emit descriptionsExchanged();
         return;
     }
     if (!m_mediaSession->createAnswer()) {
@@ -360,6 +434,7 @@ void SessionNegotiationCoordinator::sendLocalAnswer(const QString &sdp) {
     m_localDescriptionSequence = fields.route.sequence;
     setState(State::AwaitingIce);
     emit localAnswerSent();
+    emit descriptionsExchanged();
 }
 
 bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
