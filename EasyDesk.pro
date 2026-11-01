@@ -16,6 +16,7 @@ SOURCES += \
     src/client/application/app/application_context.cpp \
     src/client/application/app/main.cpp \
     src/client/application/sessions/negotiation/session_negotiation_context.cpp \
+    src/client/application/sessions/negotiation/turn/session_turn_binding.cpp \
     src/client/application/sessions/session_invitation_coordinator.cpp \
     src/client/application/sessions/session_request_coordinator.cpp \
     src/client/domain/core/device.cpp \
@@ -84,6 +85,7 @@ SOURCES += \
 HEADERS += \
     src/client/application/app/application_context.h \
     src/client/application/sessions/negotiation/session_negotiation_context.h \
+    src/client/application/sessions/negotiation/turn/session_turn_binding.h \
     src/client/application/sessions/session_invitation_coordinator.h \
     src/client/application/sessions/session_request_coordinator.h \
     src/client/domain/core/device.h \
