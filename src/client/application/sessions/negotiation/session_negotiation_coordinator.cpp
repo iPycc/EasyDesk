@@ -28,7 +28,8 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
     : QObject(parent),
       m_media(media),
       m_identity(identity),
-      m_signaling(signaling) {
+      m_signaling(signaling),
+      m_iceSender(identity, signaling, this) {
     m_timeout.setSingleShot(true);
     connect(&m_timeout, &QTimer::timeout,
             this, &SessionNegotiationCoordinator::handleTimeout);
@@ -40,6 +41,8 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
             this, &SessionNegotiationCoordinator::handleSignalingError);
     connect(&m_eventPump, &SessionMediaEventPump::localDescription,
             this, &SessionNegotiationCoordinator::handleLocalDescription);
+    connect(&m_eventPump, &SessionMediaEventPump::localCandidate,
+            &m_iceSender, &SessionIceSignalSender::enqueueCandidate);
     connect(&m_eventPump, &SessionMediaEventPump::remoteDescriptionApplied,
             this, &SessionNegotiationCoordinator::handleRemoteDescriptionApplied);
     connect(&m_eventPump, &SessionMediaEventPump::failed,
@@ -50,6 +53,10 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
             this, [this] {
                 fail(QStringLiteral("E_MEDIA_CLOSED"),
                      QStringLiteral("The media session closed unexpectedly."));
+            });
+    connect(&m_iceSender, &SessionIceSignalSender::failed,
+            this, [this](const QString &code, const QString &message) {
+                fail(code, message);
             });
 }
 
@@ -78,6 +85,12 @@ bool SessionNegotiationCoordinator::begin(
     }
     m_context = context;
     m_turn = {};
+    QString error;
+    if (!m_iceSender.begin(context, 1, error)) {
+        m_context = {};
+        emit failed(QStringLiteral("E_ICE_SENDER"), error);
+        return false;
+    }
     setState(State::AwaitingTurnCredentials);
     m_timeout.start(kTurnCredentialTimeoutMilliseconds);
     return true;
@@ -86,6 +99,7 @@ bool SessionNegotiationCoordinator::begin(
 void SessionNegotiationCoordinator::stop() {
     m_timeout.stop();
     m_eventPump.stop();
+    m_iceSender.stop();
     m_mediaSession.reset();
     m_context = {};
     m_turn = {};
@@ -349,6 +363,13 @@ void SessionNegotiationCoordinator::handleLocalDescription(
 
     m_signedLocalDescriptionPayload = signingBytes;
     m_localDescriptionSequence = fields.route.sequence;
+    if (!m_iceSender.bindLocalDescription(
+            m_signedLocalDescriptionPayload,
+            m_localDescriptionSequence,
+            error)) {
+        fail(QStringLiteral("E_ICE_BINDING"), error);
+        return;
+    }
     setState(State::AwaitingRemoteAnswer);
     m_timeout.start(kDescriptionTimeoutMilliseconds);
     emit localOfferSent();
@@ -432,6 +453,13 @@ void SessionNegotiationCoordinator::sendLocalAnswer(const QString &sdp) {
     m_timeout.stop();
     m_signedLocalDescriptionPayload = signingBytes;
     m_localDescriptionSequence = fields.route.sequence;
+    if (!m_iceSender.bindLocalDescription(
+            m_signedLocalDescriptionPayload,
+            m_localDescriptionSequence,
+            error)) {
+        fail(QStringLiteral("E_ICE_BINDING"), error);
+        return;
+    }
     setState(State::AwaitingIce);
     emit localAnswerSent();
     emit descriptionsExchanged();

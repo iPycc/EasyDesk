@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sessions/negotiation/ice/session_ice_signal_sender.h"
 #include "sessions/negotiation/media/session_media_event_pump.h"
 #include "sessions/negotiation/session_negotiation_context.h"
 #include "sessions/negotiation/turn/session_turn_binding.h"
@@ -76,6 +77,7 @@ class SessionNegotiationCoordinator final : public QObject {
     SignalingClient &m_signaling;
     QTimer m_timeout;
     SessionMediaEventPump m_eventPump;
+    SessionIceSignalSender m_iceSender;
     State m_state = State::Idle;
     SessionNegotiationContext m_context;
     SessionTurnConfiguration m_turn;
