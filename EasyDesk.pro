@@ -36,6 +36,7 @@ SOURCES += \
     src/client/infrastructure/network/signaling/protocol/session/description/dtls_fingerprint.cpp \
     src/client/infrastructure/network/signaling/protocol/session/description/session_description_codec.cpp \
     src/client/infrastructure/network/signaling/protocol/session/description/session_description_decoder.cpp \
+    src/client/infrastructure/network/signaling/protocol/session/ice/session_ice_codec.cpp \
     src/client/infrastructure/network/signaling/protocol/session/session_decision_codec.cpp \
     src/client/infrastructure/network/signaling/protocol/session/session_decision_decoder.cpp \
     src/client/infrastructure/network/signaling/protocol/session/session_delivery_codec.cpp \
@@ -108,6 +109,7 @@ HEADERS += \
     src/client/infrastructure/network/signaling/protocol/session/description/dtls_fingerprint.h \
     src/client/infrastructure/network/signaling/protocol/session/description/session_description_codec.h \
     src/client/infrastructure/network/signaling/protocol/session/description/session_description_decoder.h \
+    src/client/infrastructure/network/signaling/protocol/session/ice/session_ice_codec.h \
     src/client/infrastructure/network/signaling/protocol/session/session_decision_codec.h \
     src/client/infrastructure/network/signaling/protocol/session/session_decision_decoder.h \
     src/client/infrastructure/network/signaling/protocol/session/session_delivery_codec.h \
