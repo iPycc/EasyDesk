@@ -15,6 +15,7 @@ INCLUDEPATH += \
 SOURCES += \
     src/client/application/app/application_context.cpp \
     src/client/application/app/main.cpp \
+    src/client/application/sessions/negotiation/media/session_media_event_pump.cpp \
     src/client/application/sessions/negotiation/session_negotiation_coordinator.cpp \
     src/client/application/sessions/negotiation/session_negotiation_context.cpp \
     src/client/application/sessions/negotiation/turn/session_turn_binding.cpp \
@@ -85,6 +86,7 @@ SOURCES += \
     src/client/presentation/ui/windows/window_chrome.cpp
 HEADERS += \
     src/client/application/app/application_context.h \
+    src/client/application/sessions/negotiation/media/session_media_event_pump.h \
     src/client/application/sessions/negotiation/session_negotiation_coordinator.h \
     src/client/application/sessions/negotiation/session_negotiation_context.h \
     src/client/application/sessions/negotiation/turn/session_turn_binding.h \
