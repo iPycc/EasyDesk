@@ -125,6 +125,10 @@ QByteArray SessionRequestCoordinator::acceptanceNonce() const {
     return m_acceptanceNonce;
 }
 
+SessionNegotiationContext SessionRequestCoordinator::negotiationContext() const {
+    return m_negotiation;
+}
+
 bool SessionRequestCoordinator::requestSession(const QString &targetDeviceId,
                                                const QString &assistanceCode,
                                                SessionMode mode) {
@@ -387,6 +391,24 @@ void SessionRequestCoordinator::handleAcceptance(const QByteArray &message) {
     m_permissionEpoch = acceptance.fields.permissionEpoch;
     m_expiresAt = acceptance.fields.expiresAt;
     m_acceptanceNonce = acceptance.fields.nonce;
+    m_negotiation.requestId = m_requestId;
+    m_negotiation.sessionId = m_sessionId;
+    m_negotiation.signedRequestPayload = m_signedRequestPayload;
+    m_negotiation.signedAcceptPayload = acceptance.signedPayload;
+    m_negotiation.acceptanceNonce = acceptance.fields.nonce;
+    m_negotiation.peerPublicKey = m_targetPublicKey;
+    m_negotiation.localDeviceId = m_request.fromDeviceId;
+    m_negotiation.peerDeviceId = m_request.toDeviceId;
+    m_negotiation.sessionEpoch = acceptance.fields.sessionEpoch;
+    m_negotiation.permissionEpoch = acceptance.fields.permissionEpoch;
+    m_negotiation.expiresAt = acceptance.fields.expiresAt;
+    m_negotiation.role =
+        m_request.requesterRole ==
+                easydesk::client::signaling::SessionParticipantRole::Controller
+            ? SessionRole::Controller
+            : SessionRole::Controlled;
+    m_negotiation.capabilities = capabilitiesForMode(m_grantedMode);
+    m_negotiation.offerer = true;
     m_timeout.stop();
     setState(State::Accepted);
     emit sessionAccepted();
@@ -485,4 +507,5 @@ void SessionRequestCoordinator::clearRequest() {
     m_permissionEpoch = 0;
     m_expiresAt = 0;
     m_acceptanceNonce.clear();
+    m_negotiation = {};
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sessions/negotiation/session_negotiation_context.h"
 #include "features/sessions/model/session_access.h"
 #include "network/signaling/protocol/session/session_decision_codec.h"
 #include "network/signaling/protocol/session/session_request_decoder.h"
@@ -46,6 +47,7 @@ class SessionInvitationCoordinator final : public QObject {
     QByteArray signedRequestPayload() const;
     quint32 sessionEpoch() const;
     SessionMode grantedMode() const;
+    SessionNegotiationContext negotiationContext() const;
 
     bool accept(SessionMode grantedMode);
     bool reject();
@@ -80,4 +82,5 @@ class SessionInvitationCoordinator final : public QObject {
     IncomingSessionInvitation m_invitation;
     quint32 m_sessionEpoch = 0;
     SessionMode m_grantedMode = SessionMode::ViewOnly;
+    SessionNegotiationContext m_negotiation;
 };

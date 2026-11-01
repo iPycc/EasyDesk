@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sessions/negotiation/session_negotiation_context.h"
 #include "features/sessions/model/session_access.h"
 #include "network/signaling/protocol/session/session_request_codec.h"
 
@@ -46,6 +47,7 @@ class SessionRequestCoordinator final : public QObject {
     quint64 permissionEpoch() const;
     qint64 expiresAt() const;
     QByteArray acceptanceNonce() const;
+    SessionNegotiationContext negotiationContext() const;
 
     bool requestSession(const QString &targetDeviceId,
                         const QString &assistanceCode,
@@ -90,4 +92,5 @@ class SessionRequestCoordinator final : public QObject {
     quint64 m_permissionEpoch = 0;
     qint64 m_expiresAt = 0;
     QByteArray m_acceptanceNonce;
+    SessionNegotiationContext m_negotiation;
 };

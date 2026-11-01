@@ -101,6 +101,10 @@ SessionMode SessionInvitationCoordinator::grantedMode() const {
     return m_grantedMode;
 }
 
+SessionNegotiationContext SessionInvitationCoordinator::negotiationContext() const {
+    return m_negotiation;
+}
+
 bool SessionInvitationCoordinator::accept(SessionMode grantedMode) {
     if (m_state != State::AwaitingConsent ||
         (grantedMode != SessionMode::ViewOnly && grantedMode != SessionMode::Control) ||
@@ -164,6 +168,24 @@ bool SessionInvitationCoordinator::accept(SessionMode grantedMode) {
     }
 
     m_grantedMode = grantedMode;
+    m_negotiation.requestId = request.requestId;
+    m_negotiation.sessionId = request.sessionId;
+    m_negotiation.signedRequestPayload = m_request.signedPayload;
+    m_negotiation.signedAcceptPayload = signingBytes;
+    m_negotiation.acceptanceNonce = nonce;
+    m_negotiation.peerPublicKey = request.requesterPublicKey;
+    m_negotiation.localDeviceId = request.toDeviceId;
+    m_negotiation.peerDeviceId = request.fromDeviceId;
+    m_negotiation.sessionEpoch = fields.sessionEpoch;
+    m_negotiation.permissionEpoch = fields.permissionEpoch;
+    m_negotiation.expiresAt = fields.expiresAt;
+    m_negotiation.role =
+        request.requesterRole ==
+                easydesk::client::signaling::SessionParticipantRole::Controller
+            ? SessionRole::Controlled
+            : SessionRole::Controller;
+    m_negotiation.capabilities = capabilitiesForMode(grantedMode);
+    m_negotiation.offerer = false;
     setState(State::AwaitingAcceptanceDelivery);
     m_timeout.start(kDeliveryTimeoutMilliseconds);
     return true;
@@ -391,4 +413,5 @@ void SessionInvitationCoordinator::clearInvitation() {
     m_invitation = {};
     m_sessionEpoch = 0;
     m_grantedMode = SessionMode::ViewOnly;
+    m_negotiation = {};
 }
