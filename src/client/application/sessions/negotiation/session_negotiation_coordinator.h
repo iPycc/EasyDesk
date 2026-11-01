@@ -23,6 +23,9 @@ class SessionNegotiationCoordinator final : public QObject {
         AwaitingTurnCredentials,
         AwaitingLocalOffer,
         AwaitingRemoteOffer,
+        ApplyingRemoteOffer,
+        AwaitingLocalAnswer,
+        LocalAnswerReady,
         AwaitingRemoteAnswer,
     };
     Q_ENUM(State)
@@ -45,16 +48,21 @@ class SessionNegotiationCoordinator final : public QObject {
     void relayReady();
     void mediaStarted();
     void localOfferSent();
+    void localAnswerReady();
     void failed(const QString &code, const QString &message);
 
   private:
     void handleMessage(const QByteArray &message);
+    void handleTurnCredentials(const QByteArray &message);
+    void handleRemoteOffer(const QByteArray &message);
     void handleSignalingStateChanged();
     void handleSignalingError(const QString &code, const QString &message);
     void handleTimeout();
     void handleLocalDescription(quint32 iceGeneration,
                                 quint32 sdpType,
                                 const QByteArray &sdp);
+    void handleRemoteDescriptionApplied(quint32 iceGeneration,
+                                        quint32 sdpType);
     bool startMediaSession(QString &error);
     void setState(State state);
     void fail(const QString &code, const QString &message);
@@ -70,4 +78,7 @@ class SessionNegotiationCoordinator final : public QObject {
     std::unique_ptr<MediaSession> m_mediaSession;
     QByteArray m_signedLocalDescriptionPayload;
     quint64 m_localDescriptionSequence = 0;
+    QByteArray m_signedRemoteDescriptionPayload;
+    quint64 m_remoteDescriptionSequence = 0;
+    QByteArray m_pendingLocalAnswer;
 };
