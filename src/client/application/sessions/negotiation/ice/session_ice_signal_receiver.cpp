@@ -83,6 +83,7 @@ bool SessionIceSignalReceiver::markRemoteDescriptionApplied(
         if (!applyBatch(batch, error))
             return false;
     }
+    emitGatheringCompleteIfReady();
     error.clear();
     return true;
 }
@@ -97,7 +98,10 @@ void SessionIceSignalReceiver::stop() {
     m_iceGeneration = 0;
     m_descriptionSequence = 0;
     m_lastSequence = 0;
+    m_gatheringCompleteSequence = 0;
     m_remoteDescriptionApplied = false;
+    m_remoteGatheringComplete = false;
+    m_gatheringCompleteEmitted = false;
     m_active = false;
 }
 
@@ -107,26 +111,16 @@ bool SessionIceSignalReceiver::isActive() const {
 
 void SessionIceSignalReceiver::handleCandidates(const QByteArray &message) {
     if (!m_active || !m_mediaSession ||
-        m_signedDescriptionPayload.isEmpty()) {
+        m_signedDescriptionPayload.isEmpty() || m_remoteGatheringComplete) {
         fail(QStringLiteral("E_REMOTE_CANDIDATE"),
              QStringLiteral("Remote ICE candidate context is invalid."));
         return;
     }
 
-    easydesk::client::signaling::SessionIceContext context;
-    context.requestId = m_context.requestId;
-    context.sessionId = m_context.sessionId;
-    context.sessionEpoch = m_context.sessionEpoch;
-    context.iceGeneration = m_iceGeneration;
-    context.descriptionSequence = m_descriptionSequence;
-    context.fromDeviceId = m_context.peerDeviceId;
-    context.toDeviceId = m_context.localDeviceId;
-    context.signedDescriptionPayload = m_signedDescriptionPayload;
-
     easydesk::client::signaling::DecodedSessionCandidates decoded;
     QString error;
     if (!easydesk::client::signaling::decodeSessionCandidatesEnvelope(
-            message, context, decoded, error)) {
+            message, decodingContext(), decoded, error)) {
         fail(QStringLiteral("E_REMOTE_CANDIDATE_PROTOCOL"), error);
         return;
     }
@@ -181,6 +175,47 @@ void SessionIceSignalReceiver::handleCandidates(const QByteArray &message) {
     }
 }
 
+void SessionIceSignalReceiver::handleGatheringComplete(
+    const QByteArray &message) {
+    if (!m_active || !m_mediaSession ||
+        m_signedDescriptionPayload.isEmpty() || m_remoteGatheringComplete) {
+        fail(QStringLiteral("E_REMOTE_GATHERING"),
+             QStringLiteral("Remote ICE gathering context is invalid."));
+        return;
+    }
+
+    easydesk::client::signaling::DecodedSessionGatheringComplete decoded;
+    QString error;
+    if (!easydesk::client::signaling::decodeSessionGatheringCompleteEnvelope(
+            message, decodingContext(), decoded, error)) {
+        fail(QStringLiteral("E_REMOTE_GATHERING_PROTOCOL"), error);
+        return;
+    }
+    const qint64 now = QDateTime::currentSecsSinceEpoch();
+    if (decoded.fields.route.sequence != m_lastSequence + 1 ||
+        decoded.fields.route.expiresAt < now ||
+        decoded.fields.route.expiresAt >
+            now + kMaximumCandidateLifetimeSeconds ||
+        decoded.fields.route.expiresAt > m_context.expiresAt) {
+        fail(QStringLiteral("E_REMOTE_GATHERING_SEQUENCE"),
+             QStringLiteral(
+                 "Remote ICE gathering sequence or lifetime is invalid."));
+        return;
+    }
+    if (!m_media.verifyEd25519(m_context.peerPublicKey,
+                               decoded.signedPayload,
+                               decoded.signature)) {
+        fail(QStringLiteral("E_REMOTE_GATHERING_SIGNATURE"),
+             m_media.errorString());
+        return;
+    }
+
+    m_lastSequence = decoded.fields.route.sequence;
+    m_gatheringCompleteSequence = m_lastSequence;
+    m_remoteGatheringComplete = true;
+    emitGatheringCompleteIfReady();
+}
+
 bool SessionIceSignalReceiver::applyBatch(const PendingBatch &batch,
                                           QString &error) {
     if (!m_mediaSession || !m_mediaSession->isActive()) {
@@ -211,6 +246,29 @@ bool SessionIceSignalReceiver::isDuplicate(
             return true;
     }
     return false;
+}
+
+easydesk::client::signaling::SessionIceContext
+SessionIceSignalReceiver::decodingContext() const {
+    easydesk::client::signaling::SessionIceContext context;
+    context.requestId = m_context.requestId;
+    context.sessionId = m_context.sessionId;
+    context.sessionEpoch = m_context.sessionEpoch;
+    context.iceGeneration = m_iceGeneration;
+    context.descriptionSequence = m_descriptionSequence;
+    context.fromDeviceId = m_context.peerDeviceId;
+    context.toDeviceId = m_context.localDeviceId;
+    context.signedDescriptionPayload = m_signedDescriptionPayload;
+    return context;
+}
+
+void SessionIceSignalReceiver::emitGatheringCompleteIfReady() {
+    if (!m_remoteDescriptionApplied || !m_remoteGatheringComplete ||
+        m_gatheringCompleteEmitted || !m_pending.isEmpty()) {
+        return;
+    }
+    m_gatheringCompleteEmitted = true;
+    emit gatheringCompleteReceived(m_gatheringCompleteSequence);
 }
 
 void SessionIceSignalReceiver::fail(const QString &code,

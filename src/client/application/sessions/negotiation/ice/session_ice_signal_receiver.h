@@ -2,6 +2,7 @@
 
 #include "sessions/negotiation/ice/session_ice_description_binding.h"
 #include "sessions/negotiation/session_negotiation_context.h"
+#include "network/signaling/protocol/session/ice/session_ice_decoder.h"
 
 #include <QObject>
 #include <QVector>
@@ -30,9 +31,11 @@ class SessionIceSignalReceiver final : public QObject {
 
     bool isActive() const;
     void handleCandidates(const QByteArray &message);
+    void handleGatheringComplete(const QByteArray &message);
 
   signals:
     void candidateBatchApplied(int count, quint64 sequence);
+    void gatheringCompleteReceived(quint64 sequence);
     void failed(const QString &code, const QString &message);
 
   private:
@@ -44,6 +47,8 @@ class SessionIceSignalReceiver final : public QObject {
     bool applyBatch(const PendingBatch &batch, QString &error);
     bool isDuplicate(
         const easydesk::client::signaling::SessionIceCandidate &candidate) const;
+    easydesk::client::signaling::SessionIceContext decodingContext() const;
+    void emitGatheringCompleteIfReady();
     void fail(const QString &code, const QString &message);
 
     MediaRuntimeLibrary &m_media;
@@ -56,6 +61,9 @@ class SessionIceSignalReceiver final : public QObject {
     quint32 m_iceGeneration = 0;
     quint64 m_descriptionSequence = 0;
     quint64 m_lastSequence = 0;
+    quint64 m_gatheringCompleteSequence = 0;
     bool m_remoteDescriptionApplied = false;
+    bool m_remoteGatheringComplete = false;
+    bool m_gatheringCompleteEmitted = false;
     bool m_active = false;
 };

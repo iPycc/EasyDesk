@@ -54,6 +54,7 @@ class SessionNegotiationCoordinator final : public QObject {
     void localAnswerSent();
     void descriptionsExchanged();
     void remoteCandidatesApplied(int count, quint64 sequence);
+    void remoteGatheringComplete(quint64 sequence);
     void failed(const QString &code, const QString &message);
 
   private:

@@ -63,6 +63,9 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
             });
     connect(&m_iceReceiver, &SessionIceSignalReceiver::candidateBatchApplied,
             this, &SessionNegotiationCoordinator::remoteCandidatesApplied);
+    connect(&m_iceReceiver,
+            &SessionIceSignalReceiver::gatheringCompleteReceived,
+            this, &SessionNegotiationCoordinator::remoteGatheringComplete);
     connect(&m_iceReceiver, &SessionIceSignalReceiver::failed,
             this, [this](const QString &code, const QString &message) {
                 fail(code, message);
@@ -132,6 +135,9 @@ void SessionNegotiationCoordinator::handleMessage(const QByteArray &message) {
         handleTurnCredentials(message);
     } else if (bootstrap.type == QStringLiteral("session.candidates")) {
         m_iceReceiver.handleCandidates(message);
+    } else if (bootstrap.type ==
+               QStringLiteral("session.gathering_complete")) {
+        m_iceReceiver.handleGatheringComplete(message);
     } else if (m_state == State::AwaitingRemoteOffer &&
                bootstrap.type == QStringLiteral("session.offer")) {
         handleRemoteOffer(message);
