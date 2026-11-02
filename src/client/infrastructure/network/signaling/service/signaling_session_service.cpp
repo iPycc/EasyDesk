@@ -195,3 +195,17 @@ void SignalingSessionService::setQuality(const QString &quality) {
     m_options.quality = quality;
     emit optionsChanged(m_options);
 }
+
+bool SignalingSessionService::attachVideoTarget(quintptr nativeWindow) {
+    QString error;
+    if (m_negotiation.attachVideoRenderer(nativeWindow, error))
+        return true;
+    emit failed(error.isEmpty() ? QStringLiteral("无法初始化远程画面") : error);
+    return false;
+}
+
+void SignalingSessionService::detachVideoTarget() {
+    QString error;
+    if (!m_negotiation.detachVideoRenderer(error) && !error.isEmpty())
+        emit failed(error);
+}

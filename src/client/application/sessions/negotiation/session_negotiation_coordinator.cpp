@@ -205,6 +205,40 @@ bool SessionNegotiationCoordinator::endSession(
     return m_terminationSender.end(reason);
 }
 
+bool SessionNegotiationCoordinator::attachVideoRenderer(quintptr nativeWindow,
+                                                         QString &error) {
+    if (nativeWindow == 0) {
+        error = QStringLiteral("Remote video window is invalid.");
+        return false;
+    }
+    m_videoRendererWindow = nativeWindow;
+    if (!m_mediaSession) {
+        error.clear();
+        return true;
+    }
+    if (!m_mediaSession->attachVideoRenderer(nativeWindow)) {
+        error = m_mediaSession->errorString();
+        m_videoRendererWindow = 0;
+        return false;
+    }
+    error.clear();
+    return true;
+}
+
+bool SessionNegotiationCoordinator::detachVideoRenderer(QString &error) {
+    m_videoRendererWindow = 0;
+    if (!m_mediaSession) {
+        error.clear();
+        return true;
+    }
+    if (!m_mediaSession->detachVideoRenderer()) {
+        error = m_mediaSession->errorString();
+        return false;
+    }
+    error.clear();
+    return true;
+}
+
 void SessionNegotiationCoordinator::stop() {
     closeMediaSession();
     m_terminationSender.stop();
@@ -658,6 +692,15 @@ bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
         m_mediaSession.reset();
         return false;
     }
+    if (m_videoRendererWindow != 0 &&
+        !m_mediaSession->attachVideoRenderer(m_videoRendererWindow)) {
+        error = m_mediaSession->errorString();
+        m_eventPump.stop();
+        m_transportState.stop();
+        m_iceReceiver.stop();
+        m_mediaSession.reset();
+        return false;
+    }
     if (m_context.offerer && !m_mediaSession->createOffer()) {
         error = m_mediaSession->errorString();
         m_eventPump.stop();
@@ -678,6 +721,7 @@ void SessionNegotiationCoordinator::closeMediaSession() {
     m_iceReceiver.stop();
     m_terminationReceiver.stop();
     m_mediaSession.reset();
+    m_videoRendererWindow = 0;
     m_signedLocalDescriptionPayload.clear();
     m_localDescriptionSequence = 0;
     m_signedRemoteDescriptionPayload.clear();

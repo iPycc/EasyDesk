@@ -208,9 +208,12 @@ void MainWindow::startSession(const QString &id) {
     auto *stop = new QShortcut(QKeySequence("Ctrl+Alt+Shift+F11"), session);
     connect(stop, &QShortcut::activated, session, &QWidget::close);
     connect(session, &Ui::SessionWindow::closed, this, [this] {
+        m_sessions.detachVideoTarget();
         m_sessions.stop();
         m_session = nullptr;
         notify(QStringLiteral("会话已结束"));
     });
     session->show();
+    if (!m_sessions.attachVideoTarget(static_cast<quintptr>(desktop->winId())))
+        session->close();
 }

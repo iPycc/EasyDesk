@@ -30,6 +30,8 @@ class SignalingSessionService final : public SessionService {
     SessionOptions options() const override;
     void setFrameRate(int frameRate) override;
     void setQuality(const QString &quality) override;
+    bool attachVideoTarget(quintptr nativeWindow) override;
+    void detachVideoTarget() override;
 
   private:
     DeviceProfileStore &m_profile;

@@ -50,6 +50,8 @@ class SessionNegotiationCoordinator final : public QObject {
 
     bool begin(const SessionNegotiationContext &context);
     bool endSession(easydesk::client::signaling::SessionEndReason reason);
+    bool attachVideoRenderer(quintptr nativeWindow, QString &error);
+    bool detachVideoRenderer(QString &error);
     void stop();
 
   signals:
@@ -107,6 +109,7 @@ class SessionNegotiationCoordinator final : public QObject {
     SessionNegotiationContext m_context;
     SessionTurnConfiguration m_turn;
     std::unique_ptr<MediaSession> m_mediaSession;
+    quintptr m_videoRendererWindow = 0;
     QByteArray m_signedLocalDescriptionPayload;
     quint64 m_localDescriptionSequence = 0;
     QByteArray m_signedRemoteDescriptionPayload;

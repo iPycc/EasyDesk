@@ -19,6 +19,8 @@ class SessionService : public QObject {
     virtual SessionOptions options() const = 0;
     virtual void setFrameRate(int frameRate) = 0;
     virtual void setQuality(const QString &quality) = 0;
+    virtual bool attachVideoTarget(quintptr nativeWindow) = 0;
+    virtual void detachVideoTarget() = 0;
   signals:
     void identityChanged();
     void availabilityChanged();
