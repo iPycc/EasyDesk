@@ -4,6 +4,7 @@
 #include "runtime/media_runtime_internal.h"
 #include "session/media_event_queue.h"
 #include "session/session_description_observers.h"
+#include "video/capture/desktop_video_source.h"
 
 #include <algorithm>
 #include <array>
@@ -183,16 +184,16 @@ EasyDeskMediaStatus PeerConnectionSession::start(const EasyDeskMediaSessionConfi
         }
         m_peer = created.MoveValue();
 
-        webrtc::RtpTransceiverInit video;
-        video.direction = m_role == EASYDESK_MEDIA_SESSION_ROLE_CONTROLLED
-                              ? webrtc::RtpTransceiverDirection::kSendOnly
-                              : webrtc::RtpTransceiverDirection::kRecvOnly;
-        auto transceiver = m_peer->AddTransceiver(webrtc::MediaType::VIDEO, video);
-        if (!transceiver.ok()) {
-            failure = transceiver.error().message();
-            m_peer->Close();
-            m_peer = nullptr;
-            return;
+        if (m_role == EASYDESK_MEDIA_SESSION_ROLE_CONTROLLER) {
+            webrtc::RtpTransceiverInit video;
+            video.direction = webrtc::RtpTransceiverDirection::kRecvOnly;
+            auto added = m_peer->AddTransceiver(webrtc::MediaType::VIDEO, video);
+            if (!added.ok()) {
+                failure = added.error().message();
+                m_peer->Close();
+                m_peer = nullptr;
+                return;
+            }
         }
 
         if (m_role == EASYDESK_MEDIA_SESSION_ROLE_CONTROLLER) {
@@ -410,7 +411,58 @@ EasyDeskMediaStatus PeerConnectionSession::close() {
 }
 
 void PeerConnectionSession::OnSignalingChange(
-    webrtc::PeerConnectionInterface::SignalingState) {}
+    webrtc::PeerConnectionInterface::SignalingState state) {
+    if (state != webrtc::PeerConnectionInterface::kHaveRemoteOffer ||
+        m_role != EASYDESK_MEDIA_SESSION_ROLE_CONTROLLED || !m_peer ||
+        m_closed.load()) {
+        return;
+    }
+
+    std::string failure;
+    for (const auto &transceiver : m_peer->GetTransceivers()) {
+        if (!transceiver || transceiver->media_type() != webrtc::MediaType::VIDEO)
+            continue;
+        if (transceiver->sender()->track())
+            return;
+
+        auto source = DesktopVideoSource::create(0, 30);
+        if (!source || !source->start(&failure)) {
+            if (failure.empty())
+                failure = "Desktop capture initialization failed.";
+            break;
+        }
+        auto track = m_runtime->factory()->CreateVideoTrack(source, "desktop.video.v1");
+        if (!track) {
+            source->stop();
+            failure = "WebRTC could not create the desktop video track.";
+            break;
+        }
+        track->set_content_hint(webrtc::VideoTrackInterface::ContentHint::kText);
+        const webrtc::RTCError direction = transceiver->SetDirectionWithError(
+            webrtc::RtpTransceiverDirection::kSendOnly);
+        if (!direction.ok()) {
+            failure = direction.message();
+            break;
+        }
+        if (!transceiver->sender()->SetTrack(track.get())) {
+            failure = "WebRTC rejected the desktop video track.";
+            break;
+        }
+        return;
+    }
+
+    if (failure.empty())
+        failure = "The remote offer has no video transceiver.";
+    MediaEventRecord event;
+    event.type = EASYDESK_MEDIA_EVENT_ERROR;
+    event.code = EASYDESK_MEDIA_STATUS_INTERNAL_ERROR;
+    event.iceGeneration = m_iceGeneration;
+    event.payload.assign(failure.begin(), failure.end());
+    emitEvent(std::move(event));
+    if (m_peer)
+        m_peer->Close();
+    m_closed.store(true);
+}
 
 void PeerConnectionSession::OnDataChannel(
     webrtc::scoped_refptr<webrtc::DataChannelInterface> channel) {
