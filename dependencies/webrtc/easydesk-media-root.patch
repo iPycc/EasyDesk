@@ -13,7 +13,7 @@ diff --git a/BUILD.gn b/BUILD.gn
      if (rtc_build_examples) {
        deps += [ "examples" ]
      }
-@@ -516,8 +519,45 @@
+@@ -516,8 +519,55 @@
 +rtc_shared_library("easydesk_media") {
 +  output_name = "easydesk_media"
 +  sources = [
@@ -32,6 +32,8 @@ diff --git a/BUILD.gn b/BUILD.gn
 +    "//easydesk_media_bridge/session/session_description_observers.h",
 +    "//easydesk_media_bridge/video/capture/desktop_video_source.cpp",
 +    "//easydesk_media_bridge/video/capture/desktop_video_source.h",
++    "//easydesk_media_bridge/video/render/d3d11_video_renderer.cpp",
++    "//easydesk_media_bridge/video/render/d3d11_video_renderer.h",
 +  ]
 +  include_dirs = [
 +    "//easydesk_media_bridge",
@@ -48,6 +50,14 @@ diff --git a/BUILD.gn b/BUILD.gn
 +    "//third_party/boringssl",
 +    "//third_party/libyuv",
 +  ]
++  if (is_win) {
++    libs = [
++      "d3d11.lib",
++      "d3dcompiler.lib",
++      "dxgi.lib",
++      "user32.lib",
++    ]
++  }
 +}
 +
  if (!build_with_chromium) {
