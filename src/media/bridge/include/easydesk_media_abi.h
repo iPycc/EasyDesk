@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#define EASYDESK_MEDIA_ABI_VERSION 3u
+#define EASYDESK_MEDIA_ABI_VERSION 4u
 #define EASYDESK_MEDIA_ERROR_MESSAGE_CAPACITY 256u
 #define EASYDESK_MEDIA_SESSION_ID_SIZE 16u
 #define EASYDESK_MEDIA_MAX_EVENT_PAYLOAD_SIZE (256u * 1024u)
@@ -219,6 +219,15 @@ EASYDESK_MEDIA_API EasyDeskMediaStatus easydesk_media_session_poll_event(
     uint32_t payload_capacity,
     uint32_t *payload_needed,
     uint32_t timeout_ms,
+    EasyDeskMediaError *error);
+
+EASYDESK_MEDIA_API EasyDeskMediaStatus easydesk_media_session_attach_video_renderer(
+    EasyDeskMediaSession *session,
+    void *native_window,
+    EasyDeskMediaError *error);
+
+EASYDESK_MEDIA_API EasyDeskMediaStatus easydesk_media_session_detach_video_renderer(
+    EasyDeskMediaSession *session,
     EasyDeskMediaError *error);
 
 EASYDESK_MEDIA_API EasyDeskMediaStatus easydesk_media_session_close(

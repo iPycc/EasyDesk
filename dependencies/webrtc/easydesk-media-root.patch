@@ -13,7 +13,7 @@ diff --git a/BUILD.gn b/BUILD.gn
      if (rtc_build_examples) {
        deps += [ "examples" ]
      }
-@@ -516,8 +519,55 @@
+@@ -516,8 +519,58 @@
 +rtc_shared_library("easydesk_media") {
 +  output_name = "easydesk_media"
 +  sources = [
@@ -34,6 +34,9 @@ diff --git a/BUILD.gn b/BUILD.gn
 +    "//easydesk_media_bridge/video/capture/desktop_video_source.h",
 +    "//easydesk_media_bridge/video/render/d3d11_video_renderer.cpp",
 +    "//easydesk_media_bridge/video/render/d3d11_video_renderer.h",
++    "//easydesk_media_bridge/video/render/session_renderer_abi.cpp",
++    "//easydesk_media_bridge/video/render/session_video_renderer_registry.cpp",
++    "//easydesk_media_bridge/video/render/session_video_renderer_registry.h",
 +  ]
 +  include_dirs = [
 +    "//easydesk_media_bridge",

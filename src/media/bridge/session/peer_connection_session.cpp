@@ -5,6 +5,7 @@
 #include "session/media_event_queue.h"
 #include "session/session_description_observers.h"
 #include "video/capture/desktop_video_source.h"
+#include "video/render/session_video_renderer_registry.h"
 
 #include <algorithm>
 #include <array>
@@ -394,6 +395,8 @@ EasyDeskMediaStatus PeerConnectionSession::close() {
     if (m_cleanupComplete.exchange(true))
         return EASYDESK_MEDIA_STATUS_OK;
 
+    SessionVideoRendererRegistry::instance().detach(this);
+
     if (m_runtime && m_runtime->signalingThread()) {
         auto cleanup = [this] {
             if (m_peer)
@@ -412,6 +415,22 @@ EasyDeskMediaStatus PeerConnectionSession::close() {
 
 void PeerConnectionSession::OnSignalingChange(
     webrtc::PeerConnectionInterface::SignalingState state) {
+    if (state == webrtc::PeerConnectionInterface::kStable &&
+        m_role == EASYDESK_MEDIA_SESSION_ROLE_CONTROLLER && m_peer && !m_closed.load()) {
+        for (const auto &receiver : m_peer->GetReceivers()) {
+            if (!receiver || receiver->media_type() != webrtc::MediaType::VIDEO)
+                continue;
+            auto track = receiver->track();
+            if (!track || track->kind() != webrtc::MediaStreamTrackInterface::kVideoKind)
+                continue;
+            SessionVideoRendererRegistry::instance().bindRemoteTrack(
+                this, webrtc::scoped_refptr<webrtc::VideoTrackInterface>(
+                          static_cast<webrtc::VideoTrackInterface *>(track.get())));
+            break;
+        }
+        return;
+    }
+
     if (state != webrtc::PeerConnectionInterface::kHaveRemoteOffer ||
         m_role != EASYDESK_MEDIA_SESSION_ROLE_CONTROLLED || !m_peer ||
         m_closed.load()) {
