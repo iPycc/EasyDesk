@@ -53,6 +53,7 @@ class SessionRequestCoordinator final : public QObject {
                         const QString &assistanceCode,
                         SessionMode mode);
     bool cancel();
+    void completeSession();
 
   signals:
     void stateChanged(SessionRequestCoordinator::State state);

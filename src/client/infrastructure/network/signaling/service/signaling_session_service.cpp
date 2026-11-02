@@ -2,6 +2,7 @@
 
 #include "data/settings/identity/device_profile_store.h"
 #include "network/signaling/client/signaling_client.h"
+#include "sessions/negotiation/session_negotiation_coordinator.h"
 #include "sessions/session_request_coordinator.h"
 
 #include <QRegularExpression>
@@ -9,11 +10,13 @@
 SignalingSessionService::SignalingSessionService(DeviceProfileStore &profile,
                                                  SignalingClient &signaling,
                                                  SessionRequestCoordinator &requests,
+                                                 SessionNegotiationCoordinator &negotiation,
                                                  QObject *parent)
     : SessionService(parent),
       m_profile(profile),
       m_signaling(signaling),
-      m_requests(requests) {
+      m_requests(requests),
+      m_negotiation(negotiation) {
     connect(&m_signaling, &SignalingClient::profileChanged,
             this, &SessionService::identityChanged);
     connect(&m_signaling, &SignalingClient::assistanceCodeChanged,
@@ -40,6 +43,31 @@ SignalingSessionService::SignalingSessionService(DeviceProfileStore &profile,
             this, [this](const QString &, const QString &message) {
                 emit failed(message);
             });
+    connect(&m_negotiation, &SessionNegotiationCoordinator::stateChanged,
+            this, [this] { emit availabilityChanged(); });
+    connect(&m_negotiation, &SessionNegotiationCoordinator::transportStateChanged,
+            this, [this](SessionTransportState::State) {
+                emit availabilityChanged();
+            });
+    connect(&m_negotiation, &SessionNegotiationCoordinator::localSessionEnded,
+            this, [this](
+                      easydesk::client::signaling::SessionEndReason,
+                      quint64) {
+                emit availabilityChanged();
+                emit sessionCancelled();
+            });
+    connect(&m_negotiation, &SessionNegotiationCoordinator::remoteSessionEnded,
+            this, [this](
+                      easydesk::client::signaling::SessionEndReason,
+                      quint64) {
+                emit availabilityChanged();
+                emit sessionCancelled();
+            });
+    connect(&m_negotiation, &SessionNegotiationCoordinator::failed,
+            this, [this](const QString &, const QString &message) {
+                emit availabilityChanged();
+                emit failed(message);
+            });
 }
 
 LocalIdentity SignalingSessionService::localIdentity() const {
@@ -52,6 +80,26 @@ bool SignalingSessionService::isAvailable() const {
 }
 
 QString SignalingSessionService::statusText() const {
+    switch (m_negotiation.state()) {
+    case SessionNegotiationCoordinator::State::AwaitingTurnCredentials:
+        return QStringLiteral("正在获取连接配置");
+    case SessionNegotiationCoordinator::State::AwaitingLocalOffer:
+    case SessionNegotiationCoordinator::State::AwaitingRemoteOffer:
+    case SessionNegotiationCoordinator::State::ApplyingRemoteOffer:
+    case SessionNegotiationCoordinator::State::AwaitingLocalAnswer:
+    case SessionNegotiationCoordinator::State::AwaitingRemoteAnswer:
+    case SessionNegotiationCoordinator::State::ApplyingRemoteAnswer:
+        return QStringLiteral("正在协商安全连接");
+    case SessionNegotiationCoordinator::State::AwaitingIce:
+        return m_negotiation.transportState() ==
+                       SessionTransportState::State::Connected
+                   ? QStringLiteral("连接已建立")
+                   : QStringLiteral("正在检查网络路径");
+    case SessionNegotiationCoordinator::State::Ending:
+        return QStringLiteral("正在结束会话");
+    case SessionNegotiationCoordinator::State::Idle:
+        break;
+    }
     switch (m_requests.state()) {
     case SessionRequestCoordinator::State::ResolvingIdentity:
         return QStringLiteral("正在验证协助码");
@@ -114,6 +162,13 @@ void SignalingSessionService::start(const QString &deviceId,
 }
 
 void SignalingSessionService::stop() {
+    if (m_negotiation.state() != SessionNegotiationCoordinator::State::Idle) {
+        if (!m_negotiation.endSession(
+                easydesk::client::signaling::SessionEndReason::UserStopped)) {
+            emit failed(QStringLiteral("无法结束当前会话"));
+        }
+        return;
+    }
     (void)m_requests.cancel();
 }
 

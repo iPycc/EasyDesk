@@ -211,6 +211,14 @@ bool SessionRequestCoordinator::cancel() {
     return true;
 }
 
+void SessionRequestCoordinator::completeSession() {
+    if (m_state != State::Accepted)
+        return;
+    m_timeout.stop();
+    clearRequest();
+    setState(State::Idle);
+}
+
 void SessionRequestCoordinator::handleMessage(const QByteArray &message) {
     easydesk::client::signaling::BootstrapMessage decoded;
     QString error;

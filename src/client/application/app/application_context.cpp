@@ -60,14 +60,27 @@ ApplicationContext::ApplicationContext() {
                 (void)m_sessionNegotiation->begin(
                     m_sessionInvitations->negotiationContext());
             });
+    const auto completeSession = [this] {
+        m_sessionRequests->completeSession();
+        m_sessionInvitations->completeSession();
+    };
+    connect(m_sessionNegotiation.get(),
+            &SessionNegotiationCoordinator::localSessionEnded,
+            this, [completeSession](auto, quint64) { completeSession(); });
+    connect(m_sessionNegotiation.get(),
+            &SessionNegotiationCoordinator::remoteSessionEnded,
+            this, [completeSession](auto, quint64) { completeSession(); });
     connect(m_sessionNegotiation.get(), &SessionNegotiationCoordinator::failed,
-            this, [](const QString &code, const QString &message) {
+            this, [completeSession](const QString &code,
+                                    const QString &message) {
+                completeSession();
                 qWarning().noquote() << "EasyDesk session negotiation failed:"
                                      << code << message;
             });
     m_devices = std::make_unique<SettingsDeviceService>(*m_settings);
     m_sessions = std::make_unique<SignalingSessionService>(
-        *m_profile, *m_signaling, *m_sessionRequests);
+        *m_profile, *m_signaling, *m_sessionRequests,
+        *m_sessionNegotiation);
     m_transfers = std::make_unique<LocalTransferService>();
     m_local = std::make_unique<WindowsSystemService>(*m_settings);
     QString signalingUrl = qEnvironmentVariable("EASYDESK_SIGNAL_URL").trimmed();

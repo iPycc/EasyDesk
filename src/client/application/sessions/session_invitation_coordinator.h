@@ -51,6 +51,7 @@ class SessionInvitationCoordinator final : public QObject {
 
     bool accept(SessionMode grantedMode);
     bool reject();
+    void completeSession();
 
   signals:
     void stateChanged(SessionInvitationCoordinator::State state);

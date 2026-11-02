@@ -4,6 +4,7 @@
 
 class DeviceProfileStore;
 class SignalingClient;
+class SessionNegotiationCoordinator;
 class SessionRequestCoordinator;
 
 class SignalingSessionService final : public SessionService {
@@ -13,6 +14,7 @@ class SignalingSessionService final : public SessionService {
     SignalingSessionService(DeviceProfileStore &profile,
                             SignalingClient &signaling,
                             SessionRequestCoordinator &requests,
+                            SessionNegotiationCoordinator &negotiation,
                             QObject *parent = nullptr);
 
     LocalIdentity localIdentity() const override;
@@ -33,6 +35,7 @@ class SignalingSessionService final : public SessionService {
     DeviceProfileStore &m_profile;
     SignalingClient &m_signaling;
     SessionRequestCoordinator &m_requests;
+    SessionNegotiationCoordinator &m_negotiation;
     SessionOptions m_options;
     SessionTelemetry m_telemetry;
 };

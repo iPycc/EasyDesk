@@ -195,6 +195,14 @@ bool SessionInvitationCoordinator::reject() {
     return sendRejection(easydesk::client::signaling::SessionRejectReason::Declined);
 }
 
+void SessionInvitationCoordinator::completeSession() {
+    if (m_state != State::Accepted)
+        return;
+    m_timeout.stop();
+    clearInvitation();
+    setState(State::Idle);
+}
+
 void SessionInvitationCoordinator::handleMessage(const QByteArray &message) {
     easydesk::client::signaling::BootstrapMessage decoded;
     QString error;
