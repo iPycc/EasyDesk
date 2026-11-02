@@ -139,9 +139,40 @@ bool MediaSession::pollEvent(MediaSessionEvent &event, quint32 timeoutMs) {
     return true;
 }
 
+bool MediaSession::attachVideoRenderer(quintptr nativeWindow) {
+    if (!isActive() || nativeWindow == 0) {
+        m_error = QStringLiteral("Video renderer requires an active session and native window.");
+        return false;
+    }
+    EasyDeskMediaError error = emptyError();
+    const bool attached = acceptStatus(m_state->api.sessionAttachVideoRenderer(
+                                           m_session,
+                                           reinterpret_cast<void *>(nativeWindow), &error),
+                                       error);
+    if (attached)
+        m_videoRendererAttached = true;
+    return attached;
+}
+
+bool MediaSession::detachVideoRenderer() {
+    if (!m_videoRendererAttached)
+        return true;
+    if (m_session == nullptr || !m_state) {
+        m_videoRendererAttached = false;
+        return true;
+    }
+    EasyDeskMediaError error = emptyError();
+    const bool detached = acceptStatus(
+        m_state->api.sessionDetachVideoRenderer(m_session, &error), error);
+    if (detached)
+        m_videoRendererAttached = false;
+    return detached;
+}
+
 void MediaSession::close() {
     if (m_session == nullptr || !m_state)
         return;
+    detachVideoRenderer();
     EasyDeskMediaError error = emptyError();
     m_state->api.sessionClose(m_session, &error);
     m_state->api.sessionDestroy(m_session);

@@ -98,6 +98,11 @@ bool MediaRuntimeLibrary::start(const QString &libraryPath) {
         module, "easydesk_media_session_set_permissions");
     api.sessionPollEvent = resolveFunction<MediaApi::SessionPollEventFunction>(
         module, "easydesk_media_session_poll_event");
+    api.sessionAttachVideoRenderer =
+        resolveFunction<MediaApi::SessionAttachVideoRendererFunction>(
+            module, "easydesk_media_session_attach_video_renderer");
+    api.sessionDetachVideoRenderer = resolveFunction<MediaApi::SessionActionFunction>(
+        module, "easydesk_media_session_detach_video_renderer");
     api.sessionClose = resolveFunction<MediaApi::SessionActionFunction>(
         module, "easydesk_media_session_close");
     api.sessionDestroy = resolveFunction<MediaApi::SessionDestroyFunction>(

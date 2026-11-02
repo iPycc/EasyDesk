@@ -30,6 +30,8 @@ struct MediaApi {
     using SessionPollEventFunction = EasyDeskMediaStatus (*)(
         EasyDeskMediaSession *, EasyDeskMediaEvent *, uint8_t *, uint32_t, uint32_t *,
         uint32_t, EasyDeskMediaError *);
+    using SessionAttachVideoRendererFunction = EasyDeskMediaStatus (*)(
+        EasyDeskMediaSession *, void *, EasyDeskMediaError *);
     using SessionDestroyFunction = void (*)(EasyDeskMediaSession *);
 
     AbiVersionFunction abiVersion = nullptr;
@@ -46,6 +48,8 @@ struct MediaApi {
     SessionAddIceCandidateFunction sessionAddIceCandidate = nullptr;
     SessionSetPermissionsFunction sessionSetPermissions = nullptr;
     SessionPollEventFunction sessionPollEvent = nullptr;
+    SessionAttachVideoRendererFunction sessionAttachVideoRenderer = nullptr;
+    SessionActionFunction sessionDetachVideoRenderer = nullptr;
     SessionActionFunction sessionClose = nullptr;
     SessionDestroyFunction sessionDestroy = nullptr;
 
@@ -54,6 +58,7 @@ struct MediaApi {
                runtimeCreate && runtimeIsReady && runtimeDestroy &&
                sessionCreate && sessionCreateOffer && sessionCreateAnswer &&
                sessionSetRemoteDescription && sessionAddIceCandidate &&
-               sessionSetPermissions && sessionPollEvent && sessionClose && sessionDestroy;
+               sessionSetPermissions && sessionPollEvent && sessionAttachVideoRenderer &&
+               sessionDetachVideoRenderer && sessionClose && sessionDestroy;
     }
 };

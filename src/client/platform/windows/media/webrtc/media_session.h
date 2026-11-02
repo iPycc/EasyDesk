@@ -54,6 +54,8 @@ class MediaSession final {
                          const QByteArray &candidate);
     bool setPermissions(quint64 permissionEpoch, SessionCapabilities capabilities);
     bool pollEvent(MediaSessionEvent &event, quint32 timeoutMs = 0);
+    bool attachVideoRenderer(quintptr nativeWindow);
+    bool detachVideoRenderer();
     void close();
 
     bool isActive() const;
@@ -67,6 +69,7 @@ class MediaSession final {
 
     std::shared_ptr<MediaRuntimeState> m_state;
     EasyDeskMediaSession *m_session = nullptr;
+    bool m_videoRendererAttached = false;
     bool m_closed = false;
     QString m_error;
 };
