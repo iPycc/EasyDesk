@@ -5,7 +5,7 @@
 #include <QtWidgets>
 using namespace Ui::Layout;
 
-void MainWindow::startSession(const QString &id) {
+void MainWindow::startSession(const QString &id, const QString &assistanceCode) {
     if (!m_sessions.isAvailable()) {
         Ui::alert(this, QStringLiteral("无法连接"), m_sessions.statusText());
         return;
@@ -23,10 +23,21 @@ void MainWindow::startSession(const QString &id) {
     const QString name = device ? device->name : spacedId(id);
     Ui::Dialog consent(this, QStringLiteral("连接设备"));
     consent.setObjectName("sessionConsent");
-    consent.resize(440, 270);
+    consent.resize(440, assistanceCode.isEmpty() ? 320 : 270);
     auto *c = consent.body;
     c->addWidget(text(name, "h2"));
     c->addWidget(text(spacedId(id), "muted"));
+    QLineEdit *assistanceCodeInput = nullptr;
+    if (assistanceCode.isEmpty()) {
+        assistanceCodeInput = new QLineEdit;
+        assistanceCodeInput->setObjectName("sessionAssistanceCode");
+        assistanceCodeInput->setPlaceholderText(QStringLiteral("8 位临时协助码"));
+        assistanceCodeInput->setMaxLength(8);
+        assistanceCodeInput->setValidator(
+            new QRegularExpressionValidator(QRegularExpression(QStringLiteral("[0-9]{0,8}")),
+                                            assistanceCodeInput));
+        c->addWidget(assistanceCodeInput);
+    }
     auto *view = new QCheckBox(QStringLiteral("仅观看"));
     view->setChecked(findChild<QCheckBox *>("viewOnly")->isChecked());
     view->setObjectName("sessionViewOnly");
@@ -37,12 +48,23 @@ void MainWindow::startSession(const QString &id) {
     auto *cancel = button(QStringLiteral("取消"));
     auto *accept = button(QStringLiteral("连接"), "arrow", "primary");
     accept->setObjectName("dialogAccept");
+    if (assistanceCodeInput) {
+        accept->setEnabled(false);
+        connect(assistanceCodeInput, &QLineEdit::textChanged, accept,
+                [accept](const QString &value) { accept->setEnabled(value.size() == 8); });
+    }
     r->addWidget(accept, 1);
     r->addWidget(cancel, 1);
     connect(cancel, &QPushButton::clicked, &consent, &Ui::Dialog::reject);
     connect(accept, &QPushButton::clicked, &consent, &Ui::Dialog::accept);
     if (consent.exec() != Ui::Dialog::Accepted)
         return;
+    const QString code = assistanceCodeInput ? assistanceCodeInput->text() : assistanceCode;
+    const QString validation = m_sessions.validateConnection(id, code);
+    if (!validation.isEmpty()) {
+        Ui::alert(this, QStringLiteral("无法连接"), validation);
+        return;
+    }
     auto *session = new Ui::SessionWindow(this, name + QStringLiteral(" · 远程桌面"));
     session->setObjectName("sessionWindow");
     m_session = session;
@@ -63,7 +85,7 @@ void MainWindow::startSession(const QString &id) {
     requested.frameRate = initialFps;
     requested.quality = initialQuality;
     requested.mode = view->isChecked() ? SessionMode::ViewOnly : SessionMode::Control;
-    m_sessions.start(id, QString(), requested);
+    m_sessions.start(id, code, requested);
     session->setProperty("fps", initialFps);
     session->setProperty("quality", initialQuality);
     auto *title = dynamic_cast<Ui::TitleBar *>(session->findChild<QFrame *>("titleBar"));

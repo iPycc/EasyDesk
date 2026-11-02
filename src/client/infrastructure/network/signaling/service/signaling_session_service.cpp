@@ -76,7 +76,8 @@ LocalIdentity SignalingSessionService::localIdentity() const {
 }
 
 bool SignalingSessionService::isAvailable() const {
-    return false;
+    return m_requests.isAvailable() &&
+           m_negotiation.state() == SessionNegotiationCoordinator::State::Idle;
 }
 
 QString SignalingSessionService::statusText() const {

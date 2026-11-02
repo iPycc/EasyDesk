@@ -9,5 +9,5 @@ void MainWindow::connectRemote() {
     error->setText(message);
     if (!message.isEmpty())
         return;
-    startSession(id);
+    startSession(id, code);
 }
