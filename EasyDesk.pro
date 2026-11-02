@@ -67,6 +67,7 @@ SOURCES += \
     src/client/platform/windows/network/winhttp/winhttp_websocket_transport.cpp \
     src/client/platform/windows/security/secure_random.cpp \
     src/client/platform/windows/media/capture/dxgi_desktop_capture.cpp \
+    src/client/platform/windows/media/capture/stream/desktop_capture_stream.cpp \
     src/client/platform/windows/media/webrtc/media_runtime_state.cpp \
     src/client/platform/windows/media/webrtc/media_runtime_library.cpp \
     src/client/platform/windows/media/webrtc/media_session.cpp \
@@ -155,6 +156,7 @@ HEADERS += \
     src/client/platform/windows/security/secure_random.h \
     src/client/platform/windows/media/capture/desktop_capture_frame.h \
     src/client/platform/windows/media/capture/dxgi_desktop_capture.h \
+    src/client/platform/windows/media/capture/stream/desktop_capture_stream.h \
     src/client/platform/windows/media/webrtc/media_api.h \
     src/client/platform/windows/media/webrtc/media_runtime_library.h \
     src/client/platform/windows/media/webrtc/media_runtime_state.h \
