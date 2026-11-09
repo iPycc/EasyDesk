@@ -87,6 +87,7 @@ SOURCES += \
     src/client/presentation/ui/components/controls.cpp \
     src/client/presentation/ui/components/desktop_view.cpp \
     src/client/presentation/ui/input/video_input_mapping.cpp \
+    src/client/presentation/ui/input/desktop_input_capture.cpp \
     src/client/presentation/ui/components/device_list.cpp \
     src/client/presentation/ui/components/icons.cpp \
     src/client/presentation/ui/components/menus.cpp \
@@ -193,6 +194,7 @@ HEADERS += \
     src/client/presentation/ui/components/controls.h \
     src/client/presentation/ui/components/desktop_view.h \
     src/client/presentation/ui/input/video_input_mapping.h \
+    src/client/presentation/ui/input/desktop_input_capture.h \
     src/client/presentation/ui/components/device_list.h \
     src/client/presentation/ui/components/icons.h \
     src/client/presentation/ui/components/layout_helpers.h \
