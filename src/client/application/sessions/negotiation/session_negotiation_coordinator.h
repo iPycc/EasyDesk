@@ -3,6 +3,7 @@
 #include "sessions/negotiation/ice/session_ice_signal_sender.h"
 #include "sessions/negotiation/ice/session_ice_signal_receiver.h"
 #include "sessions/negotiation/media/session_media_event_pump.h"
+#include "sessions/negotiation/media/session_video_monitor.h"
 #include "sessions/negotiation/session_negotiation_context.h"
 #include "sessions/negotiation/transport/session_transport_state.h"
 #include "sessions/negotiation/turn/session_turn_binding.h"
@@ -47,6 +48,7 @@ class SessionNegotiationCoordinator final : public QObject {
     SessionNegotiationContext context() const;
     SessionTurnConfiguration turnConfiguration() const;
     SessionTransportState::State transportState() const;
+    bool hasPresentedFrame() const;
 
     bool begin(const SessionNegotiationContext &context);
     bool endSession(easydesk::client::signaling::SessionEndReason reason);
@@ -65,6 +67,7 @@ class SessionNegotiationCoordinator final : public QObject {
     void remoteGatheringComplete(quint64 sequence);
     void transportStateChanged(SessionTransportState::State state);
     void transportConnected();
+    void firstFramePresented(quint32 width, quint32 height);
     void remoteSessionEnded(
         easydesk::client::signaling::SessionEndReason reason,
         quint64 sequence);
@@ -100,6 +103,7 @@ class SessionNegotiationCoordinator final : public QObject {
     SignalingClient &m_signaling;
     QTimer m_timeout;
     SessionMediaEventPump m_eventPump;
+    SessionVideoMonitor m_videoMonitor;
     SessionTransportState m_transportState;
     SessionIceSignalSender m_iceSender;
     SessionIceSignalReceiver m_iceReceiver;
@@ -110,6 +114,7 @@ class SessionNegotiationCoordinator final : public QObject {
     SessionTurnConfiguration m_turn;
     std::unique_ptr<MediaSession> m_mediaSession;
     quintptr m_videoRendererWindow = 0;
+    bool m_transportEverConnected = false;
     QByteArray m_signedLocalDescriptionPayload;
     quint64 m_localDescriptionSequence = 0;
     QByteArray m_signedRemoteDescriptionPayload;

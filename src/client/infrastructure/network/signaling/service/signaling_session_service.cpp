@@ -83,6 +83,8 @@ SignalingSessionService::SignalingSessionService(DeviceProfileStore &profile,
             this, [this](SessionTransportState::State) {
                 emit availabilityChanged();
             });
+    connect(&m_negotiation, &SessionNegotiationCoordinator::firstFramePresented,
+            this, [this](quint32, quint32) { emit availabilityChanged(); });
     connect(&m_negotiation, &SessionNegotiationCoordinator::localSessionEnded,
             this, [this](
                       easydesk::client::signaling::SessionEndReason,
@@ -128,10 +130,14 @@ QString SignalingSessionService::statusText() const {
     case SessionNegotiationCoordinator::State::ApplyingRemoteAnswer:
         return QStringLiteral("正在协商安全连接");
     case SessionNegotiationCoordinator::State::AwaitingIce:
-        return m_negotiation.transportState() ==
-                       SessionTransportState::State::Connected
-                   ? QStringLiteral("连接已建立")
-                   : QStringLiteral("正在检查网络路径");
+        if (m_negotiation.transportState() == SessionTransportState::State::Disconnected)
+            return QStringLiteral("连接已中断");
+        if (m_negotiation.transportState() != SessionTransportState::State::Connected)
+            return QStringLiteral("正在检查网络路径");
+        if (m_negotiation.context().role == SessionRole::Controlled)
+            return QStringLiteral("安全通道已连接");
+        return m_negotiation.hasPresentedFrame() ? QStringLiteral("远程画面已显示")
+                                                   : QStringLiteral("安全通道已连接，等待画面");
     case SessionNegotiationCoordinator::State::Ending:
         return QStringLiteral("正在结束会话");
     case SessionNegotiationCoordinator::State::Idle:

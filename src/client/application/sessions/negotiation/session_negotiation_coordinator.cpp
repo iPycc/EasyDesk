@@ -16,6 +16,8 @@ namespace {
 
 constexpr int kTurnCredentialTimeoutMilliseconds = 15000;
 constexpr int kDescriptionTimeoutMilliseconds = 15000;
+constexpr int kIceConnectionTimeoutMilliseconds = 30000;
+constexpr int kRecoveryTimeoutMilliseconds = 15000;
 constexpr qint64 kDescriptionLifetimeSeconds = 45;
 
 }  // namespace
@@ -106,8 +108,30 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
             });
     connect(&m_transportState, &SessionTransportState::stateChanged,
             this, &SessionNegotiationCoordinator::transportStateChanged);
+    connect(&m_transportState, &SessionTransportState::stateChanged,
+            this, [this](SessionTransportState::State state) {
+                if (state != SessionTransportState::State::Connected)
+                    m_videoMonitor.transportDisconnected();
+                if (state == SessionTransportState::State::Disconnected &&
+                    m_transportEverConnected && m_state == State::AwaitingIce &&
+                    !m_timeout.isActive())
+                    m_timeout.start(kRecoveryTimeoutMilliseconds);
+            });
     connect(&m_transportState, &SessionTransportState::connected,
-            this, &SessionNegotiationCoordinator::transportConnected);
+            this, [this] {
+                m_transportEverConnected = true;
+                if (m_state == State::AwaitingIce)
+                    m_timeout.stop();
+                m_videoMonitor.transportConnected();
+                if (m_state != State::Idle)
+                    emit transportConnected();
+            });
+    connect(&m_videoMonitor, &SessionVideoMonitor::firstFrame,
+            this, &SessionNegotiationCoordinator::firstFramePresented);
+    connect(&m_videoMonitor, &SessionVideoMonitor::failed,
+            this, [this](const QString &code, const QString &message) {
+                fail(code, message);
+            });
     connect(&m_transportState, &SessionTransportState::failed,
             this, [this](const QString &code, const QString &message) {
                 fail(code, message);
@@ -161,6 +185,10 @@ SessionTurnConfiguration SessionNegotiationCoordinator::turnConfiguration() cons
 SessionTransportState::State
 SessionNegotiationCoordinator::transportState() const {
     return m_transportState.state();
+}
+
+bool SessionNegotiationCoordinator::hasPresentedFrame() const {
+    return m_videoMonitor.firstFramePresented();
 }
 
 bool SessionNegotiationCoordinator::begin(
@@ -221,12 +249,26 @@ bool SessionNegotiationCoordinator::attachVideoRenderer(quintptr nativeWindow,
         m_videoRendererWindow = 0;
         return false;
     }
+    m_videoMonitor.stop();
+    if (!m_videoMonitor.start(*m_mediaSession)) {
+        (void)m_mediaSession->detachVideoRenderer();
+        m_videoRendererWindow = 0;
+        error = QStringLiteral("Video monitor could not be started.");
+        return false;
+    }
+    if (m_transportState.state() == SessionTransportState::State::Connected)
+        m_videoMonitor.transportConnected();
+    if (!m_mediaSession || m_videoRendererWindow == 0) {
+        error = QStringLiteral("The media session ended while attaching the video renderer.");
+        return false;
+    }
     error.clear();
     return true;
 }
 
 bool SessionNegotiationCoordinator::detachVideoRenderer(QString &error) {
     m_videoRendererWindow = 0;
+    m_videoMonitor.stop();
     if (!m_mediaSession) {
         error.clear();
         return true;
@@ -467,6 +509,12 @@ void SessionNegotiationCoordinator::handleTimeout() {
                m_state == State::ApplyingRemoteAnswer) {
         fail(QStringLiteral("E_DESCRIPTION_TIMEOUT"),
              QStringLiteral("Session description negotiation timed out."));
+    } else if (m_state == State::AwaitingIce &&
+               m_transportState.state() != SessionTransportState::State::Connected) {
+        fail(m_transportEverConnected ? QStringLiteral("E_MEDIA_RECOVERY_TIMEOUT")
+                                      : QStringLiteral("E_ICE_TIMEOUT"),
+             m_transportEverConnected ? QStringLiteral("The media connection did not recover in time.")
+                                      : QStringLiteral("The media connection could not be established in time."));
     }
 }
 
@@ -578,6 +626,9 @@ void SessionNegotiationCoordinator::handleRemoteDescriptionApplied(
     if (remoteAnswer) {
         m_timeout.stop();
         setState(State::AwaitingIce);
+        if (m_transportState.state() != SessionTransportState::State::Connected)
+            m_timeout.start(m_transportEverConnected ? kRecoveryTimeoutMilliseconds
+                                                     : kIceConnectionTimeoutMilliseconds);
         emit descriptionsExchanged();
         return;
     }
@@ -652,6 +703,9 @@ void SessionNegotiationCoordinator::sendLocalAnswer(const QString &sdp) {
         return;
     }
     setState(State::AwaitingIce);
+    if (m_transportState.state() != SessionTransportState::State::Connected)
+        m_timeout.start(m_transportEverConnected ? kRecoveryTimeoutMilliseconds
+                                                 : kIceConnectionTimeoutMilliseconds);
     emit localAnswerSent();
     emit descriptionsExchanged();
 }
@@ -701,8 +755,17 @@ bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
         m_mediaSession.reset();
         return false;
     }
+    if (m_videoRendererWindow != 0 && !m_videoMonitor.start(*m_mediaSession)) {
+        error = QStringLiteral("Video monitor could not be started.");
+        m_eventPump.stop();
+        m_transportState.stop();
+        m_iceReceiver.stop();
+        m_mediaSession.reset();
+        return false;
+    }
     if (m_context.offerer && !m_mediaSession->createOffer()) {
         error = m_mediaSession->errorString();
+        m_videoMonitor.stop();
         m_eventPump.stop();
         m_transportState.stop();
         m_iceReceiver.stop();
@@ -715,6 +778,7 @@ bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
 
 void SessionNegotiationCoordinator::closeMediaSession() {
     m_timeout.stop();
+    m_videoMonitor.stop();
     m_eventPump.stop();
     m_transportState.stop();
     m_iceSender.stop();
@@ -722,6 +786,7 @@ void SessionNegotiationCoordinator::closeMediaSession() {
     m_terminationReceiver.stop();
     m_mediaSession.reset();
     m_videoRendererWindow = 0;
+    m_transportEverConnected = false;
     m_signedLocalDescriptionPayload.clear();
     m_localDescriptionSequence = 0;
     m_signedRemoteDescriptionPayload.clear();
