@@ -35,11 +35,26 @@ boost::json::object credentialMessage(const protocol::SessionEnvelope& accept,
     return message;
 }
 
+boost::json::object unavailableMessage(const protocol::SessionEnvelope& accept) {
+    boost::json::object message;
+    message["type"] = "turn.unavailable";
+    message["protocol"] = protocol::kSessionProtocol;
+    message["request_id"] = protocol::encodeBase64Url(accept.requestId);
+    message["session_id"] = protocol::encodeBase64Url(accept.sessionId);
+    message["session_epoch"] = *accept.sessionEpoch;
+    return message;
+}
+
 }  // namespace
 
 void WebSocketSession::sendTurnCredentials(const protocol::SessionEnvelope& accept) {
-    if (turnCredentials_ == nullptr || !accept.sessionEpoch)
+    if (!accept.sessionEpoch)
         return;
+    if (turnCredentials_ == nullptr) {
+        sendJson(unavailableMessage(accept));
+        (void)hub_.route(deviceId_, this, accept.toDeviceId, unavailableMessage(accept));
+        return;
+    }
 
     const auto now = std::chrono::system_clock::now();
     const auto local = turnCredentials_->issue(deviceId_, accept.sessionId, now);

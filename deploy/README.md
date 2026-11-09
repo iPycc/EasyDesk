@@ -28,6 +28,8 @@ curl --fail https://你的域名/healthz
 
 `https://域名/ws` 是客户端 WSS 地址。SQLite 位于 `signal-data` volume；signal 与 coturn 只读使用同一个 Docker secret，授权会话建立后由 signal 签发默认 10 分钟有效的临时用户名和密码，Compose 配置和镜像内均不包含实际 secret。
 
+单独运行 signal 时，如果不配置 TURN 密钥和地址，服务会通知客户端仅尝试直连；这种配置没有中继兜底，跨网络连接可能失败。配置了 TURN 后，客户端仍需以实际选中的 ICE 路径判断是否使用了中继。
+
 ## 验收边界
 
 - `/healthz`、容器 healthy 或 3478 可连接只证明服务在运行。
