@@ -206,6 +206,8 @@ bool MediaSession::videoRendererStats(MediaVideoRendererStats &stats) {
     stats.droppedFrames = native.dropped_frames;
     stats.sourceWidth = native.source_width;
     stats.sourceHeight = native.source_height;
+    stats.targetWidth = native.target_width;
+    stats.targetHeight = native.target_height;
     return true;
 }
 

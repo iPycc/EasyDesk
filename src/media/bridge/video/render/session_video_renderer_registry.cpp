@@ -131,6 +131,8 @@ EasyDeskMediaStatus SessionVideoRendererRegistry::statistics(
     stats->dropped_frames = snapshot.droppedFrames;
     stats->source_width = static_cast<uint32_t>(snapshot.sourceWidth);
     stats->source_height = static_cast<uint32_t>(snapshot.sourceHeight);
+    stats->target_width = static_cast<uint32_t>(snapshot.targetWidth);
+    stats->target_height = static_cast<uint32_t>(snapshot.targetHeight);
     for (auto &value : stats->reserved)
         value = 0;
     return EASYDESK_MEDIA_STATUS_OK;

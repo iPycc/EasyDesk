@@ -27,11 +27,12 @@ struct IncomingSessionRequest {
 struct SessionInputStatus {
     bool ready = false;
     QSize presentedFrame;
+    QSize presentedTarget;
     QSize remoteRegion;
     quint64 displayGeneration = 0;
 
     bool operator==(const SessionInputStatus &other) const {
-        return ready == other.ready && presentedFrame == other.presentedFrame &&
+        return ready == other.ready && presentedFrame == other.presentedFrame && presentedTarget == other.presentedTarget &&
                remoteRegion == other.remoteRegion && displayGeneration == other.displayGeneration;
     }
     bool operator!=(const SessionInputStatus &other) const { return !(*this == other); }

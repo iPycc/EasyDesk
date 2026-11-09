@@ -54,6 +54,7 @@ class SessionNegotiationCoordinator final : public QObject {
     SessionTransportState::State transportState() const;
     bool hasPresentedFrame() const;
     QSize presentedFrameSize() const;
+    QSize presentedTargetSize() const;
     RemoteCaptureGeometry remoteCaptureGeometry() const;
     bool isSessionReady() const;
     bool isInputChannelOpen(InputStream stream) const;

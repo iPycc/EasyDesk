@@ -289,6 +289,7 @@ SessionInputStatus SignalingSessionService::inputStatus() const {
     const auto geometry = m_negotiation.remoteCaptureGeometry();
     SessionInputStatus status;
     status.presentedFrame = m_negotiation.presentedFrameSize();
+    status.presentedTarget = m_negotiation.presentedTargetSize();
     if (geometry.valid) {
         status.remoteRegion = geometry.size;
         status.displayGeneration = geometry.generation;
@@ -296,7 +297,8 @@ SessionInputStatus SignalingSessionService::inputStatus() const {
     status.ready = m_negotiation.context().role == SessionRole::Controller &&
                    m_negotiation.isSessionReady() && m_negotiation.hasPresentedFrame() &&
                    m_input.leaseActive() && geometry.valid &&
-                   !status.presentedFrame.isEmpty() && !status.remoteRegion.isEmpty();
+                   !status.presentedFrame.isEmpty() && !status.presentedTarget.isEmpty() &&
+                   !status.remoteRegion.isEmpty();
     return status;
 }
 

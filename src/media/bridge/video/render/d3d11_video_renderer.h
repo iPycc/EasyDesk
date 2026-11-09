@@ -24,6 +24,8 @@ class D3d11VideoRenderer final
         uint64_t droppedFrames = 0;
         int sourceWidth = 0;
         int sourceHeight = 0;
+        int targetWidth = 0;
+        int targetHeight = 0;
     };
 
     explicit D3d11VideoRenderer(HWND window);

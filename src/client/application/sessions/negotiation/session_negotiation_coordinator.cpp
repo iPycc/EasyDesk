@@ -258,6 +258,10 @@ QSize SessionNegotiationCoordinator::presentedFrameSize() const {
     return m_videoMonitor.presentedFrameSize();
 }
 
+QSize SessionNegotiationCoordinator::presentedTargetSize() const {
+    return m_videoMonitor.presentedTargetSize();
+}
+
 RemoteCaptureGeometry SessionNegotiationCoordinator::remoteCaptureGeometry() const {
     return m_remoteCaptureGeometry;
 }

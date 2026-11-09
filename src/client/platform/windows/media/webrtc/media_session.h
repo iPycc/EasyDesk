@@ -44,6 +44,8 @@ struct MediaVideoRendererStats {
     quint64 droppedFrames = 0;
     quint32 sourceWidth = 0;
     quint32 sourceHeight = 0;
+    quint32 targetWidth = 0;
+    quint32 targetHeight = 0;
 };
 
 class MediaSession final {

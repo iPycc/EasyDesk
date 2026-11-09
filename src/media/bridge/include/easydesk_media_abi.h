@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#define EASYDESK_MEDIA_ABI_VERSION 9u
+#define EASYDESK_MEDIA_ABI_VERSION 10u
 #define EASYDESK_MEDIA_ERROR_MESSAGE_CAPACITY 256u
 #define EASYDESK_MEDIA_SESSION_ID_SIZE 16u
 #define EASYDESK_MEDIA_MAX_EVENT_PAYLOAD_SIZE (256u * 1024u)
@@ -146,7 +146,9 @@ typedef struct EasyDeskMediaVideoRendererStats {
     uint64_t dropped_frames;
     uint32_t source_width;
     uint32_t source_height;
-    uint32_t reserved[4];
+    uint32_t target_width;
+    uint32_t target_height;
+    uint32_t reserved[2];
 } EasyDeskMediaVideoRendererStats;
 
 typedef struct EasyDeskMediaCaptureGeometry {

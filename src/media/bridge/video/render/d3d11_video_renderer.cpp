@@ -207,6 +207,8 @@ void D3d11VideoRenderer::renderLoop() {
             ++m_statistics.renderedFrames;
             m_statistics.sourceWidth = frame->width();
             m_statistics.sourceHeight = frame->height();
+            m_statistics.targetWidth = m_resources->targetWidth;
+            m_statistics.targetHeight = m_resources->targetHeight;
         } else {
             ++m_statistics.droppedFrames;
         }

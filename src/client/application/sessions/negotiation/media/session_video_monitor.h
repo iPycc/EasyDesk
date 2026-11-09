@@ -19,6 +19,7 @@ class SessionVideoMonitor final : public QObject {
     void transportDisconnected();
     bool firstFramePresented() const;
     QSize presentedFrameSize() const;
+    QSize presentedTargetSize() const;
 
   signals:
     void firstFrame(quint32 width, quint32 height);
@@ -37,4 +38,5 @@ class SessionVideoMonitor final : public QObject {
     quint64 m_minimumFrameCount = 0;
     quint64 m_lastReportedFrameCount = 0;
     QSize m_presentedFrameSize;
+    QSize m_presentedTargetSize;
 };

@@ -24,6 +24,7 @@ bool SessionVideoMonitor::start(MediaSession &session) {
     m_minimumFrameCount = 0;
     m_lastReportedFrameCount = 0;
     m_presentedFrameSize = {};
+    m_presentedTargetSize = {};
     m_firstFrameDeadline.invalidate();
     m_timer.start();
     return true;
@@ -38,6 +39,7 @@ void SessionVideoMonitor::stop() {
     m_minimumFrameCount = 0;
     m_lastReportedFrameCount = 0;
     m_presentedFrameSize = {};
+    m_presentedTargetSize = {};
     m_firstFrameDeadline.invalidate();
 }
 
@@ -67,6 +69,7 @@ void SessionVideoMonitor::transportDisconnected() {
         m_firstFramePresented = false;
     m_connected = false;
     m_presentedFrameSize = {};
+    m_presentedTargetSize = {};
     m_firstFrameDeadline.invalidate();
 }
 
@@ -76,6 +79,10 @@ bool SessionVideoMonitor::firstFramePresented() const {
 
 QSize SessionVideoMonitor::presentedFrameSize() const {
     return m_presentedFrameSize;
+}
+
+QSize SessionVideoMonitor::presentedTargetSize() const {
+    return m_presentedTargetSize;
 }
 
 void SessionVideoMonitor::poll() {
@@ -89,9 +96,12 @@ void SessionVideoMonitor::poll() {
         return;
     }
     if (stats.renderedFrames > m_lastReportedFrameCount) {
-        if (stats.sourceWidth == 0 || stats.sourceHeight == 0 ||
+        if (stats.sourceWidth == 0 || stats.sourceHeight == 0 || stats.targetWidth == 0 ||
+            stats.targetHeight == 0 ||
             stats.sourceWidth > static_cast<quint32>(std::numeric_limits<int>::max()) ||
-            stats.sourceHeight > static_cast<quint32>(std::numeric_limits<int>::max())) {
+            stats.sourceHeight > static_cast<quint32>(std::numeric_limits<int>::max()) ||
+            stats.targetWidth > static_cast<quint32>(std::numeric_limits<int>::max()) ||
+            stats.targetHeight > static_cast<quint32>(std::numeric_limits<int>::max())) {
             stop();
             emit failed(QStringLiteral("E_VIDEO_RENDERER"),
                         QStringLiteral("The presented frame dimensions are invalid."));
@@ -100,6 +110,8 @@ void SessionVideoMonitor::poll() {
         m_lastReportedFrameCount = stats.renderedFrames;
         m_presentedFrameSize = QSize(static_cast<int>(stats.sourceWidth),
                                      static_cast<int>(stats.sourceHeight));
+        m_presentedTargetSize = QSize(static_cast<int>(stats.targetWidth),
+                                      static_cast<int>(stats.targetHeight));
         emit framePresented();
         if (!m_session || !m_connected)
             return;
