@@ -64,6 +64,34 @@ MainWindow::MainWindow(DeviceService &devices, SessionService &sessions, Transfe
     });
     connect(&m_sessions, &SessionService::incomingSessionRequested,
             this, &MainWindow::showIncomingSessionRequest);
+    connect(&m_sessions, &SessionService::incomingSessionAccepted, this, [this] {
+        auto *indicator = new QWidget(this, Qt::Tool | Qt::WindowStaysOnTopHint |
+                                                    Qt::WindowTitleHint);
+        indicator->setObjectName("sharingIndicator");
+        indicator->setAttribute(Qt::WA_DeleteOnClose);
+        indicator->setWindowTitle(QStringLiteral("远程协助"));
+        auto stopped = std::make_shared<bool>(false);
+        auto *layout = new QHBoxLayout(indicator);
+        layout->addWidget(new QLabel(QStringLiteral("正在共享屏幕")));
+        auto *stopSharing = new QPushButton(QStringLiteral("停止共享"));
+        stopSharing->setObjectName("stopSharing");
+        layout->addWidget(stopSharing);
+        connect(stopSharing, &QPushButton::clicked, indicator, [this, indicator, stopped] {
+            *stopped = true;
+            m_sessions.stop();
+            indicator->close();
+        });
+        connect(&m_sessions, &SessionService::sessionCancelled,
+                indicator, [indicator, stopped] {
+                    *stopped = true;
+                    indicator->close();
+                });
+        connect(indicator, &QObject::destroyed, this, [this, stopped] {
+            if (!*stopped)
+                m_sessions.stop();
+        });
+        indicator->show();
+    });
     auto *shortcut = new QShortcut(QKeySequence("Ctrl+F"), this);
     connect(shortcut, &QShortcut::activated, this, [this] {
         navigate("all");
@@ -160,6 +188,10 @@ void MainWindow::closeEvent(QCloseEvent *e) {
     }
     if (m_session)
         m_session->close();
+    if (auto *indicator = findChild<QWidget *>("sharingIndicator")) {
+        if (auto *stopSharing = indicator->findChild<QPushButton *>("stopSharing"))
+            stopSharing->click();
+    }
     QWidget::closeEvent(e);
 }
 

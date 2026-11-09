@@ -24,8 +24,10 @@ void MainWindow::showIncomingSessionRequest(const IncomingSessionRequest &reques
 
     QCheckBox *allowControl = nullptr;
     if (request.requestedMode == SessionMode::Control) {
-        allowControl = new QCheckBox(QStringLiteral("允许键盘和鼠标控制"));
+        allowControl = new QCheckBox(QStringLiteral("键鼠控制暂不可用"));
         allowControl->setObjectName("incomingAllowControl");
+        allowControl->setEnabled(false);
+        allowControl->setToolTip(QStringLiteral("远程控制功能尚未就绪"));
         dialog.body->addWidget(allowControl);
     }
 

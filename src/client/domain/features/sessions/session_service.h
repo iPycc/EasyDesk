@@ -31,6 +31,7 @@ class SessionService : public QObject {
     void requestDelivered();
     void incomingSessionRequested(const IncomingSessionRequest &request);
     void incomingSessionCancelled();
+    void incomingSessionAccepted();
     void sessionAccepted();
     void sessionCancelled();
     void failed(const QString &message);

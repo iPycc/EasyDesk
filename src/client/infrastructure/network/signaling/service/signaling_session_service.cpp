@@ -62,7 +62,11 @@ SignalingSessionService::SignalingSessionService(DeviceProfileStore &profile,
     connect(&m_invitations, &SessionInvitationCoordinator::consentExpired,
             this, &SessionService::incomingSessionCancelled);
     connect(&m_invitations, &SessionInvitationCoordinator::sessionAccepted,
-            this, &SessionService::sessionAccepted);
+            this, [this] {
+                emit sessionAccepted();
+                if (m_negotiation.state() != SessionNegotiationCoordinator::State::Idle)
+                    emit incomingSessionAccepted();
+            });
     connect(&m_invitations, &SessionInvitationCoordinator::invitationRejected,
             this, &SessionService::incomingSessionCancelled);
     connect(&m_invitations, &SessionInvitationCoordinator::invitationCancelled,
@@ -94,6 +98,7 @@ SignalingSessionService::SignalingSessionService(DeviceProfileStore &profile,
     connect(&m_negotiation, &SessionNegotiationCoordinator::failed,
             this, [this](const QString &, const QString &message) {
                 emit availabilityChanged();
+                emit sessionCancelled();
                 emit failed(message);
             });
 }
@@ -253,6 +258,10 @@ void SignalingSessionService::detachVideoTarget() {
 }
 
 bool SignalingSessionService::acceptIncomingSession(SessionMode grantedMode) {
+    if (grantedMode != SessionMode::ViewOnly) {
+        emit failed(QStringLiteral("远程控制功能尚未就绪，只能允许观看"));
+        return false;
+    }
     if (m_invitations.accept(grantedMode))
         return true;
     emit failed(QStringLiteral("无法接受远程协助请求"));
