@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package easydesk.input.v1;
+
+// The envelope is prefixed by ASCII "EDE1" on the reliable input.v1 channel.
+message InputEnableRequest {
+  uint32 protocol_version = 1;  // Exactly 1.
+  bytes session_id = 2;         // Exactly 16 bytes.
+  uint64 session_epoch = 3;    // Nonzero.
+  uint64 permission_epoch = 4; // Nonzero.
+  uint64 display_generation = 5;
+  uint64 sequence = 6;         // Strictly increasing per session.
+}
