@@ -10,6 +10,7 @@
 #include "network/signaling/service/signaling_session_service.h"
 #include "sessions/session_invitation_coordinator.h"
 #include "sessions/negotiation/session_negotiation_coordinator.h"
+#include "sessions/input/session_input_coordinator.h"
 #include "sessions/session_request_coordinator.h"
 #include <QDebug>
 #include <QDir>
@@ -51,6 +52,7 @@ ApplicationContext::ApplicationContext() {
         *m_profile, *m_identity, *m_media, *m_signaling);
     m_sessionNegotiation = std::make_unique<SessionNegotiationCoordinator>(
         *m_media, *m_identity, *m_signaling);
+    m_sessionInput = std::make_unique<SessionInputCoordinator>(*m_sessionNegotiation);
     connect(m_sessionRequests.get(), &SessionRequestCoordinator::sessionAccepted,
             this, [this] {
                 (void)m_sessionNegotiation->begin(
