@@ -1,15 +1,14 @@
 #include "input/send_input_executor.h"
+#include "input/coordinate_mapping.h"
 
 #include <QVarLengthArray>
 
 #include <windows.h>
 
-#include <algorithm>
 #include <array>
 #include <type_traits>
 
 namespace {
-constexpr quint32 kMaximumNormalizedCoordinate = 65535;
 constexpr int kMaximumTextCodeUnits = 256;
 constexpr ULONG_PTR kEasyDeskInputMarker = static_cast<ULONG_PTR>(0x454153594445534BULL);
 
@@ -130,35 +129,17 @@ bool SendInputExecutor::interactiveDesktopAvailable() const {
 
 bool SendInputExecutor::normalizedPosition(quint32 x, quint32 y, long &virtualX,
                                            long &virtualY) const {
-    if (x > kMaximumNormalizedCoordinate || y > kMaximumNormalizedCoordinate ||
-        m_displayRect.width() <= 0 || m_displayRect.height() <= 0)
-        return false;
-
     const int virtualLeft = GetSystemMetrics(SM_XVIRTUALSCREEN);
     const int virtualTop = GetSystemMetrics(SM_YVIRTUALSCREEN);
     const int virtualWidth = GetSystemMetrics(SM_CXVIRTUALSCREEN);
     const int virtualHeight = GetSystemMetrics(SM_CYVIRTUALSCREEN);
-    if (virtualWidth <= 0 || virtualHeight <= 0)
+    QPoint mapped;
+    if (!mapInputToVirtualDesktop(m_displayRect,
+                                  QRect(virtualLeft, virtualTop, virtualWidth, virtualHeight),
+                                  x, y, mapped))
         return false;
-
-    const qint64 pixelX = m_displayRect.left() +
-                          (static_cast<qint64>(m_displayRect.width() - 1) * x) /
-                              kMaximumNormalizedCoordinate;
-    const qint64 pixelY = m_displayRect.top() +
-                          (static_cast<qint64>(m_displayRect.height() - 1) * y) /
-                              kMaximumNormalizedCoordinate;
-    const qint64 clampedX = std::clamp<qint64>(pixelX, virtualLeft,
-                                               virtualLeft + virtualWidth - 1);
-    const qint64 clampedY = std::clamp<qint64>(pixelY, virtualTop,
-                                               virtualTop + virtualHeight - 1);
-    virtualX = virtualWidth == 1
-                   ? 0
-                   : static_cast<long>(((clampedX - virtualLeft) * kMaximumNormalizedCoordinate) /
-                                       (virtualWidth - 1));
-    virtualY = virtualHeight == 1
-                   ? 0
-                   : static_cast<long>(((clampedY - virtualTop) * kMaximumNormalizedCoordinate) /
-                                       (virtualHeight - 1));
+    virtualX = mapped.x();
+    virtualY = mapped.y();
     return true;
 }
 
