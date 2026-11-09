@@ -80,6 +80,7 @@ SOURCES += \
     src/client/presentation/ui/controllers/connection_controller.cpp \
     src/client/presentation/ui/controllers/device_controller.cpp \
     src/client/presentation/ui/controllers/session_controller.cpp \
+    src/client/presentation/ui/controllers/session_invitation_controller.cpp \
     src/client/presentation/ui/controllers/settings_controller.cpp \
     src/client/presentation/ui/dialogs/about_dialog.cpp \
     src/client/presentation/ui/dialogs/device_dialogs.cpp \

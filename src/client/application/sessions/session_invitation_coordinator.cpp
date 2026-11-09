@@ -107,6 +107,7 @@ SessionNegotiationContext SessionInvitationCoordinator::negotiationContext() con
 
 bool SessionInvitationCoordinator::accept(SessionMode grantedMode) {
     if (m_state != State::AwaitingConsent ||
+        QDateTime::currentSecsSinceEpoch() >= m_invitation.expiresAt ||
         (grantedMode != SessionMode::ViewOnly && grantedMode != SessionMode::Control) ||
         (grantedMode == SessionMode::Control &&
          m_invitation.requestedMode != SessionMode::Control)) {
@@ -265,7 +266,8 @@ void SessionInvitationCoordinator::handleRequest(const QByteArray &message) {
         easydesk::client::signaling::SessionParticipantRole::Controller;
     m_invitation.expiresAt = m_request.fields.expiresAt;
     setState(State::AwaitingConsent);
-    m_timeout.start(kConsentTimeoutMilliseconds);
+    const qint64 remainingMs = (m_invitation.expiresAt - now) * 1000;
+    m_timeout.start(static_cast<int>(qMin<qint64>(kConsentTimeoutMilliseconds, remainingMs)));
     emit invitationReceived(m_invitation);
 }
 
@@ -355,6 +357,7 @@ void SessionInvitationCoordinator::handleSignalingError(const QString &code,
 
 void SessionInvitationCoordinator::handleTimeout() {
     if (m_state == State::AwaitingConsent) {
+        emit consentExpired();
         (void)sendRejection(
             easydesk::client::signaling::SessionRejectReason::Unavailable);
     } else if (m_state == State::AwaitingAcceptanceDelivery ||

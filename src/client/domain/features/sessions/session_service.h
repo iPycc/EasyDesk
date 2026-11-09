@@ -21,12 +21,16 @@ class SessionService : public QObject {
     virtual void setQuality(const QString &quality) = 0;
     virtual bool attachVideoTarget(quintptr nativeWindow) = 0;
     virtual void detachVideoTarget() = 0;
+    virtual bool acceptIncomingSession(SessionMode grantedMode) = 0;
+    virtual bool rejectIncomingSession() = 0;
   signals:
     void identityChanged();
     void availabilityChanged();
     void telemetryChanged(const SessionTelemetry &telemetry);
     void optionsChanged(const SessionOptions &options);
     void requestDelivered();
+    void incomingSessionRequested(const IncomingSessionRequest &request);
+    void incomingSessionCancelled();
     void sessionAccepted();
     void sessionCancelled();
     void failed(const QString &message);

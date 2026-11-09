@@ -56,6 +56,7 @@ class SessionInvitationCoordinator final : public QObject {
   signals:
     void stateChanged(SessionInvitationCoordinator::State state);
     void invitationReceived(const IncomingSessionInvitation &invitation);
+    void consentExpired();
     void sessionAccepted();
     void invitationRejected();
     void invitationCancelled(quint8 reason);

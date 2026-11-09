@@ -18,5 +18,10 @@ struct SessionTelemetry {
     double packetLossPercent = 0;
     bool peerToPeer = false;
 };
+struct IncomingSessionRequest {
+    QString fromDeviceId;
+    SessionMode requestedMode = SessionMode::ViewOnly;
+};
 Q_DECLARE_METATYPE(SessionTelemetry)
 Q_DECLARE_METATYPE(SessionOptions)
+Q_DECLARE_METATYPE(IncomingSessionRequest)

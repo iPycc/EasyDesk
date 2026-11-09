@@ -4,6 +4,7 @@
 
 class DeviceProfileStore;
 class SignalingClient;
+class SessionInvitationCoordinator;
 class SessionNegotiationCoordinator;
 class SessionRequestCoordinator;
 
@@ -14,6 +15,7 @@ class SignalingSessionService final : public SessionService {
     SignalingSessionService(DeviceProfileStore &profile,
                             SignalingClient &signaling,
                             SessionRequestCoordinator &requests,
+                            SessionInvitationCoordinator &invitations,
                             SessionNegotiationCoordinator &negotiation,
                             QObject *parent = nullptr);
 
@@ -32,11 +34,14 @@ class SignalingSessionService final : public SessionService {
     void setQuality(const QString &quality) override;
     bool attachVideoTarget(quintptr nativeWindow) override;
     void detachVideoTarget() override;
+    bool acceptIncomingSession(SessionMode grantedMode) override;
+    bool rejectIncomingSession() override;
 
   private:
     DeviceProfileStore &m_profile;
     SignalingClient &m_signaling;
     SessionRequestCoordinator &m_requests;
+    SessionInvitationCoordinator &m_invitations;
     SessionNegotiationCoordinator &m_negotiation;
     SessionOptions m_options;
     SessionTelemetry m_telemetry;

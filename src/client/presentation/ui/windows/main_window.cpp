@@ -62,6 +62,8 @@ MainWindow::MainWindow(DeviceService &devices, SessionService &sessions, Transfe
         Ui::alert(m_session ? static_cast<QWidget *>(m_session) : this, QStringLiteral("会话操作失败"),
                   error);
     });
+    connect(&m_sessions, &SessionService::incomingSessionRequested,
+            this, &MainWindow::showIncomingSessionRequest);
     auto *shortcut = new QShortcut(QKeySequence("Ctrl+F"), this);
     connect(shortcut, &QShortcut::activated, this, [this] {
         navigate("all");

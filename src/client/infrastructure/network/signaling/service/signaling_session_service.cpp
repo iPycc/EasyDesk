@@ -3,6 +3,7 @@
 #include "data/settings/identity/device_profile_store.h"
 #include "network/signaling/client/signaling_client.h"
 #include "sessions/negotiation/session_negotiation_coordinator.h"
+#include "sessions/session_invitation_coordinator.h"
 #include "sessions/session_request_coordinator.h"
 
 #include <QRegularExpression>
@@ -10,12 +11,14 @@
 SignalingSessionService::SignalingSessionService(DeviceProfileStore &profile,
                                                  SignalingClient &signaling,
                                                  SessionRequestCoordinator &requests,
+                                                 SessionInvitationCoordinator &invitations,
                                                  SessionNegotiationCoordinator &negotiation,
                                                  QObject *parent)
     : SessionService(parent),
       m_profile(profile),
       m_signaling(signaling),
       m_requests(requests),
+      m_invitations(invitations),
       m_negotiation(negotiation) {
     connect(&m_signaling, &SignalingClient::profileChanged,
             this, &SessionService::identityChanged);
@@ -42,6 +45,31 @@ SignalingSessionService::SignalingSessionService(DeviceProfileStore &profile,
     connect(&m_requests, &SessionRequestCoordinator::failed,
             this, [this](const QString &, const QString &message) {
                 emit failed(message);
+            });
+    connect(&m_invitations, &SessionInvitationCoordinator::stateChanged,
+            this, [this] { emit availabilityChanged(); });
+    connect(&m_invitations, &SessionInvitationCoordinator::invitationReceived,
+            this, [this](const IncomingSessionInvitation &invitation) {
+                if (m_requests.state() != SessionRequestCoordinator::State::Idle ||
+                    m_negotiation.state() != SessionNegotiationCoordinator::State::Idle ||
+                    !invitation.requesterIsController) {
+                    (void)m_invitations.reject();
+                    return;
+                }
+                emit incomingSessionRequested(
+                    {invitation.fromDeviceId, invitation.requestedMode});
+            });
+    connect(&m_invitations, &SessionInvitationCoordinator::consentExpired,
+            this, &SessionService::incomingSessionCancelled);
+    connect(&m_invitations, &SessionInvitationCoordinator::sessionAccepted,
+            this, &SessionService::sessionAccepted);
+    connect(&m_invitations, &SessionInvitationCoordinator::invitationRejected,
+            this, &SessionService::incomingSessionCancelled);
+    connect(&m_invitations, &SessionInvitationCoordinator::invitationCancelled,
+            this, [this](quint8) { emit incomingSessionCancelled(); });
+    connect(&m_invitations, &SessionInvitationCoordinator::failed,
+            this, [this](const QString &, const QString &) {
+                emit incomingSessionCancelled();
             });
     connect(&m_negotiation, &SessionNegotiationCoordinator::stateChanged,
             this, [this] { emit availabilityChanged(); });
@@ -77,6 +105,7 @@ LocalIdentity SignalingSessionService::localIdentity() const {
 
 bool SignalingSessionService::isAvailable() const {
     return m_requests.isAvailable() &&
+           m_invitations.state() == SessionInvitationCoordinator::State::Idle &&
            m_negotiation.state() == SessionNegotiationCoordinator::State::Idle;
 }
 
@@ -99,6 +128,18 @@ QString SignalingSessionService::statusText() const {
     case SessionNegotiationCoordinator::State::Ending:
         return QStringLiteral("正在结束会话");
     case SessionNegotiationCoordinator::State::Idle:
+        break;
+    }
+    switch (m_invitations.state()) {
+    case SessionInvitationCoordinator::State::AwaitingConsent:
+        return QStringLiteral("等待确认远程请求");
+    case SessionInvitationCoordinator::State::AwaitingAcceptanceDelivery:
+        return QStringLiteral("正在接受远程请求");
+    case SessionInvitationCoordinator::State::AwaitingRejectionDelivery:
+        return QStringLiteral("正在拒绝远程请求");
+    case SessionInvitationCoordinator::State::Accepted:
+        return QStringLiteral("远程会话已授权");
+    case SessionInvitationCoordinator::State::Idle:
         break;
     }
     switch (m_requests.state()) {
@@ -209,4 +250,18 @@ void SignalingSessionService::detachVideoTarget() {
     QString error;
     if (!m_negotiation.detachVideoRenderer(error) && !error.isEmpty())
         emit failed(error);
+}
+
+bool SignalingSessionService::acceptIncomingSession(SessionMode grantedMode) {
+    if (m_invitations.accept(grantedMode))
+        return true;
+    emit failed(QStringLiteral("无法接受远程协助请求"));
+    return false;
+}
+
+bool SignalingSessionService::rejectIncomingSession() {
+    if (m_invitations.reject())
+        return true;
+    emit failed(QStringLiteral("无法拒绝远程协助请求"));
+    return false;
 }

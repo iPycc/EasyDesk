@@ -76,6 +76,7 @@ class MainWindow : public QWidget {
     void renameDevice();
     void removeDevice();
     void startSession(const QString &id, const QString &assistanceCode = QString());
+    void showIncomingSessionRequest(const IncomingSessionRequest &request);
     void openTransfers();
     void notify(const QString &text);
     void showAbout();
