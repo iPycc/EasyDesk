@@ -19,6 +19,7 @@ SOURCES += \
     src/client/application/sessions/negotiation/ice/session_ice_description_binding.cpp \
     src/client/application/sessions/negotiation/authorization/session_authorization_deadline.cpp \
     src/client/application/sessions/negotiation/control/session_ready_exchange.cpp \
+    src/client/application/sessions/negotiation/control/session_capture_geometry_codec.cpp \
     src/client/application/sessions/negotiation/ice/session_ice_signal_receiver.cpp \
     src/client/application/sessions/negotiation/ice/session_ice_signal_sender.cpp \
     src/client/application/sessions/negotiation/media/session_media_event_pump.cpp \
@@ -110,6 +111,7 @@ HEADERS += \
     src/client/application/sessions/negotiation/ice/session_ice_description_binding.h \
     src/client/application/sessions/negotiation/authorization/session_authorization_deadline.h \
     src/client/application/sessions/negotiation/control/session_ready_exchange.h \
+    src/client/application/sessions/negotiation/control/session_capture_geometry_codec.h \
     src/client/application/sessions/negotiation/ice/session_ice_signal_receiver.h \
     src/client/application/sessions/negotiation/ice/session_ice_signal_sender.h \
     src/client/application/sessions/negotiation/media/session_media_event_pump.h \
