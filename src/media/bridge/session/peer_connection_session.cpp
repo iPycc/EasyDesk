@@ -230,6 +230,10 @@ EasyDeskMediaStatus PeerConnectionSession::start(const EasyDeskMediaSessionConfi
                 if (!createChannel("pointer.v1", pointer))
                     return;
             }
+            if ((config.capabilities & EASYDESK_MEDIA_CAPABILITY_TRANSFER_FILES) != 0 &&
+                (!createChannel("files.meta.v1", reliable) ||
+                 !createChannel("files.data.v1", reliable)))
+                return;
         }
     });
 
