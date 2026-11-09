@@ -207,7 +207,8 @@ EasyDeskMediaStatus PeerConnectionSession::start(const EasyDeskMediaSessionConfi
                     return false;
                 }
                 auto created = channel.MoveValue();
-                if (!observeDataChannel(this, created, m_events, m_iceGeneration)) {
+                if (!observeDataChannel(this, created, m_events, &m_capabilities,
+                                        m_iceGeneration)) {
                     failure = "Could not observe the WebRTC data channel.";
                     return false;
                 }
@@ -509,7 +510,7 @@ void PeerConnectionSession::OnDataChannel(
                  : (channel->ordered() && !channel->maxRetransmitsOpt() &&
                     !channel->maxPacketLifeTime()));
     if (!allowed || !validDelivery ||
-        !observeDataChannel(this, channel, m_events, m_iceGeneration)) {
+        !observeDataChannel(this, channel, m_events, &m_capabilities, m_iceGeneration)) {
         channel->Close();
         return;
     }

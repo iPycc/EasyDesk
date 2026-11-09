@@ -32,6 +32,7 @@ class SessionMediaEventPump final : public QObject {
     void permissionChanged();
     void dataChannelOpened(const QByteArray &label);
     void dataChannelClosed(const QByteArray &label);
+    void dataChannelMessage(const QByteArray &label, const QByteArray &payload);
     void sessionClosed();
     void failed(const QString &message);
 

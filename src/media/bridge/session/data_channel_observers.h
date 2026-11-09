@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <atomic>
 #include <memory>
 
 #include "api/data_channel_interface.h"
@@ -15,6 +16,7 @@ class PeerConnectionSession;
 bool observeDataChannel(PeerConnectionSession *session,
                         webrtc::scoped_refptr<webrtc::DataChannelInterface> channel,
                         std::shared_ptr<MediaEventQueue> events,
+                        const std::atomic<uint64_t> *capabilities,
                         uint32_t iceGeneration);
 void removeDataChannelObservers(PeerConnectionSession *session);
 

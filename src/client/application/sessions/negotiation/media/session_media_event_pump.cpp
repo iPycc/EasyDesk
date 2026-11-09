@@ -138,6 +138,13 @@ bool SessionMediaEventPump::dispatchEvent() {
         else if (event.code == EASYDESK_MEDIA_DATA_CHANNEL_CLOSED)
             emit dataChannelClosed(event.payload);
         return true;
+    case EASYDESK_MEDIA_EVENT_DATA_MESSAGE:
+        if (event.iceGeneration == 0 || event.label.isEmpty() || event.payload.isEmpty()) {
+            fail(QStringLiteral("Media data channel message is invalid."));
+            return false;
+        }
+        emit dataChannelMessage(event.label, event.payload);
+        return true;
     case EASYDESK_MEDIA_EVENT_ERROR:
         fail(event.payload.isEmpty()
                  ? QStringLiteral("The media runtime reported an error.")
