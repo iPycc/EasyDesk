@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sessions/negotiation/authorization/session_authorization_deadline.h"
 #include "sessions/negotiation/ice/session_ice_signal_sender.h"
 #include "sessions/negotiation/ice/session_ice_signal_receiver.h"
 #include "sessions/negotiation/media/session_media_event_pump.h"
@@ -102,6 +103,7 @@ class SessionNegotiationCoordinator final : public QObject {
     WindowsIdentityStore &m_identity;
     SignalingClient &m_signaling;
     QTimer m_timeout;
+    SessionAuthorizationDeadline m_authorizationDeadline;
     SessionMediaEventPump m_eventPump;
     SessionVideoMonitor m_videoMonitor;
     SessionTransportState m_transportState;

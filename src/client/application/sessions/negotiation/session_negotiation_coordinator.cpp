@@ -38,6 +38,11 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
     m_timeout.setSingleShot(true);
     connect(&m_timeout, &QTimer::timeout,
             this, &SessionNegotiationCoordinator::handleTimeout);
+    connect(&m_authorizationDeadline, &SessionAuthorizationDeadline::expired,
+            this, [this] {
+                fail(QStringLiteral("E_SESSION_AUTHORIZATION_EXPIRED"),
+                     QStringLiteral("远程会话授权已到期"));
+            });
     connect(&m_signaling, &SignalingClient::messageReceived,
             this, &SessionNegotiationCoordinator::handleMessage);
     connect(&m_signaling, &SignalingClient::stateChanged,
@@ -219,6 +224,15 @@ bool SessionNegotiationCoordinator::begin(
         m_iceSender.stop();
         m_context = {};
         emit failed(QStringLiteral("E_TERMINATION_SENDER"), error);
+        return false;
+    }
+    if (!m_authorizationDeadline.start(context.expiresAt)) {
+        m_terminationSender.stop();
+        m_terminationReceiver.stop();
+        m_iceSender.stop();
+        m_context = {};
+        emit failed(QStringLiteral("E_SESSION_AUTHORIZATION_EXPIRED"),
+                    QStringLiteral("远程会话授权已到期"));
         return false;
     }
     setState(State::AwaitingTurnCredentials);
@@ -778,6 +792,7 @@ bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
 
 void SessionNegotiationCoordinator::closeMediaSession() {
     m_timeout.stop();
+    m_authorizationDeadline.stop();
     m_videoMonitor.stop();
     m_eventPump.stop();
     m_transportState.stop();
