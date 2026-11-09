@@ -41,6 +41,7 @@ SOURCES += \
     src/client/domain/features/devices/device_service.cpp \
     src/client/domain/features/sessions/model/session_access.cpp \
     src/client/domain/features/sessions/model/session_state.cpp \
+    src/client/domain/features/transfers/transfer_manifest.cpp \
     src/client/infrastructure/data/local/local_transfer_service.cpp \
     src/client/infrastructure/data/local/settings_device_service.cpp \
     src/client/infrastructure/data/settings/identity/device_profile_store.cpp \
@@ -147,6 +148,7 @@ HEADERS += \
     src/client/domain/features/sessions/model/session_state.h \
     src/client/domain/features/system/local_system_service.h \
     src/client/domain/features/transfers/transfer_service.h \
+    src/client/domain/features/transfers/transfer_manifest.h \
     src/client/infrastructure/data/local/local_transfer_service.h \
     src/client/infrastructure/data/local/settings_device_service.h \
     src/client/infrastructure/data/settings/identity/device_profile_store.h \
