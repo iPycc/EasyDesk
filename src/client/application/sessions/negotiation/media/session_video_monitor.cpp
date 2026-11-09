@@ -2,6 +2,8 @@
 
 #include "media/webrtc/media_session.h"
 
+#include <limits>
+
 namespace {
 constexpr int kPollIntervalMilliseconds = 250;
 constexpr int kFirstFrameTimeoutMilliseconds = 20000;
@@ -21,6 +23,7 @@ bool SessionVideoMonitor::start(MediaSession &session) {
     m_hadConnection = false;
     m_minimumFrameCount = 0;
     m_lastReportedFrameCount = 0;
+    m_presentedFrameSize = {};
     m_firstFrameDeadline.invalidate();
     m_timer.start();
     return true;
@@ -34,6 +37,7 @@ void SessionVideoMonitor::stop() {
     m_hadConnection = false;
     m_minimumFrameCount = 0;
     m_lastReportedFrameCount = 0;
+    m_presentedFrameSize = {};
     m_firstFrameDeadline.invalidate();
 }
 
@@ -62,11 +66,16 @@ void SessionVideoMonitor::transportDisconnected() {
     if (m_connected)
         m_firstFramePresented = false;
     m_connected = false;
+    m_presentedFrameSize = {};
     m_firstFrameDeadline.invalidate();
 }
 
 bool SessionVideoMonitor::firstFramePresented() const {
     return m_firstFramePresented;
+}
+
+QSize SessionVideoMonitor::presentedFrameSize() const {
+    return m_presentedFrameSize;
 }
 
 void SessionVideoMonitor::poll() {
@@ -80,7 +89,17 @@ void SessionVideoMonitor::poll() {
         return;
     }
     if (stats.renderedFrames > m_lastReportedFrameCount) {
+        if (stats.sourceWidth == 0 || stats.sourceHeight == 0 ||
+            stats.sourceWidth > static_cast<quint32>(std::numeric_limits<int>::max()) ||
+            stats.sourceHeight > static_cast<quint32>(std::numeric_limits<int>::max())) {
+            stop();
+            emit failed(QStringLiteral("E_VIDEO_RENDERER"),
+                        QStringLiteral("The presented frame dimensions are invalid."));
+            return;
+        }
         m_lastReportedFrameCount = stats.renderedFrames;
+        m_presentedFrameSize = QSize(static_cast<int>(stats.sourceWidth),
+                                     static_cast<int>(stats.sourceHeight));
         emit framePresented();
         if (!m_session || !m_connected)
             return;

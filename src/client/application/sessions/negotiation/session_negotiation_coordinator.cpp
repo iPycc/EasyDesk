@@ -254,6 +254,14 @@ bool SessionNegotiationCoordinator::hasPresentedFrame() const {
     return m_videoMonitor.firstFramePresented();
 }
 
+QSize SessionNegotiationCoordinator::presentedFrameSize() const {
+    return m_videoMonitor.presentedFrameSize();
+}
+
+RemoteCaptureGeometry SessionNegotiationCoordinator::remoteCaptureGeometry() const {
+    return m_remoteCaptureGeometry;
+}
+
 bool SessionNegotiationCoordinator::isSessionReady() const {
     return m_handshakeComplete && m_controlOpen && m_readyExchange.isReady() &&
            m_transportState.state() == SessionTransportState::State::Connected;
@@ -536,6 +544,7 @@ void SessionNegotiationCoordinator::handleCaptureGeometry(const QByteArray &mess
         return;
     }
     m_remoteCaptureGeneration = geometry.generation;
+    m_remoteCaptureGeometry = geometry;
     emit remoteCaptureGeometryChanged(geometry.size, geometry.generation, geometry.valid);
 }
 
@@ -1026,6 +1035,7 @@ void SessionNegotiationCoordinator::closeMediaSession(bool keepTerminationReceiv
     m_controlOpen = false;
     m_handshakeComplete = false;
     m_localCaptureGeometry = {};
+    m_remoteCaptureGeometry = {};
     m_sentCaptureGeneration = 0;
     m_remoteCaptureGeneration = 0;
     m_signedLocalDescriptionPayload.clear();

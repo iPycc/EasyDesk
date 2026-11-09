@@ -53,6 +53,8 @@ class SessionNegotiationCoordinator final : public QObject {
     SessionTurnConfiguration turnConfiguration() const;
     SessionTransportState::State transportState() const;
     bool hasPresentedFrame() const;
+    QSize presentedFrameSize() const;
+    RemoteCaptureGeometry remoteCaptureGeometry() const;
     bool isSessionReady() const;
     bool isInputChannelOpen(InputStream stream) const;
     SessionInputTransport::SendResult sendInputMessage(InputStream stream, const QByteArray &message);
@@ -144,6 +146,7 @@ class SessionNegotiationCoordinator final : public QObject {
     bool m_controlOpen = false;
     bool m_handshakeComplete = false;
     RemoteCaptureGeometry m_localCaptureGeometry;
+    RemoteCaptureGeometry m_remoteCaptureGeometry;
     quint64 m_sentCaptureGeneration = 0;
     quint64 m_remoteCaptureGeneration = 0;
     QByteArray m_signedLocalDescriptionPayload;

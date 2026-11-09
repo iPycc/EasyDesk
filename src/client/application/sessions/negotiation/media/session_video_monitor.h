@@ -2,6 +2,7 @@
 
 #include <QElapsedTimer>
 #include <QObject>
+#include <QSize>
 #include <QTimer>
 
 class MediaSession;
@@ -17,6 +18,7 @@ class SessionVideoMonitor final : public QObject {
     void transportConnected();
     void transportDisconnected();
     bool firstFramePresented() const;
+    QSize presentedFrameSize() const;
 
   signals:
     void firstFrame(quint32 width, quint32 height);
@@ -34,4 +36,5 @@ class SessionVideoMonitor final : public QObject {
     bool m_hadConnection = false;
     quint64 m_minimumFrameCount = 0;
     quint64 m_lastReportedFrameCount = 0;
+    QSize m_presentedFrameSize;
 };
