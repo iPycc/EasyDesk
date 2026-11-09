@@ -31,6 +31,7 @@ class SessionMediaEventPump final : public QObject {
     void remoteDescriptionApplied(quint32 iceGeneration, quint32 sdpType);
     void permissionChanged();
     void dataChannelOpened(const QByteArray &label);
+    void dataChannelClosed(const QByteArray &label);
     void sessionClosed();
     void failed(const QString &message);
 

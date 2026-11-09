@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#define EASYDESK_MEDIA_ABI_VERSION 4u
+#define EASYDESK_MEDIA_ABI_VERSION 5u
 #define EASYDESK_MEDIA_ERROR_MESSAGE_CAPACITY 256u
 #define EASYDESK_MEDIA_SESSION_ID_SIZE 16u
 #define EASYDESK_MEDIA_MAX_EVENT_PAYLOAD_SIZE (256u * 1024u)
@@ -91,6 +91,12 @@ typedef enum EasyDeskMediaIceConnectionState {
     EASYDESK_MEDIA_ICE_DISCONNECTED = 5,
     EASYDESK_MEDIA_ICE_CLOSED = 6
 } EasyDeskMediaIceConnectionState;
+
+typedef enum EasyDeskMediaDataChannelState {
+    EASYDESK_MEDIA_DATA_CHANNEL_OPEN = 1,
+    EASYDESK_MEDIA_DATA_CHANNEL_CLOSING = 2,
+    EASYDESK_MEDIA_DATA_CHANNEL_CLOSED = 3
+} EasyDeskMediaDataChannelState;
 
 typedef struct EasyDeskMediaIceServerConfig {
     uint32_t size;

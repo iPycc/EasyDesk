@@ -127,11 +127,16 @@ bool SessionMediaEventPump::dispatchEvent() {
         emit permissionChanged();
         return true;
     case EASYDESK_MEDIA_EVENT_DATA_CHANNEL:
-        if (event.payload.isEmpty()) {
+        if (event.payload.isEmpty() || event.iceGeneration == 0 ||
+            event.code < EASYDESK_MEDIA_DATA_CHANNEL_OPEN ||
+            event.code > EASYDESK_MEDIA_DATA_CHANNEL_CLOSED) {
             fail(QStringLiteral("Media data channel event is invalid."));
             return false;
         }
-        emit dataChannelOpened(event.payload);
+        if (event.code == EASYDESK_MEDIA_DATA_CHANNEL_OPEN)
+            emit dataChannelOpened(event.payload);
+        else if (event.code == EASYDESK_MEDIA_DATA_CHANNEL_CLOSED)
+            emit dataChannelClosed(event.payload);
         return true;
     case EASYDESK_MEDIA_EVENT_ERROR:
         fail(event.payload.isEmpty()

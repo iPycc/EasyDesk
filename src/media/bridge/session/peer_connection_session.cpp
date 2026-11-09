@@ -2,6 +2,7 @@
 
 #include "common/media_error.h"
 #include "runtime/media_runtime_internal.h"
+#include "session/data_channel_observers.h"
 #include "session/media_event_queue.h"
 #include "session/session_description_observers.h"
 #include "video/capture/desktop_video_source.h"
@@ -205,7 +206,12 @@ EasyDeskMediaStatus PeerConnectionSession::start(const EasyDeskMediaSessionConfi
                     failure = channel.error().message();
                     return false;
                 }
-                m_dataChannels.push_back(channel.MoveValue());
+                auto created = channel.MoveValue();
+                if (!observeDataChannel(this, created, m_events, m_iceGeneration)) {
+                    failure = "Could not observe the WebRTC data channel.";
+                    return false;
+                }
+                m_dataChannels.push_back(std::move(created));
                 return true;
             };
 
@@ -399,6 +405,7 @@ EasyDeskMediaStatus PeerConnectionSession::close() {
 
     if (m_runtime && m_runtime->signalingThread()) {
         auto cleanup = [this] {
+            removeDataChannelObservers(this);
             if (m_peer)
                 m_peer->Close();
             m_dataChannels.clear();
@@ -489,20 +496,24 @@ void PeerConnectionSession::OnDataChannel(
         return;
     const std::string label = channel->label();
     const uint64_t capabilities = m_capabilities.load();
-    const bool allowed = label == "control.v1" ||
+    const bool allowed = m_role == EASYDESK_MEDIA_SESSION_ROLE_CONTROLLED &&
+                         (label == "control.v1" ||
                          ((label == "input.v1" || label == "pointer.v1") &&
                           (capabilities & EASYDESK_MEDIA_CAPABILITY_SEND_INPUT) != 0) ||
                          ((label == "files.meta.v1" || label == "files.data.v1") &&
-                          (capabilities & EASYDESK_MEDIA_CAPABILITY_TRANSFER_FILES) != 0);
-    if (!allowed) {
+                          (capabilities & EASYDESK_MEDIA_CAPABILITY_TRANSFER_FILES) != 0));
+    const bool pointer = label == "pointer.v1";
+    const bool validDelivery = !channel->negotiated() &&
+        (pointer ? (!channel->ordered() && channel->maxRetransmitsOpt() == 0 &&
+                    !channel->maxPacketLifeTime())
+                 : (channel->ordered() && !channel->maxRetransmitsOpt() &&
+                    !channel->maxPacketLifeTime()));
+    if (!allowed || !validDelivery ||
+        !observeDataChannel(this, channel, m_events, m_iceGeneration)) {
         channel->Close();
         return;
     }
     m_dataChannels.push_back(channel);
-    MediaEventRecord event;
-    event.type = EASYDESK_MEDIA_EVENT_DATA_CHANNEL;
-    event.payload.assign(label.begin(), label.end());
-    emitEvent(std::move(event));
 }
 
 void PeerConnectionSession::OnIceGatheringChange(

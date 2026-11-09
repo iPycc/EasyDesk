@@ -13,7 +13,7 @@ diff --git a/BUILD.gn b/BUILD.gn
      if (rtc_build_examples) {
        deps += [ "examples" ]
      }
-@@ -516,8 +519,58 @@
+@@ -516,8 +519,60 @@
 +rtc_shared_library("easydesk_media") {
 +  output_name = "easydesk_media"
 +  sources = [
@@ -25,6 +25,8 @@ diff --git a/BUILD.gn b/BUILD.gn
 +    "//easydesk_media_bridge/runtime/media_runtime_internal.h",
 +    "//easydesk_media_bridge/session/media_event_queue.cpp",
 +    "//easydesk_media_bridge/session/media_event_queue.h",
++    "//easydesk_media_bridge/session/data_channel_observers.cpp",
++    "//easydesk_media_bridge/session/data_channel_observers.h",
 +    "//easydesk_media_bridge/session/peer_connection_session.cpp",
 +    "//easydesk_media_bridge/session/peer_connection_session.h",
 +    "//easydesk_media_bridge/session/session_abi.cpp",
