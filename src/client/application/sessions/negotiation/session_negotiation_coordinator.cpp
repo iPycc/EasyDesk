@@ -74,6 +74,7 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
             this, &SessionNegotiationCoordinator::handleRemoteDescriptionApplied);
     connect(&m_eventPump, &SessionMediaEventPump::dataChannelOpened,
             this, [this](const QByteArray &label) {
+                m_inputTransport.setChannelOpen(label, true);
                 if (label == "control.v1")
                     handleControlOpen();
             });
@@ -81,9 +82,12 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
             this, [this](const QByteArray &label, const QByteArray &message) {
                 if (label == "control.v1")
                     handleControlMessage(message);
+                else
+                    m_inputTransport.receive(label, message);
             });
     connect(&m_eventPump, &SessionMediaEventPump::dataChannelClosed,
             this, [this](const QByteArray &label) {
+                m_inputTransport.setChannelOpen(label, false);
                 if (label != "control.v1" || m_state == State::Idle || m_state == State::Ending)
                     return;
                 if (!m_handshakeComplete) {
@@ -95,6 +99,10 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
                 closeMediaSession(true);
                 m_timeout.start(kRemoteEndGraceMilliseconds);
             });
+    connect(&m_inputTransport, &SessionInputTransport::availabilityChanged,
+            this, &SessionNegotiationCoordinator::inputAvailabilityChanged);
+    connect(&m_inputTransport, &SessionInputTransport::messageReceived,
+            this, &SessionNegotiationCoordinator::inputMessageReceived);
     connect(&m_eventPump, &SessionMediaEventPump::failed,
             this, [this](const QString &message) {
                 fail(QStringLiteral("E_MEDIA_EVENT"), message);
@@ -149,6 +157,8 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
             this, [this](SessionTransportState::State state) {
                 if (state != SessionTransportState::State::Connected)
                     m_videoMonitor.transportDisconnected();
+                if (state != SessionTransportState::State::Connected)
+                    m_inputTransport.setSessionReady(false);
                 if (state == SessionTransportState::State::Disconnected &&
                     m_transportEverConnected && m_state == State::AwaitingIce &&
                     !m_timeout.isActive())
@@ -162,6 +172,7 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
                 if (!m_handshakeComplete && !m_readyTimeout.isActive())
                     m_readyTimeout.start(kReadyTimeoutMilliseconds);
                 m_videoMonitor.transportConnected();
+                m_inputTransport.setSessionReady(m_handshakeComplete);
                 if (m_state != State::Idle)
                     emit transportConnected();
             });
@@ -231,6 +242,15 @@ bool SessionNegotiationCoordinator::hasPresentedFrame() const {
 bool SessionNegotiationCoordinator::isSessionReady() const {
     return m_handshakeComplete && m_controlOpen && m_readyExchange.isReady() &&
            m_transportState.state() == SessionTransportState::State::Connected;
+}
+
+bool SessionNegotiationCoordinator::isInputChannelOpen(InputStream stream) const {
+    return m_inputTransport.isOpen(stream);
+}
+
+SessionInputTransport::SendResult SessionNegotiationCoordinator::sendInputMessage(
+    InputStream stream, const QByteArray &message) {
+    return m_inputTransport.send(stream, message);
 }
 
 bool SessionNegotiationCoordinator::begin(
@@ -497,6 +517,8 @@ void SessionNegotiationCoordinator::finishReadyExchange() {
         return;
     m_handshakeComplete = true;
     m_readyTimeout.stop();
+    m_inputTransport.setSessionReady(
+        m_transportState.state() == SessionTransportState::State::Connected);
     QString error;
     if (m_videoRendererWindow != 0 && !activateVideoRenderer(error)) {
         fail(QStringLiteral("E_VIDEO_RENDERER"), error);
@@ -893,12 +915,19 @@ bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
         error = m_media.errorString();
         return false;
     }
+    if (!m_inputTransport.start(*m_mediaSession, m_context.capabilities)) {
+        error = QStringLiteral("Input transport could not be started.");
+        m_mediaSession.reset();
+        return false;
+    }
     if (!m_transportState.start(1)) {
         error = QStringLiteral("Media transport state could not be started.");
+        m_inputTransport.stop();
         m_mediaSession.reset();
         return false;
     }
     if (!m_iceReceiver.begin(m_context, *m_mediaSession, 1, error)) {
+        m_inputTransport.stop();
         m_transportState.stop();
         m_mediaSession.reset();
         return false;
@@ -906,6 +935,7 @@ bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
     if (!m_eventPump.start(*m_mediaSession)) {
         error = QStringLiteral("Media event pump could not be started.");
         m_transportState.stop();
+        m_inputTransport.stop();
         m_iceReceiver.stop();
         m_mediaSession.reset();
         return false;
@@ -916,6 +946,7 @@ bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
         m_eventPump.stop();
         m_transportState.stop();
         m_iceReceiver.stop();
+        m_inputTransport.stop();
         m_mediaSession.reset();
         return false;
     }
@@ -930,6 +961,7 @@ void SessionNegotiationCoordinator::closeMediaSession(bool keepTerminationReceiv
     m_readyExchange.stop();
     m_videoMonitor.stop();
     m_eventPump.stop();
+    m_inputTransport.stop();
     m_transportState.stop();
     m_iceSender.stop();
     m_iceReceiver.stop();

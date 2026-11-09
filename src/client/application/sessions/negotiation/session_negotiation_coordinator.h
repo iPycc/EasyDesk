@@ -9,6 +9,7 @@
 #include "sessions/negotiation/session_negotiation_context.h"
 #include "sessions/negotiation/transport/session_transport_state.h"
 #include "sessions/negotiation/turn/session_turn_binding.h"
+#include "sessions/input/session_input_transport.h"
 #include "sessions/termination/session_termination_receiver.h"
 #include "sessions/termination/session_termination_sender.h"
 
@@ -52,6 +53,8 @@ class SessionNegotiationCoordinator final : public QObject {
     SessionTransportState::State transportState() const;
     bool hasPresentedFrame() const;
     bool isSessionReady() const;
+    bool isInputChannelOpen(InputStream stream) const;
+    SessionInputTransport::SendResult sendInputMessage(InputStream stream, const QByteArray &message);
 
     bool begin(const SessionNegotiationContext &context);
     bool endSession(easydesk::client::signaling::SessionEndReason reason);
@@ -71,6 +74,8 @@ class SessionNegotiationCoordinator final : public QObject {
     void transportStateChanged(SessionTransportState::State state);
     void transportConnected();
     void sessionReady();
+    void inputAvailabilityChanged();
+    void inputMessageReceived(InputStream stream, const QByteArray &message);
     void firstFramePresented(quint32 width, quint32 height);
     void remoteSessionEnded(
         easydesk::client::signaling::SessionEndReason reason,
@@ -116,6 +121,7 @@ class SessionNegotiationCoordinator final : public QObject {
     QTimer m_readyTimeout;
     SessionAuthorizationDeadline m_authorizationDeadline;
     SessionReadyExchange m_readyExchange;
+    SessionInputTransport m_inputTransport;
     SessionMediaEventPump m_eventPump;
     SessionVideoMonitor m_videoMonitor;
     SessionTransportState m_transportState;
