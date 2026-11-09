@@ -67,7 +67,8 @@ void SessionFileTransport::receive(const QByteArray &label, const QByteArray &me
     if (label != "files.meta.v1" && label != "files.data.v1")
         return;
     const FileChannel channel = label == "files.meta.v1" ? FileChannel::Metadata : FileChannel::Data;
-    if (isOpen(channel) && (channel != FileChannel::Data || m_localMayReceive) && validMessage(message))
+    // File bytes stay disabled until a locally approved batch has a safe destination.
+    if (channel == FileChannel::Metadata && isOpen(channel) && validMessage(message))
         emit messageReceived(channel, message);
 }
 
@@ -80,7 +81,7 @@ bool SessionFileTransport::isOpen(FileChannel channel) const {
 
 SessionFileTransport::SendResult SessionFileTransport::send(FileChannel channel,
                                                               const QByteArray &message) {
-    if (!isOpen(channel) || (channel == FileChannel::Data && !m_peerMayReceive) || !validMessage(message))
+    if (channel == FileChannel::Data || !isOpen(channel) || !validMessage(message))
         return SendResult::Unavailable;
     switch (m_session->sendData(labelFor(channel), message)) {
     case MediaSession::SendResult::Sent: return SendResult::Sent;
