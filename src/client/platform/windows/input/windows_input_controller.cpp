@@ -109,11 +109,12 @@ bool WindowsInputController::renewLease(const InputCommandContext &context,
         m_wakeup.notify_all();
         return false;
     }
-    m_lastReliableSequence = context.sequence;
     const bool renewed = m_lease.renew(context.leaseId, leaseGeneration, context.sequence,
                                        challenge, now);
-    if (renewed)
+    if (renewed) {
+        m_lastReliableSequence = context.sequence;
         m_wakeup.notify_all();
+    }
     return renewed;
 }
 
