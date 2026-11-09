@@ -54,7 +54,7 @@ using InputEvent = std::variant<PointerMoveInput, PointerButtonInput, WheelInput
                                 TextCommitInput, ReleaseAllInput>;
 
 struct InputCommandContext {
-    QString sessionId;
+    QByteArray sessionId;
     quint64 sessionEpoch = 0;
     quint64 permissionEpoch = 0;
     quint64 sequence = 0;

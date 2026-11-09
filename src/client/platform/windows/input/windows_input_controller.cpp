@@ -30,7 +30,7 @@ bool WindowsInputController::startSession(const SessionState &state, const QRect
     m_lastPointerSequence = 0;
     if (state.role != SessionRole::Controlled || state.phase != SessionPhase::Active ||
         !state.authenticated() || !state.access.allows(SessionCapability::ControlInput) ||
-        state.sessionId.isEmpty() || state.sessionEpoch == 0 || state.permissionEpoch == 0 ||
+        state.sessionId.size() != 16 || state.sessionEpoch == 0 || state.permissionEpoch == 0 ||
         displayGeneration == 0 || displayRect.isEmpty())
         return false;
 

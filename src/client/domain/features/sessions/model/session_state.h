@@ -2,6 +2,7 @@
 
 #include "features/sessions/model/session_access.h"
 
+#include <QByteArray>
 #include <QString>
 
 enum class SessionRole : quint8 {
@@ -31,7 +32,7 @@ struct SessionReadiness {
 };
 
 struct SessionState {
-    QString sessionId;
+    QByteArray sessionId;
     QString peerDeviceId;
     quint64 sessionEpoch = 0;
     quint64 permissionEpoch = 0;

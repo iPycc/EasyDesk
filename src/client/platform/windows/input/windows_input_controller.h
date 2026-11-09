@@ -53,7 +53,7 @@ class WindowsInputController final {
     bool m_shutdown = false;
     bool m_sessionActive = false;
     bool m_permissionGranted = false;
-    QString m_sessionId;
+    QByteArray m_sessionId;
     quint64 m_sessionEpoch = 0;
     quint64 m_permissionEpoch = 0;
     quint64 m_displayGeneration = 0;
