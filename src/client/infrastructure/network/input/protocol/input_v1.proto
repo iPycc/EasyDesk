@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package easydesk.input.v1;
+
+// Bound to the authenticated session and the current controlled-side lease.
+// Receivers must validate all identifiers, epochs, sequence numbers, numeric
+// bounds, event/channel pairing, and authorization before applying an event.
+message InputEnvelope {
+  uint32 protocol_version = 1;       // Must be 1.
+  bytes session_id = 2;              // Exactly 16 bytes.
+  uint64 session_epoch = 3;          // Nonzero.
+  uint64 permission_epoch = 4;       // Nonzero.
+  uint64 sequence = 5;               // Nonzero; separate per channel.
+  uint64 display_generation = 6;     // Nonzero.
+  bytes input_lease_id = 7;          // Exactly 16 bytes.
+
+  oneof event {
+    PointerMove pointer = 10;        // pointer.v1 only.
+    KeyEvent key = 11;               // input.v1 only.
+    ButtonEvent button = 12;         // input.v1 only.
+    TextCommit text = 13;            // input.v1 only.
+    InputState state = 14;           // input.v1 only.
+    ReleaseAll release = 15;         // input.v1 only.
+    WheelEvent wheel = 16;           // input.v1 only.
+  }
+}
+
+// Coordinates use the inclusive 0..65535 range over the current display.
+message PointerMove {
+  uint32 normalized_x = 1;
+  uint32 normalized_y = 2;
+}
+
+message KeyEvent {
+  uint32 scan_code = 1;              // 1..65535.
+  bool extended = 2;
+  bool pressed = 3;
+  bool repeat = 4;
+}
+
+enum MouseButton {
+  MOUSE_BUTTON_UNSPECIFIED = 0;
+  MOUSE_BUTTON_LEFT = 1;
+  MOUSE_BUTTON_RIGHT = 2;
+  MOUSE_BUTTON_MIDDLE = 3;
+  MOUSE_BUTTON_X1 = 4;
+  MOUSE_BUTTON_X2 = 5;
+}
+
+message ButtonEvent {
+  MouseButton button = 1;
+  bool pressed = 2;
+  uint32 normalized_x = 3;
+  uint32 normalized_y = 4;
+}
+
+message TextCommit {
+  string text = 1;                   // Valid Unicode; bounded by receiver.
+}
+
+message PressedKey {
+  uint32 scan_code = 1;
+  bool extended = 2;
+}
+
+// Snapshot refers to the reliable input stream, never to pointer.v1 sequence.
+message InputState {
+  uint64 last_applied_sequence = 1;
+  repeated PressedKey pressed_keys = 2;
+  repeated MouseButton pressed_buttons = 3;
+}
+
+message ReleaseAll {}
+
+message WheelEvent {
+  sint32 horizontal_delta = 1;       // Windows wheel units; preserve remainder.
+  sint32 vertical_delta = 2;
+  uint32 normalized_x = 3;
+  uint32 normalized_y = 4;
+}
