@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#define EASYDESK_MEDIA_ABI_VERSION 6u
+#define EASYDESK_MEDIA_ABI_VERSION 7u
 #define EASYDESK_MEDIA_ERROR_MESSAGE_CAPACITY 256u
 #define EASYDESK_MEDIA_SESSION_ID_SIZE 16u
 #define EASYDESK_MEDIA_MAX_EVENT_PAYLOAD_SIZE (256u * 1024u)
@@ -42,7 +42,9 @@ typedef enum EasyDeskMediaStatus {
     EASYDESK_MEDIA_STATUS_SESSION_CLOSED = 11,
     EASYDESK_MEDIA_STATUS_QUEUE_OVERFLOW = 12,
     EASYDESK_MEDIA_STATUS_SDP_ERROR = 13,
-    EASYDESK_MEDIA_STATUS_ICE_ERROR = 14
+    EASYDESK_MEDIA_STATUS_ICE_ERROR = 14,
+    EASYDESK_MEDIA_STATUS_WOULD_BLOCK = 15,
+    EASYDESK_MEDIA_STATUS_PERMISSION_DENIED = 16
 } EasyDeskMediaStatus;
 
 typedef enum EasyDeskMediaSessionRole {
@@ -217,6 +219,14 @@ EASYDESK_MEDIA_API EasyDeskMediaStatus easydesk_media_session_set_permissions(
     EasyDeskMediaSession *session,
     uint64_t permission_epoch,
     uint64_t capabilities,
+    EasyDeskMediaError *error);
+
+EASYDESK_MEDIA_API EasyDeskMediaStatus easydesk_media_session_send_data(
+    EasyDeskMediaSession *session,
+    const char *channel_label,
+    uint32_t channel_label_size,
+    const uint8_t *payload,
+    uint32_t payload_size,
     EasyDeskMediaError *error);
 
 EASYDESK_MEDIA_API EasyDeskMediaStatus easydesk_media_session_poll_event(

@@ -96,6 +96,8 @@ bool MediaRuntimeLibrary::start(const QString &libraryPath) {
         module, "easydesk_media_session_add_ice_candidate");
     api.sessionSetPermissions = resolveFunction<MediaApi::SessionSetPermissionsFunction>(
         module, "easydesk_media_session_set_permissions");
+    api.sessionSendData = resolveFunction<MediaApi::SessionSendDataFunction>(
+        module, "easydesk_media_session_send_data");
     api.sessionPollEvent = resolveFunction<MediaApi::SessionPollEventFunction>(
         module, "easydesk_media_session_poll_event");
     api.sessionAttachVideoRenderer =

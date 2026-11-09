@@ -27,6 +27,9 @@ struct MediaApi {
         const uint8_t *, uint32_t, EasyDeskMediaError *);
     using SessionSetPermissionsFunction = EasyDeskMediaStatus (*)(
         EasyDeskMediaSession *, uint64_t, uint64_t, EasyDeskMediaError *);
+    using SessionSendDataFunction = EasyDeskMediaStatus (*)(
+        EasyDeskMediaSession *, const char *, uint32_t, const uint8_t *, uint32_t,
+        EasyDeskMediaError *);
     using SessionPollEventFunction = EasyDeskMediaStatus (*)(
         EasyDeskMediaSession *, EasyDeskMediaEvent *, uint8_t *, uint32_t, uint32_t *,
         uint32_t, EasyDeskMediaError *);
@@ -47,6 +50,7 @@ struct MediaApi {
     SessionSetRemoteDescriptionFunction sessionSetRemoteDescription = nullptr;
     SessionAddIceCandidateFunction sessionAddIceCandidate = nullptr;
     SessionSetPermissionsFunction sessionSetPermissions = nullptr;
+    SessionSendDataFunction sessionSendData = nullptr;
     SessionPollEventFunction sessionPollEvent = nullptr;
     SessionAttachVideoRendererFunction sessionAttachVideoRenderer = nullptr;
     SessionActionFunction sessionDetachVideoRenderer = nullptr;
@@ -58,7 +62,7 @@ struct MediaApi {
                runtimeCreate && runtimeIsReady && runtimeDestroy &&
                sessionCreate && sessionCreateOffer && sessionCreateAnswer &&
                sessionSetRemoteDescription && sessionAddIceCandidate &&
-               sessionSetPermissions && sessionPollEvent && sessionAttachVideoRenderer &&
+               sessionSetPermissions && sessionSendData && sessionPollEvent && sessionAttachVideoRenderer &&
                sessionDetachVideoRenderer && sessionClose && sessionDestroy;
     }
 };

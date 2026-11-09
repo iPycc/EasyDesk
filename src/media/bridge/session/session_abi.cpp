@@ -2,7 +2,9 @@
 
 #include "common/media_error.h"
 #include "runtime/media_runtime_internal.h"
+#include "session/data_channel_observers.h"
 
+#include <cstring>
 #include <memory>
 #include <utility>
 
@@ -94,6 +96,28 @@ EasyDeskMediaStatus easydesk_media_session_set_permissions(EasyDeskMediaSession 
     return validSession(session, error)
                ? session->implementation->setPermissions(permissionEpoch, capabilities, error)
                : EASYDESK_MEDIA_STATUS_INVALID_ARGUMENT;
+}
+
+EasyDeskMediaStatus easydesk_media_session_send_data(EasyDeskMediaSession *session,
+                                                     const char *label,
+                                                     uint32_t labelSize,
+                                                     const uint8_t *payload,
+                                                     uint32_t payloadSize,
+                                                     EasyDeskMediaError *error) {
+    using namespace easydesk::media;
+    if (!validSession(session, error))
+        return EASYDESK_MEDIA_STATUS_INVALID_ARGUMENT;
+    if (!label || labelSize == 0 || labelSize > 32 || std::memchr(label, '\0', labelSize)) {
+        setMediaError(error, EASYDESK_MEDIA_STATUS_INVALID_ARGUMENT,
+                      "Invalid data channel label.");
+        return EASYDESK_MEDIA_STATUS_INVALID_ARGUMENT;
+    }
+    std::string failure;
+    const auto status = sendDataChannelMessage(session->implementation.get(),
+                                               std::string(label, labelSize),
+                                               payload, payloadSize, &failure);
+    setMediaError(error, status, failure);
+    return status;
 }
 
 EasyDeskMediaStatus easydesk_media_session_poll_event(EasyDeskMediaSession *session,

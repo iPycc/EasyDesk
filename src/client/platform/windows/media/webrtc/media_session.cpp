@@ -92,6 +92,24 @@ bool MediaSession::setPermissions(quint64 permissionEpoch,
     return accepted;
 }
 
+MediaSession::SendResult MediaSession::sendData(const QByteArray &channelLabel,
+                                                const QByteArray &payload) {
+    if (!isActive()) {
+        m_error = QStringLiteral("Media session is not active.");
+        return SendResult::Failed;
+    }
+    EasyDeskMediaError error = emptyError();
+    const auto status = m_state->api.sessionSendData(
+        m_session, channelLabel.constData(), static_cast<uint32_t>(channelLabel.size()),
+        reinterpret_cast<const uint8_t *>(payload.constData()),
+        static_cast<uint32_t>(payload.size()), &error);
+    if (status == EASYDESK_MEDIA_STATUS_WOULD_BLOCK) {
+        m_error.clear();
+        return SendResult::WouldBlock;
+    }
+    return acceptStatus(status, error) ? SendResult::Sent : SendResult::Failed;
+}
+
 bool MediaSession::pollEvent(MediaSessionEvent &event, quint32 timeoutMs) {
     if (m_session == nullptr || !m_state)
         return false;

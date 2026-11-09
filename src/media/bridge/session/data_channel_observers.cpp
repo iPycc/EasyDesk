@@ -1,8 +1,10 @@
 #include "session/data_channel_observers.h"
 
 #include "session/media_event_queue.h"
+#include "runtime/media_runtime_internal.h"
 
 #include <map>
+#include <mutex>
 #include <string>
 #include <utility>
 
@@ -17,6 +19,8 @@ constexpr size_t kMaximumControlMessageBytes = 4096;
 constexpr size_t kMaximumInputMessageBytes = 16384;
 constexpr size_t kMaximumPointerMessageBytes = 256;
 constexpr size_t kMaximumFileMessageBytes = 16384;
+constexpr uint64_t kMaximumReliableBufferedBytes = 64u * 1024u;
+constexpr uint64_t kMaximumFileBufferedBytes = 2u * 1024u * 1024u;
 
 bool channelPermitted(const std::string &label, uint64_t capabilities) {
     if (label == "control.v1")
@@ -85,6 +89,33 @@ class ChannelObserver final : public webrtc::DataChannelObserver {
         m_events->push(std::move(event));
     }
 
+    EasyDeskMediaStatus send(const uint8_t *payload, uint32_t size, std::string &error) {
+        if (!channelPermitted(m_label, m_capabilities->load())) {
+            error = "Data channel permission is not granted.";
+            return EASYDESK_MEDIA_STATUS_PERMISSION_DENIED;
+        }
+        if (m_channel->state() != webrtc::DataChannelInterface::kOpen) {
+            error = "Data channel is not open.";
+            return EASYDESK_MEDIA_STATUS_INVALID_STATE;
+        }
+        const uint64_t buffered = m_channel->buffered_amount();
+        const uint64_t limit = m_label == "files.data.v1"
+                                   ? kMaximumFileBufferedBytes
+                                   : kMaximumReliableBufferedBytes;
+        if ((m_label == "pointer.v1" && buffered != 0) || buffered > limit ||
+            size > limit - buffered) {
+            error = "Data channel send queue is full.";
+            return EASYDESK_MEDIA_STATUS_WOULD_BLOCK;
+        }
+        webrtc::CopyOnWriteBuffer bytes(payload, size);
+        if (!m_channel->Send(webrtc::DataBuffer(bytes, true))) {
+            error = "Data channel could not accept the message.";
+            return EASYDESK_MEDIA_STATUS_WOULD_BLOCK;
+        }
+        error.clear();
+        return EASYDESK_MEDIA_STATUS_OK;
+    }
+
   private:
     void publishState() {
         const auto state = m_channel->state();
@@ -117,7 +148,81 @@ std::map<PeerConnectionSession *, ChannelMap> &observers() {
     return registry;
 }
 
+std::mutex &runtimeMutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+std::map<PeerConnectionSession *, std::shared_ptr<MediaRuntime>> &runtimes() {
+    static std::map<PeerConnectionSession *, std::shared_ptr<MediaRuntime>> registry;
+    return registry;
+}
+
 }  // namespace
+
+void registerDataChannelSession(PeerConnectionSession *session,
+                                std::shared_ptr<MediaRuntime> runtime) {
+    std::lock_guard<std::mutex> lock(runtimeMutex());
+    runtimes()[session] = std::move(runtime);
+}
+
+void unregisterDataChannelSession(PeerConnectionSession *session) {
+    std::lock_guard<std::mutex> lock(runtimeMutex());
+    runtimes().erase(session);
+}
+
+EasyDeskMediaStatus sendDataChannelMessage(PeerConnectionSession *session,
+                                           const std::string &label,
+                                           const uint8_t *payload,
+                                           uint32_t payloadSize,
+                                           std::string *error) {
+    std::string failure;
+    const size_t maximum = maximumMessageBytes(label);
+    if (!session || !payload || payloadSize == 0 || maximum == 0 || payloadSize > maximum) {
+        if (error)
+            *error = "Invalid data channel label or message size.";
+        return EASYDESK_MEDIA_STATUS_INVALID_ARGUMENT;
+    }
+    std::shared_ptr<MediaRuntime> runtime;
+    {
+        std::lock_guard<std::mutex> lock(runtimeMutex());
+        const auto found = runtimes().find(session);
+        if (found != runtimes().end())
+            runtime = found->second;
+    }
+    if (!runtime || !runtime->signalingThread()) {
+        if (error)
+            *error = "Media session is closed.";
+        return EASYDESK_MEDIA_STATUS_INVALID_STATE;
+    }
+    EasyDeskMediaStatus status = EASYDESK_MEDIA_STATUS_INVALID_STATE;
+    auto send = [&] {
+        std::lock_guard<std::mutex> lock(runtimeMutex());
+        const auto runtimeEntry = runtimes().find(session);
+        if (runtimeEntry == runtimes().end() || runtimeEntry->second != runtime) {
+            failure = "Media session is closed.";
+            return;
+        }
+        const auto found = observers().find(session);
+        if (found == observers().end()) {
+            failure = "Data channel is unavailable.";
+            return;
+        }
+        const auto channel = found->second.find(label);
+        if (channel == found->second.end()) {
+            failure = "Data channel is unavailable.";
+            return;
+        }
+        status = channel->second->send(payload, payloadSize, failure);
+    };
+    if (runtime->signalingThread()->IsCurrent())
+        send();
+    else
+        runtime->signalingThread()->BlockingCall(send);
+    if (error)
+        *error = std::move(failure);
+    return status;
+}
 
 bool observeDataChannel(PeerConnectionSession *session,
                         webrtc::scoped_refptr<webrtc::DataChannelInterface> channel,

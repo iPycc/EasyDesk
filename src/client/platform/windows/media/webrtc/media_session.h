@@ -40,6 +40,7 @@ struct MediaSessionEvent {
 
 class MediaSession final {
   public:
+    enum class SendResult { Sent, WouldBlock, Failed };
     ~MediaSession();
 
     MediaSession(const MediaSession &) = delete;
@@ -53,6 +54,7 @@ class MediaSession final {
                          qint32 sdpMlineIndex,
                          const QByteArray &candidate);
     bool setPermissions(quint64 permissionEpoch, SessionCapabilities capabilities);
+    SendResult sendData(const QByteArray &channelLabel, const QByteArray &payload);
     bool pollEvent(MediaSessionEvent &event, quint32 timeoutMs = 0);
     bool attachVideoRenderer(quintptr nativeWindow);
     bool detachVideoRenderer();

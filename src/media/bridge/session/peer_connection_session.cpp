@@ -174,6 +174,7 @@ EasyDeskMediaStatus PeerConnectionSession::start(const EasyDeskMediaSessionConfi
     m_iceGeneration = config.ice_generation;
     m_permissionEpoch.store(config.permission_epoch);
     m_capabilities.store(config.capabilities);
+    registerDataChannelSession(this, m_runtime);
 
     std::string failure;
     m_runtime->signalingThread()->BlockingCall([&] {
@@ -401,6 +402,8 @@ EasyDeskMediaStatus PeerConnectionSession::close() {
     m_closed.store(true);
     if (m_cleanupComplete.exchange(true))
         return EASYDESK_MEDIA_STATUS_OK;
+
+    unregisterDataChannelSession(this);
 
     SessionVideoRendererRegistry::instance().detach(this);
 
