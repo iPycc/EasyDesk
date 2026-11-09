@@ -102,3 +102,15 @@ bool SessionInputLeaseClient::hasPendingChallenge() const {
     return !m_challenge.isEmpty() && m_challengeAge.isValid() &&
            m_challengeAge.elapsed() < m_timeoutMilliseconds;
 }
+
+bool SessionInputLeaseClient::commandContext(InputStream stream, quint64 sequence,
+                                             InputCommandContext &context) const {
+    context = {};
+    if ((stream != InputStream::Reliable && stream != InputStream::Pointer) ||
+        sequence == 0 || m_leaseGeneration == 0 || m_context.leaseId.size() != 16)
+        return false;
+    context = m_context;
+    context.stream = stream;
+    context.sequence = sequence;
+    return true;
+}

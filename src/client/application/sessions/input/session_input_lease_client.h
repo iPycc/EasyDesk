@@ -12,6 +12,7 @@ class SessionInputLeaseClient final {
     bool makeRenewal(quint64 reliableSequence, QByteArray &message, QString &error);
     void stop();
     bool hasPendingChallenge() const;
+    bool commandContext(InputStream stream, quint64 sequence, InputCommandContext &context) const;
 
   private:
     InputCommandContext m_context;
