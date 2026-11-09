@@ -89,8 +89,10 @@ bool WindowsInputController::beginLease(const QByteArray &leaseId, quint64 lease
     if (!m_sessionActive || !m_permissionGranted)
         return false;
     const bool started = m_lease.begin(leaseId, leaseGeneration, timeoutMilliseconds);
-    if (started)
+    if (started) {
+        m_executor.releaseAll();
         m_wakeup.notify_all();
+    }
     return started;
 }
 
@@ -101,9 +103,15 @@ bool WindowsInputController::renewLease(const InputCommandContext &context,
     if (!m_sessionActive || !m_permissionGranted || context.stream != InputStream::Reliable ||
         !contextMatches(context) || context.sequence <= m_lastReliableSequence)
         return false;
+    const auto now = InputLease::Clock::now();
+    if (m_lease.expireIfNeeded(now)) {
+        m_executor.releaseAll();
+        m_wakeup.notify_all();
+        return false;
+    }
     m_lastReliableSequence = context.sequence;
     const bool renewed = m_lease.renew(context.leaseId, leaseGeneration, context.sequence,
-                                       challenge, InputLease::Clock::now());
+                                       challenge, now);
     if (renewed)
         m_wakeup.notify_all();
     return renewed;
