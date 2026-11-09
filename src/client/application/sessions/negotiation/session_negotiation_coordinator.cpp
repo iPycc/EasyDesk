@@ -9,6 +9,8 @@
 #include "network/signaling/protocol/session/description/session_description_decoder.h"
 
 #include <QDateTime>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include <utility>
 
@@ -18,6 +20,8 @@ constexpr int kTurnCredentialTimeoutMilliseconds = 15000;
 constexpr int kDescriptionTimeoutMilliseconds = 15000;
 constexpr int kIceConnectionTimeoutMilliseconds = 30000;
 constexpr int kRecoveryTimeoutMilliseconds = 15000;
+constexpr int kReadyTimeoutMilliseconds = 15000;
+constexpr int kRemoteEndGraceMilliseconds = 1500;
 constexpr qint64 kDescriptionLifetimeSeconds = 45;
 
 }  // namespace
@@ -36,6 +40,11 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
       m_terminationReceiver(media, this),
       m_terminationSender(identity, signaling, this) {
     m_timeout.setSingleShot(true);
+    m_readyTimeout.setSingleShot(true);
+    connect(&m_readyTimeout, &QTimer::timeout, this, [this] {
+        fail(QStringLiteral("E_SESSION_READY_TIMEOUT"),
+             QStringLiteral("安全会话验证超时"));
+    });
     connect(&m_timeout, &QTimer::timeout,
             this, &SessionNegotiationCoordinator::handleTimeout);
     connect(&m_authorizationDeadline, &SessionAuthorizationDeadline::expired,
@@ -63,6 +72,29 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
             &SessionTransportState::updateIceConnectionState);
     connect(&m_eventPump, &SessionMediaEventPump::remoteDescriptionApplied,
             this, &SessionNegotiationCoordinator::handleRemoteDescriptionApplied);
+    connect(&m_eventPump, &SessionMediaEventPump::dataChannelOpened,
+            this, [this](const QByteArray &label) {
+                if (label == "control.v1")
+                    handleControlOpen();
+            });
+    connect(&m_eventPump, &SessionMediaEventPump::dataChannelMessage,
+            this, [this](const QByteArray &label, const QByteArray &message) {
+                if (label == "control.v1")
+                    handleControlMessage(message);
+            });
+    connect(&m_eventPump, &SessionMediaEventPump::dataChannelClosed,
+            this, [this](const QByteArray &label) {
+                if (label != "control.v1" || m_state == State::Idle || m_state == State::Ending)
+                    return;
+                if (!m_handshakeComplete) {
+                    fail(QStringLiteral("E_CONTROL_CHANNEL_CLOSED"),
+                         QStringLiteral("安全会话通道已关闭"));
+                    return;
+                }
+                setState(State::Ending);
+                closeMediaSession(true);
+                m_timeout.start(kRemoteEndGraceMilliseconds);
+            });
     connect(&m_eventPump, &SessionMediaEventPump::failed,
             this, [this](const QString &message) {
                 fail(QStringLiteral("E_MEDIA_EVENT"), message);
@@ -127,6 +159,8 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
                 m_transportEverConnected = true;
                 if (m_state == State::AwaitingIce)
                     m_timeout.stop();
+                if (!m_handshakeComplete && !m_readyTimeout.isActive())
+                    m_readyTimeout.start(kReadyTimeoutMilliseconds);
                 m_videoMonitor.transportConnected();
                 if (m_state != State::Idle)
                     emit transportConnected();
@@ -194,6 +228,11 @@ bool SessionNegotiationCoordinator::hasPresentedFrame() const {
     return m_videoMonitor.firstFramePresented();
 }
 
+bool SessionNegotiationCoordinator::isSessionReady() const {
+    return m_handshakeComplete && m_controlOpen && m_readyExchange.isReady() &&
+           m_transportState.state() == SessionTransportState::State::Connected;
+}
+
 bool SessionNegotiationCoordinator::begin(
     const SessionNegotiationContext &context) {
     const qint64 now = QDateTime::currentSecsSinceEpoch();
@@ -233,6 +272,15 @@ bool SessionNegotiationCoordinator::begin(
                     QStringLiteral("远程会话授权已到期"));
         return false;
     }
+    if (!m_readyExchange.start(context, error)) {
+        m_authorizationDeadline.stop();
+        m_terminationSender.stop();
+        m_terminationReceiver.stop();
+        m_iceSender.stop();
+        m_context = {};
+        emit failed(QStringLiteral("E_SESSION_READY"), error);
+        return false;
+    }
     setState(State::AwaitingTurnCredentials);
     m_timeout.start(kTurnCredentialTimeoutMilliseconds);
     return true;
@@ -254,11 +302,19 @@ bool SessionNegotiationCoordinator::attachVideoRenderer(quintptr nativeWindow,
         return false;
     }
     m_videoRendererWindow = nativeWindow;
-    if (!m_mediaSession) {
+    if (!m_mediaSession || !m_handshakeComplete) {
         error.clear();
         return true;
     }
-    if (!m_mediaSession->attachVideoRenderer(nativeWindow)) {
+    return activateVideoRenderer(error);
+}
+
+bool SessionNegotiationCoordinator::activateVideoRenderer(QString &error) {
+    if (!m_mediaSession || m_videoRendererWindow == 0) {
+        error = QStringLiteral("Remote video window is invalid.");
+        return false;
+    }
+    if (!m_mediaSession->attachVideoRenderer(m_videoRendererWindow)) {
         error = m_mediaSession->errorString();
         m_videoRendererWindow = 0;
         return false;
@@ -375,6 +431,78 @@ void SessionNegotiationCoordinator::startConfiguredMedia(bool hasRelay) {
     if (hasRelay)
         emit relayReady();
     emit mediaStarted();
+}
+
+void SessionNegotiationCoordinator::handleControlOpen() {
+    if (m_controlOpen || !m_mediaSession) {
+        fail(QStringLiteral("E_SESSION_READY"), QStringLiteral("安全会话通道状态无效"));
+        return;
+    }
+    m_controlOpen = true;
+    if (!m_readyTimeout.isActive())
+        m_readyTimeout.start(kReadyTimeoutMilliseconds);
+    QString error;
+    const QByteArray ready = m_readyExchange.makeReady(error);
+    if (ready.isEmpty()) {
+        fail(QStringLiteral("E_SESSION_READY"), error);
+        return;
+    }
+    (void)sendControlMessage(ready);
+}
+
+void SessionNegotiationCoordinator::handleControlMessage(const QByteArray &message) {
+    if (!m_controlOpen || m_handshakeComplete || message.size() > 1024) {
+        fail(QStringLiteral("E_SESSION_READY"), QStringLiteral("安全会话消息状态无效"));
+        return;
+    }
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(message, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        fail(QStringLiteral("E_SESSION_READY"), QStringLiteral("安全会话消息无效"));
+        return;
+    }
+    const QString type = document.object().value(QStringLiteral("type")).toString();
+    QString error;
+    if (type == QStringLiteral("session.ready")) {
+        QByteArray acknowledgement;
+        if (!m_readyExchange.receiveReady(message, acknowledgement, error)) {
+            fail(QStringLiteral("E_SESSION_READY"), error);
+            return;
+        }
+        if (!sendControlMessage(acknowledgement))
+            return;
+    } else if (type == QStringLiteral("session.ready_ack")) {
+        if (!m_readyExchange.receiveAcknowledgement(message, error)) {
+            fail(QStringLiteral("E_SESSION_READY"), error);
+            return;
+        }
+    } else {
+        fail(QStringLiteral("E_SESSION_READY"), QStringLiteral("未知安全会话消息"));
+        return;
+    }
+    finishReadyExchange();
+}
+
+bool SessionNegotiationCoordinator::sendControlMessage(const QByteArray &message) {
+    if (!m_mediaSession || !m_controlOpen || message.isEmpty() ||
+        m_mediaSession->sendData("control.v1", message) != MediaSession::SendResult::Sent) {
+        fail(QStringLiteral("E_SESSION_READY_SEND"), QStringLiteral("无法发送安全会话消息"));
+        return false;
+    }
+    return true;
+}
+
+void SessionNegotiationCoordinator::finishReadyExchange() {
+    if (m_handshakeComplete || !m_readyExchange.isReady())
+        return;
+    m_handshakeComplete = true;
+    m_readyTimeout.stop();
+    QString error;
+    if (m_videoRendererWindow != 0 && !activateVideoRenderer(error)) {
+        fail(QStringLiteral("E_VIDEO_RENDERER"), error);
+        return;
+    }
+    emit sessionReady();
 }
 
 void SessionNegotiationCoordinator::handleRemoteOffer(
@@ -548,6 +676,9 @@ void SessionNegotiationCoordinator::handleTimeout() {
                                       : QStringLiteral("E_ICE_TIMEOUT"),
              m_transportEverConnected ? QStringLiteral("The media connection did not recover in time.")
                                       : QStringLiteral("The media connection could not be established in time."));
+    } else if (m_state == State::Ending) {
+        fail(QStringLiteral("E_CONTROL_CHANNEL_CLOSED"),
+             QStringLiteral("安全会话通道已关闭"));
     }
 }
 
@@ -779,23 +910,6 @@ bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
         m_mediaSession.reset();
         return false;
     }
-    if (m_videoRendererWindow != 0 &&
-        !m_mediaSession->attachVideoRenderer(m_videoRendererWindow)) {
-        error = m_mediaSession->errorString();
-        m_eventPump.stop();
-        m_transportState.stop();
-        m_iceReceiver.stop();
-        m_mediaSession.reset();
-        return false;
-    }
-    if (m_videoRendererWindow != 0 && !m_videoMonitor.start(*m_mediaSession)) {
-        error = QStringLiteral("Video monitor could not be started.");
-        m_eventPump.stop();
-        m_transportState.stop();
-        m_iceReceiver.stop();
-        m_mediaSession.reset();
-        return false;
-    }
     if (m_context.offerer && !m_mediaSession->createOffer()) {
         error = m_mediaSession->errorString();
         m_videoMonitor.stop();
@@ -809,18 +923,23 @@ bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
     return true;
 }
 
-void SessionNegotiationCoordinator::closeMediaSession() {
+void SessionNegotiationCoordinator::closeMediaSession(bool keepTerminationReceiver) {
     m_timeout.stop();
+    m_readyTimeout.stop();
     m_authorizationDeadline.stop();
+    m_readyExchange.stop();
     m_videoMonitor.stop();
     m_eventPump.stop();
     m_transportState.stop();
     m_iceSender.stop();
     m_iceReceiver.stop();
-    m_terminationReceiver.stop();
+    if (!keepTerminationReceiver)
+        m_terminationReceiver.stop();
     m_mediaSession.reset();
     m_videoRendererWindow = 0;
     m_transportEverConnected = false;
+    m_controlOpen = false;
+    m_handshakeComplete = false;
     m_signedLocalDescriptionPayload.clear();
     m_localDescriptionSequence = 0;
     m_signedRemoteDescriptionPayload.clear();

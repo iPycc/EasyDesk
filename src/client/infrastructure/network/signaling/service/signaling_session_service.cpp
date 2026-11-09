@@ -85,6 +85,8 @@ SignalingSessionService::SignalingSessionService(DeviceProfileStore &profile,
             });
     connect(&m_negotiation, &SessionNegotiationCoordinator::firstFramePresented,
             this, [this](quint32, quint32) { emit availabilityChanged(); });
+    connect(&m_negotiation, &SessionNegotiationCoordinator::sessionReady,
+            this, [this] { emit availabilityChanged(); });
     connect(&m_negotiation, &SessionNegotiationCoordinator::localSessionEnded,
             this, [this](
                       easydesk::client::signaling::SessionEndReason,
@@ -134,6 +136,8 @@ QString SignalingSessionService::statusText() const {
             return QStringLiteral("连接已中断");
         if (m_negotiation.transportState() != SessionTransportState::State::Connected)
             return QStringLiteral("正在检查网络路径");
+        if (!m_negotiation.isSessionReady())
+            return QStringLiteral("正在验证安全会话");
         if (m_negotiation.context().role == SessionRole::Controlled)
             return QStringLiteral("安全通道已连接");
         return m_negotiation.hasPresentedFrame() ? QStringLiteral("远程画面已显示")

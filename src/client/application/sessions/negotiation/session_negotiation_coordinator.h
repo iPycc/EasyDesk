@@ -1,6 +1,7 @@
 #pragma once
 
 #include "sessions/negotiation/authorization/session_authorization_deadline.h"
+#include "sessions/negotiation/control/session_ready_exchange.h"
 #include "sessions/negotiation/ice/session_ice_signal_sender.h"
 #include "sessions/negotiation/ice/session_ice_signal_receiver.h"
 #include "sessions/negotiation/media/session_media_event_pump.h"
@@ -50,6 +51,7 @@ class SessionNegotiationCoordinator final : public QObject {
     SessionTurnConfiguration turnConfiguration() const;
     SessionTransportState::State transportState() const;
     bool hasPresentedFrame() const;
+    bool isSessionReady() const;
 
     bool begin(const SessionNegotiationContext &context);
     bool endSession(easydesk::client::signaling::SessionEndReason reason);
@@ -68,6 +70,7 @@ class SessionNegotiationCoordinator final : public QObject {
     void remoteGatheringComplete(quint64 sequence);
     void transportStateChanged(SessionTransportState::State state);
     void transportConnected();
+    void sessionReady();
     void firstFramePresented(quint32 width, quint32 height);
     void remoteSessionEnded(
         easydesk::client::signaling::SessionEndReason reason,
@@ -85,6 +88,11 @@ class SessionNegotiationCoordinator final : public QObject {
     void handleTurnCredentials(const QByteArray &message);
     void handleTurnUnavailable(const QByteArray &message);
     void startConfiguredMedia(bool hasRelay);
+    void handleControlOpen();
+    void handleControlMessage(const QByteArray &message);
+    bool sendControlMessage(const QByteArray &message);
+    void finishReadyExchange();
+    bool activateVideoRenderer(QString &error);
     void handleRemoteOffer(const QByteArray &message);
     void handleRemoteAnswer(const QByteArray &message);
     void handleSignalingStateChanged();
@@ -97,7 +105,7 @@ class SessionNegotiationCoordinator final : public QObject {
                                         quint32 sdpType);
     void sendLocalAnswer(const QString &sdp);
     bool startMediaSession(QString &error);
-    void closeMediaSession();
+    void closeMediaSession(bool keepTerminationReceiver = false);
     void setState(State state);
     void fail(const QString &code, const QString &message);
 
@@ -105,7 +113,9 @@ class SessionNegotiationCoordinator final : public QObject {
     WindowsIdentityStore &m_identity;
     SignalingClient &m_signaling;
     QTimer m_timeout;
+    QTimer m_readyTimeout;
     SessionAuthorizationDeadline m_authorizationDeadline;
+    SessionReadyExchange m_readyExchange;
     SessionMediaEventPump m_eventPump;
     SessionVideoMonitor m_videoMonitor;
     SessionTransportState m_transportState;
@@ -119,6 +129,8 @@ class SessionNegotiationCoordinator final : public QObject {
     std::unique_ptr<MediaSession> m_mediaSession;
     quintptr m_videoRendererWindow = 0;
     bool m_transportEverConnected = false;
+    bool m_controlOpen = false;
+    bool m_handshakeComplete = false;
     QByteArray m_signedLocalDescriptionPayload;
     quint64 m_localDescriptionSequence = 0;
     QByteArray m_signedRemoteDescriptionPayload;
