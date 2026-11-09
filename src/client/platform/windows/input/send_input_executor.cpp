@@ -157,7 +157,8 @@ SendInputResult SendInputExecutor::applyPointerButton(const PointerButtonInput &
     long x = 0;
     long y = 0;
     const DWORD flag = buttonFlag(event.button, event.pressed);
-    if (flag == 0 || !normalizedPosition(event.normalizedX, event.normalizedY, x, y))
+    if (flag == 0 || !m_ownership.permitsButton(event) ||
+        !normalizedPosition(event.normalizedX, event.normalizedY, x, y))
         return SendInputResult::InvalidEvent;
     std::array<INPUT, 2> inputs{
         mouseInput(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK, x, y),
@@ -165,10 +166,7 @@ SendInputResult SendInputExecutor::applyPointerButton(const PointerButtonInput &
     };
     if (!inject(inputs.data(), static_cast<int>(inputs.size())))
         return SendInputResult::InjectionRejected;
-    if (event.pressed)
-        m_pressedButtons.insert(event.button);
-    else
-        m_pressedButtons.erase(event.button);
+    m_ownership.recordButton(event);
     return SendInputResult::Applied;
 }
 
@@ -193,16 +191,12 @@ SendInputResult SendInputExecutor::applyWheel(const WheelInput &event) {
 }
 
 SendInputResult SendInputExecutor::applyKey(const KeyInput &event) {
-    if (event.scanCode == 0)
+    if (!m_ownership.permitsKey(event))
         return SendInputResult::InvalidEvent;
     INPUT input = scanCodeInput(event.scanCode, event.extended, event.pressed);
     if (!inject(&input, 1))
         return SendInputResult::InjectionRejected;
-    const quint32 key = static_cast<quint32>(event.scanCode) | (event.extended ? 0x10000U : 0U);
-    if (event.pressed)
-        m_pressedKeys.insert(key);
-    else
-        m_pressedKeys.erase(key);
+    m_ownership.recordKey(event);
     return SendInputResult::Applied;
 }
 
@@ -221,13 +215,12 @@ SendInputResult SendInputExecutor::applyText(const TextCommitInput &event) {
 
 void SendInputExecutor::releaseAll() {
     QVarLengthArray<INPUT, 32> inputs;
-    inputs.reserve(static_cast<int>(m_pressedKeys.size() + m_pressedButtons.size()));
-    for (quint32 key : m_pressedKeys)
+    inputs.reserve(static_cast<int>(m_ownership.keys().size() + m_ownership.buttons().size()));
+    for (quint32 key : m_ownership.keys())
         inputs.push_back(scanCodeInput(static_cast<quint16>(key & 0xFFFFU),
                                        (key & 0x10000U) != 0, false));
-    for (RemoteMouseButton button : m_pressedButtons)
+    for (RemoteMouseButton button : m_ownership.buttons())
         inputs.push_back(mouseInput(buttonFlag(button, false), 0, 0, buttonData(button)));
     inject(inputs.data(), inputs.size());
-    m_pressedKeys.clear();
-    m_pressedButtons.clear();
+    m_ownership.clear();
 }

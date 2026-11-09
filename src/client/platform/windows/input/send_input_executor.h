@@ -1,10 +1,9 @@
 #pragma once
 
 #include "features/sessions/input/input_command.h"
+#include "input/input_ownership.h"
 
 #include <QRect>
-
-#include <set>
 
 enum class SendInputResult {
     Applied,
@@ -21,8 +20,7 @@ class SendInputExecutor final {
 
   private:
     QRect m_displayRect;
-    std::set<quint32> m_pressedKeys;
-    std::set<RemoteMouseButton> m_pressedButtons;
+    InputOwnership m_ownership;
 
     bool interactiveDesktopAvailable() const;
     bool normalizedPosition(quint32 x, quint32 y, long &virtualX, long &virtualY) const;
