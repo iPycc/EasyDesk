@@ -7,6 +7,7 @@
 
 #include <array>
 #include <type_traits>
+#include <utility>
 
 namespace {
 constexpr int kMaximumTextCodeUnits = 256;
@@ -45,12 +46,6 @@ INPUT unicodeInput(ushort codeUnit, bool pressed) {
     return input;
 }
 
-bool inject(INPUT *inputs, int count) {
-    if (count <= 0)
-        return true;
-    return SendInput(static_cast<UINT>(count), inputs, sizeof(INPUT)) == static_cast<UINT>(count);
-}
-
 DWORD buttonFlag(RemoteMouseButton button, bool pressed) {
     switch (button) {
     case RemoteMouseButton::Left:
@@ -82,6 +77,20 @@ bool desktopName(HDESK desktop, std::array<wchar_t, 128> &name) {
 }
 } // namespace
 
+SendInputExecutor::SendInputExecutor(Backend backend) : m_backend(std::move(backend)) {}
+
+quint32 SendInputExecutor::injectCount(void *inputs, int count) const {
+    if (count <= 0)
+        return 0;
+    if (m_backend.send)
+        return m_backend.send(inputs, static_cast<quint32>(count));
+    return SendInput(static_cast<UINT>(count), static_cast<INPUT *>(inputs), sizeof(INPUT));
+}
+
+bool SendInputExecutor::inject(void *inputs, int count) const {
+    return count <= 0 || injectCount(inputs, count) == static_cast<quint32>(count);
+}
+
 void SendInputExecutor::setDisplayRect(const QRect &displayRect) {
     m_displayRect = displayRect;
 }
@@ -106,8 +115,7 @@ SendInputResult SendInputExecutor::apply(const InputEvent &event, InputStream st
             if constexpr (std::is_same_v<Event, TextCommitInput>)
                 return applyText(value);
             if constexpr (std::is_same_v<Event, ReleaseAllInput>) {
-                releaseAll();
-                return SendInputResult::Applied;
+                return releaseAll() ? SendInputResult::Applied : SendInputResult::InjectionRejected;
             }
             return SendInputResult::InvalidEvent;
         },
@@ -115,6 +123,8 @@ SendInputResult SendInputExecutor::apply(const InputEvent &event, InputStream st
 }
 
 bool SendInputExecutor::interactiveDesktopAvailable() const {
+    if (m_backend.desktopAvailable)
+        return m_backend.desktopAvailable();
     HDESK inputDesktop = OpenInputDesktop(0, FALSE, DESKTOP_READOBJECTS);
     if (!inputDesktop)
         return false;
@@ -213,7 +223,11 @@ SendInputResult SendInputExecutor::applyText(const TextCommitInput &event) {
                                                 : SendInputResult::InjectionRejected;
 }
 
-void SendInputExecutor::releaseAll() {
+bool SendInputExecutor::releaseAll() {
+    if (m_ownership.empty())
+        return true;
+    if (!interactiveDesktopAvailable())
+        return false;
     QVarLengthArray<INPUT, 32> inputs;
     inputs.reserve(static_cast<int>(m_ownership.keys().size() + m_ownership.buttons().size()));
     for (quint32 key : m_ownership.keys())
@@ -221,6 +235,21 @@ void SendInputExecutor::releaseAll() {
                                        (key & 0x10000U) != 0, false));
     for (RemoteMouseButton button : m_ownership.buttons())
         inputs.push_back(mouseInput(buttonFlag(button, false), 0, 0, buttonData(button)));
-    inject(inputs.data(), inputs.size());
-    m_ownership.clear();
+    const quint32 delivered = injectCount(inputs.data(), inputs.size());
+    UINT acknowledged = 0;
+    auto key = m_ownership.keys().begin();
+    while (key != m_ownership.keys().end() && acknowledged < delivered) {
+        const quint32 released = *key++;
+        m_ownership.acknowledgeKeyRelease(released);
+        ++acknowledged;
+    }
+    auto button = m_ownership.buttons().begin();
+    while (button != m_ownership.buttons().end() && acknowledged < delivered) {
+        const RemoteMouseButton released = *button++;
+        m_ownership.acknowledgeButtonRelease(released);
+        ++acknowledged;
+    }
+    return m_ownership.empty();
 }
+
+bool SendInputExecutor::hasPendingRelease() const { return !m_ownership.empty(); }

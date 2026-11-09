@@ -46,6 +46,7 @@ class SessionInputCoordinator final : public QObject {
     QTimer m_renewTimer;
     QTimer m_responseTimer;
     QTimer m_hostWatchdog;
+    QTimer m_releaseCleanup;
     QRect m_localRegion;
     QSize m_remoteSize;
     quint64 m_localGeneration = 0;

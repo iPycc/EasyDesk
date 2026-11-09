@@ -25,7 +25,7 @@ enum class InputApplyStatus {
 
 class WindowsInputController final {
   public:
-    WindowsInputController();
+    explicit WindowsInputController(SendInputExecutor::Backend backend = {});
     ~WindowsInputController();
 
     WindowsInputController(const WindowsInputController &) = delete;
@@ -43,6 +43,7 @@ class WindowsInputController final {
                     const QByteArray &challenge);
     QByteArray leaseChallenge() const;
     bool leaseActive() const;
+    bool hasPendingRelease() const;
 
     InputApplyStatus apply(const InputCommand &command);
 
@@ -53,6 +54,7 @@ class WindowsInputController final {
     bool m_shutdown = false;
     bool m_sessionActive = false;
     bool m_permissionGranted = false;
+    bool m_releasePending = false;
     QByteArray m_sessionId;
     quint64 m_sessionEpoch = 0;
     quint64 m_permissionEpoch = 0;
@@ -63,6 +65,7 @@ class WindowsInputController final {
     SendInputExecutor m_executor;
 
     void watchdogLoop();
+    bool releaseHeldState();
     bool contextMatches(const InputCommandContext &context) const;
     InputApplyStatus mapResult(SendInputResult result) const;
 };

@@ -12,6 +12,9 @@ class InputOwnership final {
     void recordButton(const PointerButtonInput &event);
     const std::set<quint32> &keys() const;
     const std::set<RemoteMouseButton> &buttons() const;
+    void acknowledgeKeyRelease(quint32 key);
+    void acknowledgeButtonRelease(RemoteMouseButton button);
+    bool empty() const;
     void clear();
 
   private:

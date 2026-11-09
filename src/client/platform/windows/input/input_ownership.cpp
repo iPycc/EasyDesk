@@ -37,6 +37,10 @@ void InputOwnership::recordButton(const PointerButtonInput &event) {
 const std::set<quint32> &InputOwnership::keys() const { return m_keys; }
 const std::set<RemoteMouseButton> &InputOwnership::buttons() const { return m_buttons; }
 
+void InputOwnership::acknowledgeKeyRelease(quint32 key) { m_keys.erase(key); }
+void InputOwnership::acknowledgeButtonRelease(RemoteMouseButton button) { m_buttons.erase(button); }
+bool InputOwnership::empty() const { return m_keys.empty() && m_buttons.empty(); }
+
 void InputOwnership::clear() {
     m_keys.clear();
     m_buttons.clear();

@@ -1,12 +1,15 @@
 #include "input/windows_input_controller.h"
+#include <utility>
 
-WindowsInputController::WindowsInputController()
-    : m_watchdog([this] { watchdogLoop(); }) {}
+WindowsInputController::WindowsInputController(SendInputExecutor::Backend backend)
+    : m_executor(std::move(backend)) {
+    m_watchdog = std::thread([this] { watchdogLoop(); });
+}
 
 WindowsInputController::~WindowsInputController() {
     {
         std::lock_guard<std::mutex> lock(m_mutex);
-        m_executor.releaseAll();
+        (void)releaseHeldState();
         m_lease.reset();
         m_shutdown = true;
     }
@@ -18,7 +21,7 @@ WindowsInputController::~WindowsInputController() {
 bool WindowsInputController::startSession(const SessionState &state, const QRect &displayRect,
                                           quint64 displayGeneration) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_executor.releaseAll();
+    const bool released = releaseHeldState();
     m_lease.reset();
     m_sessionActive = false;
     m_permissionGranted = false;
@@ -28,6 +31,10 @@ bool WindowsInputController::startSession(const SessionState &state, const QRect
     m_displayGeneration = 0;
     m_lastReliableSequence = 0;
     m_lastPointerSequence = 0;
+    if (!released) {
+        m_wakeup.notify_all();
+        return false;
+    }
     if (state.role != SessionRole::Controlled || state.phase != SessionPhase::Active ||
         !state.authenticated() || !state.access.allows(SessionCapability::ControlInput) ||
         state.sessionId.size() != 16 || state.sessionEpoch == 0 || state.permissionEpoch == 0 ||
@@ -46,7 +53,7 @@ bool WindowsInputController::startSession(const SessionState &state, const QRect
 
 void WindowsInputController::stopSession() {
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_executor.releaseAll();
+    (void)releaseHeldState();
     m_lease.reset();
     m_sessionActive = false;
     m_permissionGranted = false;
@@ -61,7 +68,7 @@ void WindowsInputController::stopSession() {
 
 void WindowsInputController::revokePermission() {
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_executor.releaseAll();
+    (void)releaseHeldState();
     m_lease.invalidate();
     m_permissionGranted = false;
     m_wakeup.notify_all();
@@ -73,7 +80,7 @@ void WindowsInputController::updateDisplay(const QRect &displayRect,
     if (!m_sessionActive || displayGeneration == 0 || displayRect.isEmpty())
         return;
     if (displayGeneration != m_displayGeneration) {
-        m_executor.releaseAll();
+        (void)releaseHeldState();
         m_lease.invalidate();
         m_lastReliableSequence = 0;
         m_lastPointerSequence = 0;
@@ -88,9 +95,12 @@ bool WindowsInputController::beginLease(const QByteArray &leaseId, quint64 lease
     std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_sessionActive || !m_permissionGranted)
         return false;
+    if (!releaseHeldState()) {
+        m_wakeup.notify_all();
+        return false;
+    }
     const bool started = m_lease.begin(leaseId, leaseGeneration, timeoutMilliseconds);
     if (started) {
-        m_executor.releaseAll();
         m_wakeup.notify_all();
     }
     return started;
@@ -105,7 +115,7 @@ bool WindowsInputController::renewLease(const InputCommandContext &context,
         return false;
     const auto now = InputLease::Clock::now();
     if (m_lease.expireIfNeeded(now)) {
-        m_executor.releaseAll();
+        (void)releaseHeldState();
         m_wakeup.notify_all();
         return false;
     }
@@ -128,6 +138,11 @@ bool WindowsInputController::leaseActive() const {
     return m_lease.active(InputLease::Clock::now());
 }
 
+bool WindowsInputController::hasPendingRelease() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_releasePending;
+}
+
 InputApplyStatus WindowsInputController::apply(const InputCommand &command) {
     std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_sessionActive)
@@ -148,13 +163,17 @@ InputApplyStatus WindowsInputController::apply(const InputCommand &command) {
 
     if (std::holds_alternative<ReleaseAllInput>(command.event)) {
         lastSequence = command.context.sequence;
-        m_executor.releaseAll();
-        return InputApplyStatus::Applied;
+        const bool released = releaseHeldState();
+        if (!released) {
+            m_lease.invalidate();
+            m_wakeup.notify_all();
+        }
+        return released ? InputApplyStatus::Applied : InputApplyStatus::InjectionRejected;
     }
 
     const auto now = InputLease::Clock::now();
     if (m_lease.expireIfNeeded(now)) {
-        m_executor.releaseAll();
+        (void)releaseHeldState();
         m_wakeup.notify_all();
     }
     if (!m_lease.active(now))
@@ -166,13 +185,24 @@ InputApplyStatus WindowsInputController::apply(const InputCommand &command) {
 
 void WindowsInputController::watchdogLoop() {
     std::unique_lock<std::mutex> lock(m_mutex);
+    auto nextReleaseAttempt = InputLease::Clock::time_point{};
     while (!m_shutdown) {
         m_wakeup.wait_for(lock, std::chrono::milliseconds(25));
         if (m_shutdown)
             break;
-        if (m_lease.expireIfNeeded(InputLease::Clock::now()))
-            m_executor.releaseAll();
+        const auto now = InputLease::Clock::now();
+        if (m_lease.expireIfNeeded(now))
+            (void)releaseHeldState();
+        if (m_releasePending && now >= nextReleaseAttempt) {
+            (void)releaseHeldState();
+            nextReleaseAttempt = now + std::chrono::milliseconds(250);
+        }
     }
+}
+
+bool WindowsInputController::releaseHeldState() {
+    m_releasePending = !m_executor.releaseAll();
+    return !m_releasePending;
 }
 
 bool WindowsInputController::contextMatches(const InputCommandContext &context) const {

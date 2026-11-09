@@ -13,6 +13,7 @@ namespace {
 constexpr int kRenewIntervalMilliseconds = 100;
 constexpr int kResponseTimeoutMilliseconds = 750;
 constexpr int kHostCheckMilliseconds = 50;
+constexpr int kReleaseCleanupMilliseconds = 250;
 }
 
 SessionInputCoordinator::SessionInputCoordinator(SessionNegotiationCoordinator &session, QObject *parent)
@@ -21,11 +22,18 @@ SessionInputCoordinator::SessionInputCoordinator(SessionNegotiationCoordinator &
     m_renewTimer.setTimerType(Qt::PreciseTimer);
     m_responseTimer.setSingleShot(true);
     m_hostWatchdog.setInterval(kHostCheckMilliseconds);
+    m_releaseCleanup.setInterval(kReleaseCleanupMilliseconds);
     connect(&m_renewTimer, &QTimer::timeout, this, &SessionInputCoordinator::sendRenewal);
     connect(&m_responseTimer, &QTimer::timeout, this, &SessionInputCoordinator::suspend);
     connect(&m_hostWatchdog, &QTimer::timeout, this, [this] {
         if (m_leaseActive && (!m_input || !m_input->leaseActive()))
             suspend();
+    });
+    connect(&m_releaseCleanup, &QTimer::timeout, this, [this] {
+        if (!m_hostStarted && (!m_input || !m_input->hasPendingRelease())) {
+            m_releaseCleanup.stop();
+            m_input.reset();
+        }
     });
     connect(&m_session, &SessionNegotiationCoordinator::stateChanged, this, [this](auto state) {
         if (state == SessionNegotiationCoordinator::State::Idle)
@@ -131,9 +139,14 @@ void SessionInputCoordinator::suspend() {
     if (m_host)
         m_host->stop();
     m_host.reset();
-    m_input.reset();
     m_clientStarted = false;
     m_hostStarted = false;
+    if (m_input && m_input->hasPendingRelease())
+        m_releaseCleanup.start();
+    else {
+        m_releaseCleanup.stop();
+        m_input.reset();
+    }
     m_blocked = true;
     setLeaseActive(false);
 }
@@ -196,8 +209,12 @@ void SessionInputCoordinator::receiveEnable(const QByteArray &message) {
         request.permissionEpoch != context.permissionEpoch || request.displayGeneration != m_localGeneration ||
         request.sequence <= m_lastRemoteEnableSequence || m_leaseGeneration == std::numeric_limits<quint64>::max())
         return;
+    if (m_input && m_input->hasPendingRelease())
+        return;
+    m_releaseCleanup.stop();
     m_lastRemoteEnableSequence = request.sequence;
-    m_input = std::make_unique<WindowsInputController>();
+    if (!m_input)
+        m_input = std::make_unique<WindowsInputController>();
     m_host = std::make_unique<SessionInputLeaseHost>(*m_input);
     QByteArray challenge;
     if (!m_host->start(stateFor(context), m_localRegion, m_localGeneration, ++m_leaseGeneration,
