@@ -5,6 +5,7 @@
 #include <utility>
 
 #include <objbase.h>
+#include <windows.h>
 
 #include "api/make_ref_counted.h"
 #include "api/video/i420_buffer.h"
@@ -20,22 +21,53 @@ constexpr uint32_t kMinimumFps = 1;
 constexpr uint32_t kMaximumFps = 60;
 constexpr auto kStartupTimeout = std::chrono::seconds(5);
 
+class ScopedPhysicalCoordinates final {
+  public:
+    ScopedPhysicalCoordinates()
+        : m_previous(SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)) {}
+    ~ScopedPhysicalCoordinates() {
+        if (m_previous)
+            SetThreadDpiAwarenessContext(m_previous);
+    }
+    bool available() const { return m_previous != nullptr; }
+  private:
+    DPI_AWARENESS_CONTEXT m_previous;
+};
+
+BOOL CALLBACK collectMonitor(HMONITOR monitor, HDC, LPRECT, LPARAM context) {
+    auto *monitors = reinterpret_cast<std::vector<CaptureRect> *>(context);
+    MONITORINFO info{};
+    info.cbSize = sizeof(info);
+    if (!GetMonitorInfoW(monitor, &info))
+        return FALSE;
+    const RECT &rect = info.rcMonitor;
+    if (rect.right <= rect.left || rect.bottom <= rect.top)
+        return FALSE;
+    monitors->push_back({rect.left, rect.top, static_cast<uint32_t>(rect.right - rect.left),
+                         static_cast<uint32_t>(rect.bottom - rect.top)});
+    return TRUE;
+}
+
 }  // namespace
 
 webrtc::scoped_refptr<DesktopVideoSource> DesktopVideoSource::create(
     int displayIndex,
-    uint32_t maximumFps) {
+    uint32_t maximumFps,
+    GeometryCallback geometryCallback) {
     if (displayIndex < 0 || maximumFps < kMinimumFps ||
         maximumFps > kMaximumFps) {
         return nullptr;
     }
-    return webrtc::make_ref_counted<DesktopVideoSource>(displayIndex, maximumFps);
+    return webrtc::make_ref_counted<DesktopVideoSource>(displayIndex, maximumFps,
+                                                       std::move(geometryCallback));
 }
 
-DesktopVideoSource::DesktopVideoSource(int displayIndex, uint32_t maximumFps)
+DesktopVideoSource::DesktopVideoSource(int displayIndex, uint32_t maximumFps,
+                                       GeometryCallback geometryCallback)
     : webrtc::AdaptedVideoTrackSource(2),
       m_displayIndex(displayIndex),
-      m_maximumFps(maximumFps) {}
+      m_maximumFps(maximumFps),
+      m_geometryCallback(std::move(geometryCallback)) {}
 
 DesktopVideoSource::~DesktopVideoSource() {
     stop();
@@ -52,6 +84,9 @@ bool DesktopVideoSource::start(std::string *error) {
     m_state.store(kInitializing);
     m_capturedFrames.store(0);
     m_deliveredFrames.store(0);
+    m_geometryTracker = {};
+    m_reportedGeometryGeneration = 0;
+    m_haveFrameGeometry = false;
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_error.clear();
@@ -108,6 +143,8 @@ uint64_t DesktopVideoSource::deliveredFrames() const {
 }
 
 void DesktopVideoSource::captureLoop() {
+    const ScopedPhysicalCoordinates physicalCoordinates;
+    m_physicalCoordinates = physicalCoordinates.available();
     const HRESULT comStatus = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     const bool releaseCom = SUCCEEDED(comStatus);
     if (FAILED(comStatus) && comStatus != RPC_E_CHANGED_MODE) {
@@ -165,10 +202,14 @@ void DesktopVideoSource::OnCaptureResult(
     webrtc::DesktopCapturer::Result result,
     std::unique_ptr<webrtc::DesktopFrame> frame) {
     if (result == webrtc::DesktopCapturer::Result::ERROR_TEMPORARY) {
+        if (m_geometryCallback)
+            reportGeometry(m_geometryTracker.invalidate());
         OnFrameDropped();
         return;
     }
     if (result != webrtc::DesktopCapturer::Result::SUCCESS || !frame) {
+        if (m_geometryCallback)
+            reportGeometry(m_geometryTracker.invalidate());
         setFailure("Desktop capture stopped after a permanent error.");
         m_stopRequested.store(true);
         return;
@@ -178,6 +219,8 @@ void DesktopVideoSource::OnCaptureResult(
     const int width = frame->size().width();
     const int height = frame->size().height();
     if (width <= 0 || height <= 0) {
+        if (m_geometryCallback)
+            reportGeometry(m_geometryTracker.invalidate());
         if (m_state.load() == kInitializing) {
             setFailure("Desktop capture returned an empty frame.");
             m_stopRequested.store(true);
@@ -185,6 +228,25 @@ void DesktopVideoSource::OnCaptureResult(
         }
         OnFrameDropped();
         return;
+    }
+
+    int virtualX = 0, virtualY = 0;
+    if (m_geometryCallback) {
+        virtualX = GetSystemMetrics(SM_XVIRTUALSCREEN);
+        virtualY = GetSystemMetrics(SM_YVIRTUALSCREEN);
+        if (!m_haveFrameGeometry || m_frameX != frame->top_left().x() ||
+            m_frameY != frame->top_left().y() || m_frameWidth != static_cast<uint32_t>(width) ||
+            m_frameHeight != static_cast<uint32_t>(height) || m_virtualX != virtualX ||
+            m_virtualY != virtualY) {
+            reportGeometry(m_geometryTracker.invalidate());
+            m_haveFrameGeometry = true;
+            m_frameX = frame->top_left().x();
+            m_frameY = frame->top_left().y();
+            m_frameWidth = static_cast<uint32_t>(width);
+            m_frameHeight = static_cast<uint32_t>(height);
+            m_virtualX = virtualX;
+            m_virtualY = virtualY;
+        }
     }
 
     const bool firstFrame = m_state.load() == kInitializing;
@@ -224,6 +286,17 @@ void DesktopVideoSource::OnCaptureResult(
     if (!frameWanted)
         return;
 
+    if (m_geometryCallback) {
+        std::vector<CaptureRect> monitors;
+        const bool enumerated = EnumDisplayMonitors(nullptr, nullptr, collectMonitor,
+                                                     reinterpret_cast<LPARAM>(&monitors)) != FALSE;
+        reportGeometry(m_geometryTracker.update(
+            frame->top_left().x(), frame->top_left().y(), static_cast<uint32_t>(width),
+            static_cast<uint32_t>(height), virtualX, virtualY, static_cast<uint32_t>(cropX),
+            static_cast<uint32_t>(cropY), static_cast<uint32_t>(cropWidth),
+            static_cast<uint32_t>(cropHeight), monitors, m_physicalCoordinates && enumerated));
+    }
+
     webrtc::scoped_refptr<webrtc::VideoFrameBuffer> output = source;
     if (adaptedWidth != width || adaptedHeight != height || cropWidth != width ||
         cropHeight != height || cropX != 0 || cropY != 0) {
@@ -247,6 +320,13 @@ void DesktopVideoSource::setFailure(std::string error) {
     }
     m_state.store(kEnded);
     m_changed.notify_all();
+}
+
+void DesktopVideoSource::reportGeometry(const CaptureGeometry &geometry) {
+    if (geometry.generation == m_reportedGeometryGeneration)
+        return;
+    m_reportedGeometryGeneration = geometry.generation;
+    m_geometryCallback(geometry);
 }
 
 }  // namespace easydesk::media
