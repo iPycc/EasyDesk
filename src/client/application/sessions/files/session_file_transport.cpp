@@ -21,11 +21,15 @@ bool validMessage(const QByteArray &message) {
 
 SessionFileTransport::SessionFileTransport(QObject *parent) : QObject(parent) {}
 
-bool SessionFileTransport::start(MediaSession &session, SessionCapabilities capabilities) {
-    if (m_session || !session.isActive())
+bool SessionFileTransport::start(MediaSession &session, SessionCapabilities capabilities,
+                                 bool localMayReceive, bool peerMayReceive) {
+    if (m_session || !session.isActive() ||
+        capabilities.testFlag(SessionCapability::TransferFiles) != (localMayReceive || peerMayReceive))
         return false;
     m_session = &session;
     m_permitted = capabilities.testFlag(SessionCapability::TransferFiles);
+    m_localMayReceive = localMayReceive;
+    m_peerMayReceive = peerMayReceive;
     return true;
 }
 
@@ -33,6 +37,7 @@ void SessionFileTransport::stop() {
     const bool wasAvailable = isOpen(FileChannel::Metadata) || isOpen(FileChannel::Data);
     m_session = nullptr;
     m_permitted = m_ready = m_metadataOpen = m_dataOpen = false;
+    m_localMayReceive = m_peerMayReceive = false;
     if (wasAvailable)
         emit availabilityChanged();
 }
@@ -62,7 +67,7 @@ void SessionFileTransport::receive(const QByteArray &label, const QByteArray &me
     if (label != "files.meta.v1" && label != "files.data.v1")
         return;
     const FileChannel channel = label == "files.meta.v1" ? FileChannel::Metadata : FileChannel::Data;
-    if (isOpen(channel) && validMessage(message))
+    if (isOpen(channel) && (channel != FileChannel::Data || m_localMayReceive) && validMessage(message))
         emit messageReceived(channel, message);
 }
 
@@ -75,7 +80,7 @@ bool SessionFileTransport::isOpen(FileChannel channel) const {
 
 SessionFileTransport::SendResult SessionFileTransport::send(FileChannel channel,
                                                               const QByteArray &message) {
-    if (!isOpen(channel) || !validMessage(message))
+    if (!isOpen(channel) || (channel == FileChannel::Data && !m_peerMayReceive) || !validMessage(message))
         return SendResult::Unavailable;
     switch (m_session->sendData(labelFor(channel), message)) {
     case MediaSession::SendResult::Sent: return SendResult::Sent;

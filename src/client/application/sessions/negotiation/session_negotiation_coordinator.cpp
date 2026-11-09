@@ -1008,7 +1008,8 @@ bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
         m_mediaSession.reset();
         return false;
     }
-    if (!m_fileTransport.start(*m_mediaSession, m_context.capabilities)) {
+    if (!m_fileTransport.start(*m_mediaSession, m_context.capabilities,
+                               m_context.localMayReceiveFiles, m_context.peerMayReceiveFiles)) {
         error = QStringLiteral("File transport could not be started.");
         m_inputTransport.stop();
         m_mediaSession.reset();

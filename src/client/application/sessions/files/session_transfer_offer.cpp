@@ -41,7 +41,7 @@ SessionTransferOffer::SessionTransferOffer(SessionNegotiationCoordinator &sessio
 
 bool SessionTransferOffer::sendOffer(const easydesk::client::transfer::TransferManifest &manifest,
                                      QString &error) {
-    if (m_outgoingPending || !m_session.isSessionReady() ||
+    if (m_outgoingPending || !m_session.context().peerMayReceiveFiles || !m_session.isSessionReady() ||
         !m_session.isFileChannelOpen(FileChannel::Metadata) ||
         !m_session.isFileChannelOpen(FileChannel::Data)) {
         error = QStringLiteral("File session is unavailable or already has an offer.");
@@ -97,7 +97,7 @@ void SessionTransferOffer::sendNext() {
 }
 
 void SessionTransferOffer::receive(const QByteArray &message) {
-    if (m_incomingPending || !m_session.isSessionReady() ||
+    if (m_incomingPending || !m_session.context().localMayReceiveFiles || !m_session.isSessionReady() ||
         !m_session.isFileChannelOpen(FileChannel::Data)) {
         abort(QStringLiteral("Transfer offer is not allowed in the current state."));
         return;

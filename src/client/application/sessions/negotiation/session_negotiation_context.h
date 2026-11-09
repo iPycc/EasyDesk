@@ -19,6 +19,8 @@ struct SessionNegotiationContext {
     qint64 expiresAt = 0;
     SessionRole role = SessionRole::Controller;
     SessionCapabilities capabilities;
+    bool localMayReceiveFiles = false;
+    bool peerMayReceiveFiles = false;
     bool offerer = false;
 
     bool isValid() const;

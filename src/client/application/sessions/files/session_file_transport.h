@@ -15,7 +15,8 @@ class SessionFileTransport final : public QObject {
     enum class SendResult { Sent, WouldBlock, Unavailable, Failed };
 
     explicit SessionFileTransport(QObject *parent = nullptr);
-    bool start(MediaSession &session, SessionCapabilities capabilities);
+    bool start(MediaSession &session, SessionCapabilities capabilities,
+               bool localMayReceive, bool peerMayReceive);
     void stop();
     void setSessionReady(bool ready);
     void setChannelOpen(const QByteArray &label, bool open);
@@ -33,4 +34,6 @@ class SessionFileTransport final : public QObject {
     bool m_ready = false;
     bool m_metadataOpen = false;
     bool m_dataOpen = false;
+    bool m_localMayReceive = false;
+    bool m_peerMayReceive = false;
 };

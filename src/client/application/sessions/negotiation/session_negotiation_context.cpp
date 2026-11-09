@@ -21,5 +21,7 @@ bool SessionNegotiationContext::isValid() const {
            containsDigits(localDeviceId, 9) && containsDigits(peerDeviceId, 9) &&
            localDeviceId != peerDeviceId && sessionEpoch > 0 &&
            permissionEpoch > 0 && expiresAt > 0 &&
-           capabilities.testFlag(SessionCapability::ViewDesktop);
+           capabilities.testFlag(SessionCapability::ViewDesktop) &&
+           capabilities.testFlag(SessionCapability::TransferFiles) ==
+               (localMayReceiveFiles || peerMayReceiveFiles);
 }
