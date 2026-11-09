@@ -143,7 +143,8 @@ bool SessionMediaEventPump::dispatchEvent() {
             fail(QStringLiteral("Media data channel message is invalid."));
             return false;
         }
-        emit dataChannelMessage(event.label, event.payload);
+        if (m_session->permitsDataChannel(event.label))
+            emit dataChannelMessage(event.label, event.payload);
         return true;
     case EASYDESK_MEDIA_EVENT_ERROR:
         fail(event.payload.isEmpty()

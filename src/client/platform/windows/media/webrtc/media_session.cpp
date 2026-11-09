@@ -28,8 +28,9 @@ EasyDeskMediaError emptyError() {
 }  // namespace
 
 MediaSession::MediaSession(std::shared_ptr<MediaRuntimeState> state,
-                           EasyDeskMediaSession *session)
-    : m_state(std::move(state)), m_session(session) {}
+                           EasyDeskMediaSession *session,
+                           SessionCapabilities capabilities)
+    : m_state(std::move(state)), m_session(session), m_capabilities(capabilities) {}
 
 MediaSession::~MediaSession() {
     close();
@@ -87,8 +88,11 @@ bool MediaSession::setPermissions(quint64 permissionEpoch,
                                            m_session, permissionEpoch,
                                            capabilityMask(capabilities), &error),
                                        error);
-    if (accepted && capabilities == SessionCapabilities())
-        m_closed = true;
+    if (accepted) {
+        m_capabilities = capabilities;
+        if (!capabilities.testFlag(SessionCapability::ViewDesktop))
+            m_closed = true;
+    }
     return accepted;
 }
 
@@ -200,6 +204,18 @@ void MediaSession::close() {
 
 bool MediaSession::isActive() const {
     return m_session != nullptr && m_state && !m_closed;
+}
+
+bool MediaSession::permitsDataChannel(const QByteArray &channelLabel) const {
+    if (!isActive())
+        return false;
+    if (channelLabel == "control.v1")
+        return true;
+    if (channelLabel == "input.v1" || channelLabel == "pointer.v1")
+        return m_capabilities.testFlag(SessionCapability::ControlInput);
+    if (channelLabel == "files.meta.v1" || channelLabel == "files.data.v1")
+        return m_capabilities.testFlag(SessionCapability::TransferFiles);
+    return false;
 }
 
 QString MediaSession::errorString() const {

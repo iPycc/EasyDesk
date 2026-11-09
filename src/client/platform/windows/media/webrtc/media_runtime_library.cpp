@@ -297,7 +297,7 @@ MediaRuntimeLibrary::createSession(const MediaSessionConfig &config) {
     }
 
     m_error.clear();
-    return std::unique_ptr<MediaSession>(new MediaSession(m_state, session));
+    return std::unique_ptr<MediaSession>(new MediaSession(m_state, session, config.capabilities));
 }
 
 QString MediaRuntimeLibrary::errorString() const {

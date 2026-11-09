@@ -61,16 +61,19 @@ class MediaSession final {
     void close();
 
     bool isActive() const;
+    bool permitsDataChannel(const QByteArray &channelLabel) const;
     QString errorString() const;
 
   private:
     friend class MediaRuntimeLibrary;
-    MediaSession(std::shared_ptr<MediaRuntimeState> state, EasyDeskMediaSession *session);
+    MediaSession(std::shared_ptr<MediaRuntimeState> state, EasyDeskMediaSession *session,
+                 SessionCapabilities capabilities);
 
     bool acceptStatus(EasyDeskMediaStatus status, const EasyDeskMediaError &error);
 
     std::shared_ptr<MediaRuntimeState> m_state;
     EasyDeskMediaSession *m_session = nullptr;
+    SessionCapabilities m_capabilities;
     bool m_videoRendererAttached = false;
     bool m_closed = false;
     QString m_error;
