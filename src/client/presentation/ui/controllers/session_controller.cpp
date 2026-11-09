@@ -173,9 +173,6 @@ void MainWindow::startSession(const QString &id, const QString &assistanceCode) 
     auto *full = menu->addAction(icon("fullscreen"), QStringLiteral("全屏"));
     full->setObjectName("sessionFullscreen");
     full->setCheckable(true);
-    full->setShortcut(QKeySequence(Qt::Key_F11));
-    full->setShortcutContext(Qt::WindowShortcut);
-    session->addAction(full);
     connect(full, &QAction::triggered, session, &Ui::SessionWindow::setFullscreen);
     connect(session, &Ui::SessionWindow::fullscreenChanged, full, &QAction::setChecked);
     connect(menu, &QMenu::aboutToShow, session,
@@ -204,13 +201,6 @@ void MainWindow::startSession(const QString &id, const QString &assistanceCode) 
     exit->setObjectName("sessionExit");
     more->setMenu(menu);
     more->setPopupMode(QToolButton::InstantPopup);
-    auto *esc = new QShortcut(QKeySequence(Qt::Key_Escape), session);
-    connect(esc, &QShortcut::activated, session, [session, full] {
-        if (session->isFullScreen())
-            session->setFullscreen(false);
-        else
-            session->close();
-    });
     auto *localMenu = new QShortcut(QKeySequence("Ctrl+Alt+Shift+F12"), session);
     connect(localMenu, &QShortcut::activated, session, [session, more, menu] {
         menu->popup(
