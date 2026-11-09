@@ -11,6 +11,7 @@
 #include "sessions/negotiation/transport/session_transport_state.h"
 #include "sessions/negotiation/turn/session_turn_binding.h"
 #include "sessions/input/session_input_transport.h"
+#include "sessions/files/session_file_transport.h"
 #include "sessions/termination/session_termination_receiver.h"
 #include "sessions/termination/session_termination_sender.h"
 
@@ -59,6 +60,8 @@ class SessionNegotiationCoordinator final : public QObject {
     bool isSessionReady() const;
     bool isInputChannelOpen(InputStream stream) const;
     SessionInputTransport::SendResult sendInputMessage(InputStream stream, const QByteArray &message);
+    bool isFileChannelOpen(FileChannel channel) const;
+    SessionFileTransport::SendResult sendFileMessage(FileChannel channel, const QByteArray &message);
 
     bool begin(const SessionNegotiationContext &context);
     bool endSession(easydesk::client::signaling::SessionEndReason reason);
@@ -80,6 +83,8 @@ class SessionNegotiationCoordinator final : public QObject {
     void sessionReady();
     void inputAvailabilityChanged();
     void inputMessageReceived(InputStream stream, const QByteArray &message);
+    void fileAvailabilityChanged();
+    void fileMessageReceived(FileChannel channel, const QByteArray &message);
     void captureGeometryChanged(const QRect &region, quint64 generation, bool valid);
     void remoteCaptureGeometryChanged(const QSize &size, quint64 generation, bool valid);
     void firstFramePresented(quint32 width, quint32 height);
@@ -131,6 +136,7 @@ class SessionNegotiationCoordinator final : public QObject {
     SessionAuthorizationDeadline m_authorizationDeadline;
     SessionReadyExchange m_readyExchange;
     SessionInputTransport m_inputTransport;
+    SessionFileTransport m_fileTransport;
     SessionMediaEventPump m_eventPump;
     SessionVideoMonitor m_videoMonitor;
     SessionTransportState m_transportState;

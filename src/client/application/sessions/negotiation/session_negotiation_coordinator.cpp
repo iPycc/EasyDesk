@@ -87,6 +87,7 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
     connect(&m_eventPump, &SessionMediaEventPump::dataChannelOpened,
             this, [this](const QByteArray &label) {
                 m_inputTransport.setChannelOpen(label, true);
+                m_fileTransport.setChannelOpen(label, true);
                 if (label == "control.v1")
                     handleControlOpen();
             });
@@ -94,12 +95,15 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
             this, [this](const QByteArray &label, const QByteArray &message) {
                 if (label == "control.v1")
                     handleControlMessage(message);
-                else
+                else {
                     m_inputTransport.receive(label, message);
+                    m_fileTransport.receive(label, message);
+                }
             });
     connect(&m_eventPump, &SessionMediaEventPump::dataChannelClosed,
             this, [this](const QByteArray &label) {
                 m_inputTransport.setChannelOpen(label, false);
+                m_fileTransport.setChannelOpen(label, false);
                 if (label != "control.v1" || m_state == State::Idle || m_state == State::Ending)
                     return;
                 if (!m_handshakeComplete) {
@@ -115,6 +119,10 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
             this, &SessionNegotiationCoordinator::inputAvailabilityChanged);
     connect(&m_inputTransport, &SessionInputTransport::messageReceived,
             this, &SessionNegotiationCoordinator::inputMessageReceived);
+    connect(&m_fileTransport, &SessionFileTransport::availabilityChanged,
+            this, &SessionNegotiationCoordinator::fileAvailabilityChanged);
+    connect(&m_fileTransport, &SessionFileTransport::messageReceived,
+            this, &SessionNegotiationCoordinator::fileMessageReceived);
     connect(&m_eventPump, &SessionMediaEventPump::failed,
             this, [this](const QString &message) {
                 fail(QStringLiteral("E_MEDIA_EVENT"), message);
@@ -169,8 +177,10 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
             this, [this](SessionTransportState::State state) {
                 if (state != SessionTransportState::State::Connected)
                     m_videoMonitor.transportDisconnected();
-                if (state != SessionTransportState::State::Connected)
+                if (state != SessionTransportState::State::Connected) {
                     m_inputTransport.setSessionReady(false);
+                    m_fileTransport.setSessionReady(false);
+                }
                 if (state == SessionTransportState::State::Disconnected &&
                     m_transportEverConnected && m_state == State::AwaitingIce &&
                     !m_timeout.isActive())
@@ -185,6 +195,7 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
                     m_readyTimeout.start(kReadyTimeoutMilliseconds);
                 m_videoMonitor.transportConnected();
                 m_inputTransport.setSessionReady(m_handshakeComplete);
+                m_fileTransport.setSessionReady(m_handshakeComplete);
                 publishCaptureGeometry();
                 if (m_state != State::Idle)
                     emit transportConnected();
@@ -278,6 +289,15 @@ bool SessionNegotiationCoordinator::isInputChannelOpen(InputStream stream) const
 SessionInputTransport::SendResult SessionNegotiationCoordinator::sendInputMessage(
     InputStream stream, const QByteArray &message) {
     return m_inputTransport.send(stream, message);
+}
+
+bool SessionNegotiationCoordinator::isFileChannelOpen(FileChannel channel) const {
+    return m_fileTransport.isOpen(channel);
+}
+
+SessionFileTransport::SendResult SessionNegotiationCoordinator::sendFileMessage(
+    FileChannel channel, const QByteArray &message) {
+    return m_fileTransport.send(channel, message);
 }
 
 bool SessionNegotiationCoordinator::begin(
@@ -583,6 +603,8 @@ void SessionNegotiationCoordinator::finishReadyExchange() {
     m_handshakeComplete = true;
     m_readyTimeout.stop();
     m_inputTransport.setSessionReady(
+        m_transportState.state() == SessionTransportState::State::Connected);
+    m_fileTransport.setSessionReady(
         m_transportState.state() == SessionTransportState::State::Connected);
     QString error;
     if (m_videoRendererWindow != 0 && !activateVideoRenderer(error)) {
@@ -986,14 +1008,22 @@ bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
         m_mediaSession.reset();
         return false;
     }
+    if (!m_fileTransport.start(*m_mediaSession, m_context.capabilities)) {
+        error = QStringLiteral("File transport could not be started.");
+        m_inputTransport.stop();
+        m_mediaSession.reset();
+        return false;
+    }
     if (!m_transportState.start(1)) {
         error = QStringLiteral("Media transport state could not be started.");
         m_inputTransport.stop();
+        m_fileTransport.stop();
         m_mediaSession.reset();
         return false;
     }
     if (!m_iceReceiver.begin(m_context, *m_mediaSession, 1, error)) {
         m_inputTransport.stop();
+        m_fileTransport.stop();
         m_transportState.stop();
         m_mediaSession.reset();
         return false;
@@ -1002,6 +1032,7 @@ bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
         error = QStringLiteral("Media event pump could not be started.");
         m_transportState.stop();
         m_inputTransport.stop();
+        m_fileTransport.stop();
         m_iceReceiver.stop();
         m_mediaSession.reset();
         return false;
@@ -1013,6 +1044,7 @@ bool SessionNegotiationCoordinator::startMediaSession(QString &error) {
         m_transportState.stop();
         m_iceReceiver.stop();
         m_inputTransport.stop();
+        m_fileTransport.stop();
         m_mediaSession.reset();
         return false;
     }
@@ -1028,6 +1060,7 @@ void SessionNegotiationCoordinator::closeMediaSession(bool keepTerminationReceiv
     m_videoMonitor.stop();
     m_eventPump.stop();
     m_inputTransport.stop();
+    m_fileTransport.stop();
     m_transportState.stop();
     m_iceSender.stop();
     m_iceReceiver.stop();
