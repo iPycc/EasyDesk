@@ -51,7 +51,7 @@ class SessionRequestCoordinator final : public QObject {
 
     bool requestSession(const QString &targetDeviceId,
                         const QString &assistanceCode,
-                        SessionMode mode);
+                        SessionMode mode, bool requestPeerFileReceive = false);
     bool cancel();
     void completeSession();
 
@@ -89,6 +89,7 @@ class SessionRequestCoordinator final : public QObject {
     easydesk::client::signaling::SessionRequestFields m_request;
     SessionMode m_mode = SessionMode::ViewOnly;
     SessionMode m_grantedMode = SessionMode::ViewOnly;
+    bool m_requestPeerFileReceive = false;
     quint32 m_sessionEpoch = 0;
     quint64 m_permissionEpoch = 0;
     qint64 m_expiresAt = 0;

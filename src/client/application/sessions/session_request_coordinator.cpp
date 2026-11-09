@@ -11,6 +11,7 @@
 #include "network/signaling/protocol/session/session_delivery_codec.h"
 #include "network/signaling/protocol/session/session_request_codec.h"
 #include "security/secure_random.h"
+#include "sessions/files/session_file_authorization.h"
 
 #include <QDateTime>
 
@@ -131,7 +132,7 @@ SessionNegotiationContext SessionRequestCoordinator::negotiationContext() const 
 
 bool SessionRequestCoordinator::requestSession(const QString &targetDeviceId,
                                                const QString &assistanceCode,
-                                               SessionMode mode) {
+                                               SessionMode mode, bool requestPeerFileReceive) {
     if (!isAvailable() || !containsDigits(targetDeviceId, 9) ||
         !containsDigits(assistanceCode, 8) ||
         targetDeviceId == m_profile.profile().deviceId ||
@@ -153,6 +154,7 @@ bool SessionRequestCoordinator::requestSession(const QString &targetDeviceId,
     clearRequest();
     m_targetDeviceId = targetDeviceId;
     m_mode = mode;
+    m_requestPeerFileReceive = requestPeerFileReceive;
     setState(State::ResolvingIdentity);
     m_timeout.start(kResolveTimeoutMilliseconds);
     return true;
@@ -291,6 +293,10 @@ void SessionRequestCoordinator::handleResolvedIdentity(const QByteArray &message
             {fields.requesterPublicKey,
              easydesk::client::signaling::SessionCapability::SendInput});
     }
+    if (m_requestPeerFileReceive) {
+        fields.requestedGrants.append(
+            {fields.targetPublicKey, easydesk::client::signaling::SessionCapability::FileReceive});
+    }
     fields.expiresAt = QDateTime::currentSecsSinceEpoch() + kRequestLifetimeSeconds;
     fields.fromDeviceId = m_profile.profile().deviceId;
     fields.toDeviceId = m_targetDeviceId;
@@ -416,6 +422,12 @@ void SessionRequestCoordinator::handleAcceptance(const QByteArray &message) {
             ? SessionRole::Controller
             : SessionRole::Controlled;
     m_negotiation.capabilities = capabilitiesForMode(m_grantedMode);
+    if (!applyFileAuthorization(m_negotiation, acceptance.fields.grantedGrants,
+                                m_identity.publicKey(), m_targetPublicKey)) {
+        failRequest(QStringLiteral("E_UNSUPPORTED_CAPABILITY"),
+                    QStringLiteral("File authorization participants are invalid."));
+        return;
+    }
     m_negotiation.offerer = true;
     m_timeout.stop();
     setState(State::Accepted);
@@ -511,6 +523,7 @@ void SessionRequestCoordinator::clearRequest() {
     m_request = {};
     m_mode = SessionMode::ViewOnly;
     m_grantedMode = SessionMode::ViewOnly;
+    m_requestPeerFileReceive = false;
     m_sessionEpoch = 0;
     m_permissionEpoch = 0;
     m_expiresAt = 0;

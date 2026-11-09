@@ -10,6 +10,7 @@
 #include "network/signaling/protocol/session/session_decision_decoder.h"
 #include "network/signaling/protocol/session/session_delivery_codec.h"
 #include "security/secure_random.h"
+#include "sessions/files/session_file_authorization.h"
 
 #include <QDateTime>
 
@@ -28,6 +29,17 @@ bool containsCapability(
     easydesk::client::signaling::SessionCapability capability) {
     for (const auto &grant : grants) {
         if (grant.capability == capability)
+            return true;
+    }
+    return false;
+}
+
+bool containsFileReceiveGrant(
+    const QVector<easydesk::client::signaling::SessionCapabilityGrant> &grants,
+    const QByteArray &subject) {
+    for (const auto &grant : grants) {
+        if (grant.capability == easydesk::client::signaling::SessionCapability::FileReceive &&
+            grant.subjectPublicKey == subject)
             return true;
     }
     return false;
@@ -105,12 +117,13 @@ SessionNegotiationContext SessionInvitationCoordinator::negotiationContext() con
     return m_negotiation;
 }
 
-bool SessionInvitationCoordinator::accept(SessionMode grantedMode) {
+bool SessionInvitationCoordinator::accept(SessionMode grantedMode, bool grantLocalFileReceive) {
     if (m_state != State::AwaitingConsent ||
         QDateTime::currentSecsSinceEpoch() >= m_invitation.expiresAt ||
         (grantedMode != SessionMode::ViewOnly && grantedMode != SessionMode::Control) ||
         (grantedMode == SessionMode::Control &&
-         m_invitation.requestedMode != SessionMode::Control)) {
+         m_invitation.requestedMode != SessionMode::Control) ||
+        (grantLocalFileReceive && !m_invitation.requestsLocalFileReceive)) {
         return false;
     }
 
@@ -136,6 +149,8 @@ bool SessionInvitationCoordinator::accept(SessionMode grantedMode) {
     };
     if (grantedMode == SessionMode::Control)
         granted.append({controllerPublicKey, ProtocolCapability::SendInput});
+    if (grantLocalFileReceive)
+        granted.append({m_identity.publicKey(), ProtocolCapability::FileReceive});
 
     m_sessionEpoch = epochFromBytes(epochBytes);
     easydesk::client::signaling::SessionAcceptFields fields;
@@ -186,6 +201,12 @@ bool SessionInvitationCoordinator::accept(SessionMode grantedMode) {
             ? SessionRole::Controlled
             : SessionRole::Controller;
     m_negotiation.capabilities = capabilitiesForMode(grantedMode);
+    if (!applyFileAuthorization(m_negotiation, fields.grantedGrants,
+                                m_identity.publicKey(), request.requesterPublicKey)) {
+        failInvitation(QStringLiteral("E_UNSUPPORTED_CAPABILITY"),
+                       QStringLiteral("File authorization participants are invalid."));
+        return false;
+    }
     m_negotiation.offerer = false;
     setState(State::AwaitingAcceptanceDelivery);
     m_timeout.start(kDeliveryTimeoutMilliseconds);
@@ -264,6 +285,8 @@ void SessionInvitationCoordinator::handleRequest(const QByteArray &message) {
     m_invitation.requesterIsController =
         m_request.fields.requesterRole ==
         easydesk::client::signaling::SessionParticipantRole::Controller;
+    m_invitation.requestsLocalFileReceive =
+        containsFileReceiveGrant(m_request.fields.requestedGrants, m_identity.publicKey());
     m_invitation.expiresAt = m_request.fields.expiresAt;
     setState(State::AwaitingConsent);
     const qint64 remainingMs = (m_invitation.expiresAt - now) * 1000;

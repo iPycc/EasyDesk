@@ -17,6 +17,7 @@ struct IncomingSessionInvitation {
     QString fromDeviceId;
     SessionMode requestedMode = SessionMode::ViewOnly;
     bool requesterIsController = true;
+    bool requestsLocalFileReceive = false;
     qint64 expiresAt = 0;
 };
 
@@ -49,7 +50,7 @@ class SessionInvitationCoordinator final : public QObject {
     SessionMode grantedMode() const;
     SessionNegotiationContext negotiationContext() const;
 
-    bool accept(SessionMode grantedMode);
+    bool accept(SessionMode grantedMode, bool grantLocalFileReceive = false);
     bool reject();
     void completeSession();
 

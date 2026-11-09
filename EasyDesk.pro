@@ -33,6 +33,7 @@ SOURCES += \
     src/client/application/sessions/input/session_input_coordinator.cpp \
     src/client/application/sessions/input/session_input_transport.cpp \
     src/client/application/sessions/files/session_file_transport.cpp \
+    src/client/application/sessions/files/session_file_authorization.cpp \
     src/client/application/sessions/files/session_transfer_offer.cpp \
     src/client/application/sessions/session_invitation_coordinator.cpp \
     src/client/application/sessions/session_request_coordinator.cpp \
@@ -135,6 +136,7 @@ HEADERS += \
     src/client/application/sessions/input/session_input_coordinator.h \
     src/client/application/sessions/input/session_input_transport.h \
     src/client/application/sessions/files/session_file_transport.h \
+    src/client/application/sessions/files/session_file_authorization.h \
     src/client/application/sessions/files/session_transfer_offer.h \
     src/client/application/sessions/session_invitation_coordinator.h \
     src/client/application/sessions/session_request_coordinator.h \
