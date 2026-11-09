@@ -73,7 +73,17 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
     connect(&m_eventPump, &SessionMediaEventPump::remoteDescriptionApplied,
             this, &SessionNegotiationCoordinator::handleRemoteDescriptionApplied);
     connect(&m_eventPump, &SessionMediaEventPump::captureGeometryChanged,
-            this, &SessionNegotiationCoordinator::captureGeometryChanged);
+            this, [this](const QRect &region, quint64 generation, bool valid) {
+                if (m_context.role != SessionRole::Controlled) {
+                    fail(QStringLiteral("E_CAPTURE_GEOMETRY"),
+                         QStringLiteral("Unexpected capture geometry event."));
+                    return;
+                }
+                const bool supported = valid && region.width() <= 65535 && region.height() <= 65535;
+                m_localCaptureGeometry = {generation, supported ? region.size() : QSize(0, 0), supported};
+                emit captureGeometryChanged(supported ? region : QRect(), generation, supported);
+                publishCaptureGeometry();
+            });
     connect(&m_eventPump, &SessionMediaEventPump::dataChannelOpened,
             this, [this](const QByteArray &label) {
                 m_inputTransport.setChannelOpen(label, true);
@@ -175,6 +185,7 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
                     m_readyTimeout.start(kReadyTimeoutMilliseconds);
                 m_videoMonitor.transportConnected();
                 m_inputTransport.setSessionReady(m_handshakeComplete);
+                publishCaptureGeometry();
                 if (m_state != State::Idle)
                     emit transportConnected();
             });
@@ -473,7 +484,7 @@ void SessionNegotiationCoordinator::handleControlOpen() {
 }
 
 void SessionNegotiationCoordinator::handleControlMessage(const QByteArray &message) {
-    if (!m_controlOpen || m_handshakeComplete || message.size() > 1024) {
+    if (!m_controlOpen || message.size() > 1024) {
         fail(QStringLiteral("E_SESSION_READY"), QStringLiteral("安全会话消息状态无效"));
         return;
     }
@@ -484,6 +495,14 @@ void SessionNegotiationCoordinator::handleControlMessage(const QByteArray &messa
         return;
     }
     const QString type = document.object().value(QStringLiteral("type")).toString();
+    if (m_handshakeComplete) {
+        if (type == QStringLiteral("capture.geometry")) {
+            handleCaptureGeometry(message);
+            return;
+        }
+        fail(QStringLiteral("E_SESSION_READY"), QStringLiteral("未知安全会话消息"));
+        return;
+    }
     QString error;
     if (type == QStringLiteral("session.ready")) {
         QByteArray acknowledgement;
@@ -503,6 +522,35 @@ void SessionNegotiationCoordinator::handleControlMessage(const QByteArray &messa
         return;
     }
     finishReadyExchange();
+}
+
+void SessionNegotiationCoordinator::handleCaptureGeometry(const QByteArray &message) {
+    RemoteCaptureGeometry geometry;
+    QString error;
+    if (!decodeCaptureGeometry(message, m_context, geometry, error) ||
+        geometry.generation <= m_remoteCaptureGeneration) {
+        fail(QStringLiteral("E_CAPTURE_GEOMETRY"),
+             error.isEmpty() ? QStringLiteral("Capture geometry generation is stale.") : error);
+        return;
+    }
+    m_remoteCaptureGeneration = geometry.generation;
+    emit remoteCaptureGeometryChanged(geometry.size, geometry.generation, geometry.valid);
+}
+
+void SessionNegotiationCoordinator::publishCaptureGeometry() {
+    if (m_context.role != SessionRole::Controlled || !isSessionReady() ||
+        m_localCaptureGeometry.generation == 0 ||
+        m_localCaptureGeometry.generation <= m_sentCaptureGeneration)
+        return;
+    QString error;
+    const QByteArray message = encodeCaptureGeometry(m_context, m_localCaptureGeometry, error);
+    if (message.isEmpty()) {
+        fail(QStringLiteral("E_CAPTURE_GEOMETRY"), error);
+        return;
+    }
+    const quint64 generation = m_localCaptureGeometry.generation;
+    if (sendControlMessage(message))
+        m_sentCaptureGeneration = generation;
 }
 
 bool SessionNegotiationCoordinator::sendControlMessage(const QByteArray &message) {
@@ -527,6 +575,7 @@ void SessionNegotiationCoordinator::finishReadyExchange() {
         return;
     }
     emit sessionReady();
+    publishCaptureGeometry();
 }
 
 void SessionNegotiationCoordinator::handleRemoteOffer(
@@ -974,6 +1023,9 @@ void SessionNegotiationCoordinator::closeMediaSession(bool keepTerminationReceiv
     m_transportEverConnected = false;
     m_controlOpen = false;
     m_handshakeComplete = false;
+    m_localCaptureGeometry = {};
+    m_sentCaptureGeneration = 0;
+    m_remoteCaptureGeneration = 0;
     m_signedLocalDescriptionPayload.clear();
     m_localDescriptionSequence = 0;
     m_signedRemoteDescriptionPayload.clear();
