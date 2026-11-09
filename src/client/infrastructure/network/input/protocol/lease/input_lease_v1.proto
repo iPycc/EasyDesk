@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package easydesk.input.v1;
+
+// The encoded envelope is prefixed by the four ASCII bytes "EDL1" so it can
+// share input.v1 with InputEnvelope without ambiguous decoding.
+message InputLeaseEnvelope {
+  uint32 protocol_version = 1;  // Exactly 1.
+  uint32 kind = 2;              // 1 = challenge, 2 = renewal.
+  bytes session_id = 3;         // Exactly 16 bytes.
+  uint64 session_epoch = 4;
+  uint64 permission_epoch = 5;
+  uint64 display_generation = 6;
+  bytes lease_id = 7;           // Exactly 16 bytes.
+  uint64 lease_generation = 8;
+  bytes challenge = 9;          // Exactly 16 bytes, issued by the controlled end.
+  uint64 sequence = 10;         // Renewal: shared reliable-input sequence.
+                                // Challenge: last accepted renewal, or zero.
+  uint32 timeout_ms = 11;       // Challenge: 1..1500; renewal: zero.
+}

@@ -41,6 +41,7 @@ SOURCES += \
     src/client/infrastructure/network/signaling/client/signaling_client.cpp \
     src/client/infrastructure/network/input/protocol/wire/protobuf_wire.cpp \
     src/client/infrastructure/network/input/protocol/input_codec.cpp \
+    src/client/infrastructure/network/input/protocol/lease/input_lease_codec.cpp \
     src/client/infrastructure/network/signaling/protocol/bootstrap/bootstrap_message_codec.cpp \
     src/client/infrastructure/network/signaling/protocol/cbor/deterministic_cbor_reader.cpp \
     src/client/infrastructure/network/signaling/protocol/cbor/deterministic_cbor_writer.cpp \
@@ -135,6 +136,7 @@ HEADERS += \
     src/client/infrastructure/network/signaling/client/signaling_client.h \
     src/client/infrastructure/network/input/protocol/wire/protobuf_wire.h \
     src/client/infrastructure/network/input/protocol/input_codec.h \
+    src/client/infrastructure/network/input/protocol/lease/input_lease_codec.h \
     src/client/infrastructure/network/signaling/protocol/bootstrap/bootstrap_message_codec.h \
     src/client/infrastructure/network/signaling/protocol/cbor/deterministic_cbor_reader.h \
     src/client/infrastructure/network/signaling/protocol/cbor/deterministic_cbor_writer.h \
