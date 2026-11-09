@@ -1,0 +1,126 @@
+#include "sessions/files/session_transfer_offer.h"
+
+#include "sessions/negotiation/session_negotiation_coordinator.h"
+
+namespace {
+constexpr int kRetryMilliseconds = 25;
+constexpr int kSendTimeoutMilliseconds = 30000;
+constexpr int kReceiveTimeoutMilliseconds = 15000;
+}
+
+SessionTransferOffer::SessionTransferOffer(SessionNegotiationCoordinator &session, QObject *parent)
+    : QObject(parent), m_session(session) {
+    m_sendTimer.setSingleShot(true);
+    m_sendTimeout.setSingleShot(true);
+    m_receiveTimer.setSingleShot(true);
+    connect(&m_sendTimer, &QTimer::timeout, this, &SessionTransferOffer::sendNext);
+    connect(&m_sendTimeout, &QTimer::timeout, this, [this] {
+        abort(QStringLiteral("Transfer offer send timed out."));
+    });
+    connect(&m_receiveTimer, &QTimer::timeout, this, [this] {
+        abort(QStringLiteral("Transfer offer timed out."));
+    });
+    connect(&m_session, &SessionNegotiationCoordinator::fileMessageReceived, this,
+            [this](FileChannel channel, const QByteArray &message) {
+                if (channel == FileChannel::Metadata)
+                    receive(message);
+            });
+    connect(&m_session, &SessionNegotiationCoordinator::fileAvailabilityChanged, this, [this] {
+        if ((m_outgoingPending || m_incomingPending || m_receiving) &&
+            (!m_session.isFileChannelOpen(FileChannel::Metadata) ||
+             !m_session.isFileChannelOpen(FileChannel::Data)))
+            abort(QStringLiteral("File session was interrupted."));
+    });
+    connect(&m_session, &SessionNegotiationCoordinator::stateChanged, this,
+            [this](SessionNegotiationCoordinator::State state) {
+                if (state == SessionNegotiationCoordinator::State::Idle ||
+                    state == SessionNegotiationCoordinator::State::Ending)
+                    reset();
+            });
+}
+
+bool SessionTransferOffer::sendOffer(const easydesk::client::transfer::TransferManifest &manifest,
+                                     QString &error) {
+    if (m_outgoingPending || !m_session.isSessionReady() ||
+        !m_session.isFileChannelOpen(FileChannel::Metadata) ||
+        !m_session.isFileChannelOpen(FileChannel::Data)) {
+        error = QStringLiteral("File session is unavailable or already has an offer.");
+        return false;
+    }
+    if (!easydesk::client::transfer::encodeTransferOffer(manifest, m_frames, error))
+        return false;
+    m_outgoingId = manifest.transferId;
+    m_outgoingPending = true;
+    m_nextFrame = 0;
+    m_sendTimer.start(0);
+    m_sendTimeout.start(kSendTimeoutMilliseconds);
+    error.clear();
+    return true;
+}
+
+void SessionTransferOffer::reset() {
+    m_sendTimer.stop();
+    m_sendTimeout.stop();
+    m_receiveTimer.stop();
+    m_decoder.reset();
+    m_frames.clear();
+    m_outgoingId.clear();
+    m_nextFrame = 0;
+    m_outgoingPending = false;
+    m_incomingPending = false;
+    m_receiving = false;
+}
+
+void SessionTransferOffer::sendNext() {
+    if (!m_outgoingPending || m_nextFrame >= m_frames.size())
+        return;
+    if (!m_session.isSessionReady()) {
+        abort(QStringLiteral("File session was interrupted."));
+        return;
+    }
+    const auto result = m_session.sendFileMessage(FileChannel::Metadata, m_frames.at(m_nextFrame));
+    if (result == SessionFileTransport::SendResult::WouldBlock) {
+        m_sendTimer.start(kRetryMilliseconds);
+        return;
+    }
+    if (result != SessionFileTransport::SendResult::Sent) {
+        abort(QStringLiteral("Transfer offer could not be sent."));
+        return;
+    }
+    if (++m_nextFrame < m_frames.size()) {
+        m_sendTimer.start(0);
+        return;
+    }
+    m_frames.clear();
+    m_sendTimeout.stop();
+    emit offerSent(m_outgoingId);
+}
+
+void SessionTransferOffer::receive(const QByteArray &message) {
+    if (m_incomingPending || !m_session.isSessionReady() ||
+        !m_session.isFileChannelOpen(FileChannel::Data)) {
+        abort(QStringLiteral("Transfer offer is not allowed in the current state."));
+        return;
+    }
+    easydesk::client::transfer::TransferManifest manifest;
+    QString error;
+    const auto result = m_decoder.receive(message, manifest, error);
+    if (result == easydesk::client::transfer::TransferOfferDecoder::Result::Invalid) {
+        abort(error);
+        return;
+    }
+    if (result == easydesk::client::transfer::TransferOfferDecoder::Result::Pending) {
+        m_receiving = true;
+        m_receiveTimer.start(kReceiveTimeoutMilliseconds);
+        return;
+    }
+    m_receiveTimer.stop();
+    m_receiving = false;
+    m_incomingPending = true;
+    emit offerReceived(manifest);
+}
+
+void SessionTransferOffer::abort(const QString &error) {
+    reset();
+    emit failed(error);
+}

@@ -11,6 +11,7 @@
 #include "sessions/session_invitation_coordinator.h"
 #include "sessions/negotiation/session_negotiation_coordinator.h"
 #include "sessions/input/session_input_coordinator.h"
+#include "sessions/files/session_transfer_offer.h"
 #include "sessions/session_request_coordinator.h"
 #include <QDebug>
 #include <QDir>
@@ -54,6 +55,7 @@ ApplicationContext::ApplicationContext() {
     m_sessionNegotiation = std::make_unique<SessionNegotiationCoordinator>(
         *m_media, *m_identity, *m_signaling);
     m_sessionInput = std::make_unique<SessionInputCoordinator>(*m_sessionNegotiation);
+    m_sessionTransferOffer = std::make_unique<SessionTransferOffer>(*m_sessionNegotiation);
     connect(m_sessionRequests.get(), &SessionRequestCoordinator::sessionAccepted,
             this, [this] {
                 (void)m_sessionNegotiation->begin(
@@ -143,4 +145,8 @@ SessionInvitationCoordinator &ApplicationContext::sessionInvitations() const {
 
 SessionNegotiationCoordinator &ApplicationContext::sessionNegotiation() const {
     return *m_sessionNegotiation;
+}
+
+SessionTransferOffer &ApplicationContext::sessionTransferOffer() const {
+    return *m_sessionTransferOffer;
 }
