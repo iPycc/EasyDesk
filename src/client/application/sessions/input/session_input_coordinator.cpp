@@ -3,6 +3,7 @@
 #include "input/windows_input_controller.h"
 #include "network/input/protocol/lease/input_enable_codec.h"
 #include "network/input/protocol/lease/input_lease_codec.h"
+#include "network/input/protocol/input_codec.h"
 #include "sessions/input/session_input_lease_host.h"
 #include "sessions/negotiation/session_negotiation_coordinator.h"
 
@@ -79,6 +80,32 @@ SessionInputCoordinator::~SessionInputCoordinator() { reset(); }
 
 bool SessionInputCoordinator::leaseActive() const { return m_leaseActive; }
 
+bool SessionInputCoordinator::sendCommand(InputStream stream, const InputEvent &event) {
+    if (!m_clientStarted || !m_leaseActive || !m_remoteValid || !m_session.hasPresentedFrame() ||
+        !m_session.isSessionReady() || !m_session.isInputChannelOpen(stream) ||
+        (stream != InputStream::Reliable && stream != InputStream::Pointer))
+        return false;
+    quint64 &sequence = stream == InputStream::Reliable ? m_reliableSequence : m_pointerSequence;
+    if (sequence == std::numeric_limits<quint64>::max()) {
+        suspend();
+        return false;
+    }
+    InputCommand command;
+    if (!m_client.commandContext(stream, sequence + 1, command.context))
+        return false;
+    command.event = event;
+    QByteArray message;
+    QString error;
+    if (!easydesk::client::input::encodeInputCommand(command, message, error))
+        return false;
+    ++sequence;
+    const auto result = m_session.sendInputMessage(stream, message);
+    if (result != SessionInputTransport::SendResult::Sent &&
+        (stream == InputStream::Reliable || result != SessionInputTransport::SendResult::WouldBlock))
+        suspend();
+    return result == SessionInputTransport::SendResult::Sent;
+}
+
 void SessionInputCoordinator::reset() {
     suspend();
     m_localRegion = {};
@@ -88,6 +115,7 @@ void SessionInputCoordinator::reset() {
     m_enableSequence = 0;
     m_lastRemoteEnableSequence = 0;
     m_reliableSequence = 0;
+    m_pointerSequence = 0;
     m_leaseGeneration = 0;
     m_localValid = false;
     m_remoteValid = false;
@@ -140,18 +168,20 @@ void SessionInputCoordinator::refresh() {
 }
 
 void SessionInputCoordinator::receive(InputStream stream, const QByteArray &message) {
-    if (m_blocked || stream != InputStream::Reliable)
+    if (m_blocked || (stream != InputStream::Reliable && stream != InputStream::Pointer))
         return;
-    if (!m_session.isSessionReady() || !m_session.isInputChannelOpen(InputStream::Reliable) ||
+    if (!m_session.isSessionReady() || !m_session.isInputChannelOpen(stream) ||
         !m_session.context().capabilities.testFlag(SessionCapability::ControlInput)) {
         if (m_clientStarted || m_hostStarted)
             suspend();
         return;
     }
-    if (easydesk::client::input::isInputEnableRequest(message))
+    if (stream == InputStream::Reliable && easydesk::client::input::isInputEnableRequest(message))
         receiveEnable(message);
-    else if (easydesk::client::input::isInputLeaseMessage(message))
+    else if (stream == InputStream::Reliable && easydesk::client::input::isInputLeaseMessage(message))
         receiveLease(message);
+    else
+        receiveCommand(stream, message);
 }
 
 void SessionInputCoordinator::receiveEnable(const QByteArray &message) {
@@ -207,6 +237,26 @@ void SessionInputCoordinator::receiveLease(const QByteArray &message) {
         m_hostWatchdog.start();
         if (m_session.sendInputMessage(InputStream::Reliable, challenge) != SessionInputTransport::SendResult::Sent)
             suspend();
+    }
+}
+
+void SessionInputCoordinator::receiveCommand(InputStream stream, const QByteArray &message) {
+    if (!m_hostStarted || !m_input || !m_leaseActive || !m_localValid ||
+        m_session.context().role != SessionRole::Controlled)
+        return;
+    InputCommand command;
+    QString error;
+    if (!easydesk::client::input::decodeInputCommand(message, stream, command, error)) {
+        suspend();
+        return;
+    }
+    const InputApplyStatus result = m_input->apply(command);
+    if (result == InputApplyStatus::Applied) {
+        emit commandApplied(stream, command.context.sequence);
+    } else if (result == InputApplyStatus::InvalidEvent || result == InputApplyStatus::DesktopUnavailable ||
+               result == InputApplyStatus::InjectionRejected || result == InputApplyStatus::SessionUnavailable ||
+               result == InputApplyStatus::PermissionDenied) {
+        suspend();
     }
 }
 

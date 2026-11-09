@@ -21,9 +21,11 @@ class SessionInputCoordinator final : public QObject {
     explicit SessionInputCoordinator(SessionNegotiationCoordinator &session, QObject *parent = nullptr);
     ~SessionInputCoordinator() override;
     bool leaseActive() const;
+    bool sendCommand(InputStream stream, const InputEvent &event);
 
   signals:
     void leaseActiveChanged(bool active);
+    void commandApplied(InputStream stream, quint64 sequence);
 
   private:
     void reset();
@@ -32,6 +34,7 @@ class SessionInputCoordinator final : public QObject {
     void receive(InputStream stream, const QByteArray &message);
     void receiveEnable(const QByteArray &message);
     void receiveLease(const QByteArray &message);
+    void receiveCommand(InputStream stream, const QByteArray &message);
     void sendRenewal();
     void setLeaseActive(bool active);
     SessionState stateFor(const SessionNegotiationContext &context) const;
@@ -50,6 +53,7 @@ class SessionInputCoordinator final : public QObject {
     quint64 m_enableSequence = 0;
     quint64 m_lastRemoteEnableSequence = 0;
     quint64 m_reliableSequence = 0;
+    quint64 m_pointerSequence = 0;
     quint64 m_leaseGeneration = 0;
     bool m_localValid = false;
     bool m_remoteValid = false;
