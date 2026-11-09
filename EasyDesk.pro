@@ -20,6 +20,7 @@ SOURCES += \
     src/client/application/sessions/negotiation/ice/session_ice_signal_receiver.cpp \
     src/client/application/sessions/negotiation/ice/session_ice_signal_sender.cpp \
     src/client/application/sessions/negotiation/media/session_media_event_pump.cpp \
+    src/client/application/sessions/negotiation/media/session_video_monitor.cpp \
     src/client/application/sessions/negotiation/session_negotiation_coordinator.cpp \
     src/client/application/sessions/negotiation/session_negotiation_context.cpp \
     src/client/application/sessions/negotiation/transport/session_transport_state.cpp \
@@ -104,6 +105,7 @@ HEADERS += \
     src/client/application/sessions/negotiation/ice/session_ice_signal_receiver.h \
     src/client/application/sessions/negotiation/ice/session_ice_signal_sender.h \
     src/client/application/sessions/negotiation/media/session_media_event_pump.h \
+    src/client/application/sessions/negotiation/media/session_video_monitor.h \
     src/client/application/sessions/negotiation/session_negotiation_coordinator.h \
     src/client/application/sessions/negotiation/session_negotiation_context.h \
     src/client/application/sessions/negotiation/transport/session_transport_state.h \
