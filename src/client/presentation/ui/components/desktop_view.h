@@ -10,11 +10,15 @@ class DesktopView : public QWidget {
     void setScreen(int screen);
     void setSession(bool session);
     void setOriginalSize(bool original);
+    void setExternalRendering(bool enabled);
+
+    QPaintEngine *paintEngine() const override;
 
   protected:
     void paintEvent(QPaintEvent *) override;
 
   private:
     bool m_online = false, m_session = false, m_original = false;
+    bool m_externalRendering = false;
     int m_screen = 1;
 };

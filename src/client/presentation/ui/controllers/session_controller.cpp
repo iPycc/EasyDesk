@@ -78,6 +78,7 @@ void MainWindow::startSession(const QString &id, const QString &assistanceCode) 
     desktop->setObjectName("sessionDesktop");
     desktop->setSession(true);
     desktop->setDevice(name, true);
+    desktop->setExternalRendering(true);
     l->addWidget(desktop, 1);
     int initialFps = QList<int>{30, 60, 15}.value(findChild<QComboBox *>("fps")->currentIndex(), 30);
     QString initialQuality = findChild<QComboBox *>("quality")->currentText();

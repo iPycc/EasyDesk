@@ -32,7 +32,24 @@ void DesktopView::setOriginalSize(bool original) {
     update();
 }
 
+void DesktopView::setExternalRendering(bool enabled) {
+    if (m_externalRendering == enabled)
+        return;
+    m_externalRendering = enabled;
+    setAttribute(Qt::WA_PaintOnScreen, enabled);
+    setAttribute(Qt::WA_NoSystemBackground, enabled);
+    setAttribute(Qt::WA_OpaquePaintEvent, enabled);
+    if (!enabled)
+        update();
+}
+
+QPaintEngine *DesktopView::paintEngine() const {
+    return m_externalRendering ? nullptr : QWidget::paintEngine();
+}
+
 void DesktopView::paintEvent(QPaintEvent *) {
+    if (m_externalRendering)
+        return;
     QPainter painter(this);
     painter.fillRect(rect(), m_session || property("fullscreen").toBool() ? QColor(Qt::black)
                                                                          : QColor("#e8ebf0"));
