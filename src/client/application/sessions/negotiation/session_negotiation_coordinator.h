@@ -80,6 +80,7 @@ class SessionNegotiationCoordinator final : public QObject {
     void captureGeometryChanged(const QRect &region, quint64 generation, bool valid);
     void remoteCaptureGeometryChanged(const QSize &size, quint64 generation, bool valid);
     void firstFramePresented(quint32 width, quint32 height);
+    void framePresented();
     void remoteSessionEnded(
         easydesk::client::signaling::SessionEndReason reason,
         quint64 sequence);

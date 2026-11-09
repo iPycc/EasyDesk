@@ -20,6 +20,7 @@ class SessionVideoMonitor final : public QObject {
 
   signals:
     void firstFrame(quint32 width, quint32 height);
+    void framePresented();
     void failed(const QString &code, const QString &message);
 
   private:
@@ -32,4 +33,5 @@ class SessionVideoMonitor final : public QObject {
     bool m_firstFramePresented = false;
     bool m_hadConnection = false;
     quint64 m_minimumFrameCount = 0;
+    quint64 m_lastReportedFrameCount = 0;
 };

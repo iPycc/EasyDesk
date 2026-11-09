@@ -191,6 +191,8 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
             });
     connect(&m_videoMonitor, &SessionVideoMonitor::firstFrame,
             this, &SessionNegotiationCoordinator::firstFramePresented);
+    connect(&m_videoMonitor, &SessionVideoMonitor::framePresented,
+            this, &SessionNegotiationCoordinator::framePresented);
     connect(&m_videoMonitor, &SessionVideoMonitor::failed,
             this, [this](const QString &code, const QString &message) {
                 fail(code, message);

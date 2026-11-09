@@ -20,6 +20,7 @@ bool SessionVideoMonitor::start(MediaSession &session) {
     m_firstFramePresented = false;
     m_hadConnection = false;
     m_minimumFrameCount = 0;
+    m_lastReportedFrameCount = 0;
     m_firstFrameDeadline.invalidate();
     m_timer.start();
     return true;
@@ -32,6 +33,7 @@ void SessionVideoMonitor::stop() {
     m_firstFramePresented = false;
     m_hadConnection = false;
     m_minimumFrameCount = 0;
+    m_lastReportedFrameCount = 0;
     m_firstFrameDeadline.invalidate();
 }
 
@@ -47,6 +49,7 @@ void SessionVideoMonitor::transportConnected() {
             return;
         }
         m_minimumFrameCount = stats.renderedFrames;
+        m_lastReportedFrameCount = stats.renderedFrames;
     }
     m_hadConnection = true;
     m_connected = true;
@@ -75,6 +78,12 @@ void SessionVideoMonitor::poll() {
         stop();
         emit failed(QStringLiteral("E_VIDEO_RENDERER"), error);
         return;
+    }
+    if (stats.renderedFrames > m_lastReportedFrameCount) {
+        m_lastReportedFrameCount = stats.renderedFrames;
+        emit framePresented();
+        if (!m_session || !m_connected)
+            return;
     }
     if (!m_firstFramePresented && stats.renderedFrames > m_minimumFrameCount &&
         stats.sourceWidth > 0 && stats.sourceHeight > 0) {
