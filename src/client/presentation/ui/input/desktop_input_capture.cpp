@@ -105,6 +105,12 @@ bool DesktopInputCapture::eventFilter(QObject *watched, QEvent *event) {
         releaseInput();
         return false;
     }
+    if (event->type() == QEvent::MouseButtonPress && m_status.ready && !m_target->hasFocus() &&
+        m_window->isActiveWindow() && m_window->isVisible() && !m_window->isMinimized()) {
+        QPoint ignored;
+        if (mapPoint(static_cast<QMouseEvent *>(event)->localPos(), ignored))
+            m_target->setFocus(Qt::MouseFocusReason);
+    }
     if (!acceptsInput())
         return false;
 
