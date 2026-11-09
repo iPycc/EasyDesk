@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#define EASYDESK_MEDIA_ABI_VERSION 7u
+#define EASYDESK_MEDIA_ABI_VERSION 8u
 #define EASYDESK_MEDIA_ERROR_MESSAGE_CAPACITY 256u
 #define EASYDESK_MEDIA_SESSION_ID_SIZE 16u
 #define EASYDESK_MEDIA_MAX_EVENT_PAYLOAD_SIZE (256u * 1024u)
@@ -138,6 +138,16 @@ typedef struct EasyDeskMediaEvent {
     uint32_t reserved[4];
 } EasyDeskMediaEvent;
 
+typedef struct EasyDeskMediaVideoRendererStats {
+    uint32_t size;
+    uint64_t received_frames;
+    uint64_t rendered_frames;
+    uint64_t dropped_frames;
+    uint32_t source_width;
+    uint32_t source_height;
+    uint32_t reserved[4];
+} EasyDeskMediaVideoRendererStats;
+
 typedef struct EasyDeskMediaRuntimeConfig {
     uint32_t size;
     uint32_t abi_version;
@@ -245,6 +255,11 @@ EASYDESK_MEDIA_API EasyDeskMediaStatus easydesk_media_session_attach_video_rende
 
 EASYDESK_MEDIA_API EasyDeskMediaStatus easydesk_media_session_detach_video_renderer(
     EasyDeskMediaSession *session,
+    EasyDeskMediaError *error);
+
+EASYDESK_MEDIA_API EasyDeskMediaStatus easydesk_media_session_video_renderer_stats(
+    EasyDeskMediaSession *session,
+    EasyDeskMediaVideoRendererStats *stats,
     EasyDeskMediaError *error);
 
 EASYDESK_MEDIA_API EasyDeskMediaStatus easydesk_media_session_close(

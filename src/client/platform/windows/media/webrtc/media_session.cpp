@@ -191,6 +191,24 @@ bool MediaSession::detachVideoRenderer() {
     return detached;
 }
 
+bool MediaSession::videoRendererStats(MediaVideoRendererStats &stats) {
+    if (!isActive() || !m_videoRendererAttached) {
+        m_error = QStringLiteral("Video renderer is not attached to an active session.");
+        return false;
+    }
+    EasyDeskMediaVideoRendererStats native{};
+    native.size = sizeof(native);
+    EasyDeskMediaError error = emptyError();
+    if (!acceptStatus(m_state->api.sessionVideoRendererStats(m_session, &native, &error), error))
+        return false;
+    stats.receivedFrames = native.received_frames;
+    stats.renderedFrames = native.rendered_frames;
+    stats.droppedFrames = native.dropped_frames;
+    stats.sourceWidth = native.source_width;
+    stats.sourceHeight = native.source_height;
+    return true;
+}
+
 void MediaSession::close() {
     if (m_session == nullptr || !m_state)
         return;

@@ -99,4 +99,41 @@ void SessionVideoRendererRegistry::detach(PeerConnectionSession *session) {
     m_entries.erase(found);
 }
 
+EasyDeskMediaStatus SessionVideoRendererRegistry::statistics(
+    PeerConnectionSession *session, EasyDeskMediaVideoRendererStats *stats,
+    std::string *error) {
+    if (error)
+        error->clear();
+    if (!session || !stats || stats->size < sizeof(EasyDeskMediaVideoRendererStats)) {
+        if (error)
+            *error = "Invalid video renderer statistics arguments.";
+        return EASYDESK_MEDIA_STATUS_INVALID_ARGUMENT;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const auto found = m_entries.find(session);
+    if (found == m_entries.end() || !found->second->renderer) {
+        if (error)
+            *error = "Video renderer is not attached.";
+        return EASYDESK_MEDIA_STATUS_INVALID_STATE;
+    }
+    const auto &renderer = found->second->renderer;
+    if (!renderer->isReady()) {
+        if (error) {
+            *error = renderer->errorString();
+            if (error->empty())
+                *error = "Video renderer is not ready.";
+        }
+        return EASYDESK_MEDIA_STATUS_INTERNAL_ERROR;
+    }
+    const auto snapshot = renderer->statistics();
+    stats->received_frames = snapshot.receivedFrames;
+    stats->rendered_frames = snapshot.renderedFrames;
+    stats->dropped_frames = snapshot.droppedFrames;
+    stats->source_width = static_cast<uint32_t>(snapshot.sourceWidth);
+    stats->source_height = static_cast<uint32_t>(snapshot.sourceHeight);
+    for (auto &value : stats->reserved)
+        value = 0;
+    return EASYDESK_MEDIA_STATUS_OK;
+}
+
 }  // namespace easydesk::media

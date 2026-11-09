@@ -105,6 +105,9 @@ bool MediaRuntimeLibrary::start(const QString &libraryPath) {
             module, "easydesk_media_session_attach_video_renderer");
     api.sessionDetachVideoRenderer = resolveFunction<MediaApi::SessionActionFunction>(
         module, "easydesk_media_session_detach_video_renderer");
+    api.sessionVideoRendererStats =
+        resolveFunction<MediaApi::SessionVideoRendererStatsFunction>(
+            module, "easydesk_media_session_video_renderer_stats");
     api.sessionClose = resolveFunction<MediaApi::SessionActionFunction>(
         module, "easydesk_media_session_close");
     api.sessionDestroy = resolveFunction<MediaApi::SessionDestroyFunction>(

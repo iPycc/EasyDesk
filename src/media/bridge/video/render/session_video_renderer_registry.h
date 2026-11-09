@@ -27,6 +27,9 @@ class SessionVideoRendererRegistry final {
         PeerConnectionSession *session,
         webrtc::scoped_refptr<webrtc::VideoTrackInterface> track);
     void detach(PeerConnectionSession *session);
+    EasyDeskMediaStatus statistics(PeerConnectionSession *session,
+                                   EasyDeskMediaVideoRendererStats *stats,
+                                   std::string *error);
 
   private:
     struct Entry;

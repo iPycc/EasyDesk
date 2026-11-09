@@ -38,6 +38,14 @@ struct MediaSessionEvent {
     QByteArray payload;
 };
 
+struct MediaVideoRendererStats {
+    quint64 receivedFrames = 0;
+    quint64 renderedFrames = 0;
+    quint64 droppedFrames = 0;
+    quint32 sourceWidth = 0;
+    quint32 sourceHeight = 0;
+};
+
 class MediaSession final {
   public:
     enum class SendResult { Sent, WouldBlock, Failed };
@@ -58,6 +66,7 @@ class MediaSession final {
     bool pollEvent(MediaSessionEvent &event, quint32 timeoutMs = 0);
     bool attachVideoRenderer(quintptr nativeWindow);
     bool detachVideoRenderer();
+    bool videoRendererStats(MediaVideoRendererStats &stats);
     void close();
 
     bool isActive() const;
