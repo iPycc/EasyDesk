@@ -48,6 +48,7 @@ SOURCES += \
     src/client/infrastructure/network/signaling/client/signaling_client.cpp \
     src/client/infrastructure/network/input/protocol/wire/protobuf_wire.cpp \
     src/client/infrastructure/network/input/protocol/input_codec.cpp \
+    src/client/infrastructure/network/files/protocol/transfer_offer_codec.cpp \
     src/client/infrastructure/network/input/protocol/lease/input_lease_codec.cpp \
     src/client/infrastructure/network/input/protocol/lease/input_enable_codec.cpp \
     src/client/infrastructure/network/signaling/protocol/bootstrap/bootstrap_message_codec.cpp \
@@ -155,6 +156,7 @@ HEADERS += \
     src/client/infrastructure/network/signaling/client/signaling_client.h \
     src/client/infrastructure/network/input/protocol/wire/protobuf_wire.h \
     src/client/infrastructure/network/input/protocol/input_codec.h \
+    src/client/infrastructure/network/files/protocol/transfer_offer_codec.h \
     src/client/infrastructure/network/input/protocol/lease/input_lease_codec.h \
     src/client/infrastructure/network/input/protocol/lease/input_enable_codec.h \
     src/client/infrastructure/network/signaling/protocol/bootstrap/bootstrap_message_codec.h \
