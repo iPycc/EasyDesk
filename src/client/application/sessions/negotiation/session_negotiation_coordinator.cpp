@@ -156,8 +156,6 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
             this, [this](
                       easydesk::client::signaling::SessionEndReason reason,
                       quint64 sequence) {
-                closeMediaSession();
-                setState(State::Ending);
                 emit localSessionEndSent(reason, sequence);
             });
     connect(&m_terminationSender, &SessionTerminationSender::delivered,
@@ -244,6 +242,8 @@ bool SessionNegotiationCoordinator::endSession(
     easydesk::client::signaling::SessionEndReason reason) {
     if (m_state == State::Idle || m_state == State::Ending)
         return false;
+    setState(State::Ending);
+    closeMediaSession();
     return m_terminationSender.end(reason);
 }
 
