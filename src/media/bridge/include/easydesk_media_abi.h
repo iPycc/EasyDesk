@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#define EASYDESK_MEDIA_ABI_VERSION 8u
+#define EASYDESK_MEDIA_ABI_VERSION 9u
 #define EASYDESK_MEDIA_ERROR_MESSAGE_CAPACITY 256u
 #define EASYDESK_MEDIA_SESSION_ID_SIZE 16u
 #define EASYDESK_MEDIA_MAX_EVENT_PAYLOAD_SIZE (256u * 1024u)
@@ -73,7 +73,8 @@ typedef enum EasyDeskMediaEventType {
     EASYDESK_MEDIA_EVENT_PERMISSION_CHANGED = 7,
     EASYDESK_MEDIA_EVENT_DATA_CHANNEL = 8,
     EASYDESK_MEDIA_EVENT_ERROR = 9,
-    EASYDESK_MEDIA_EVENT_DATA_MESSAGE = 10
+    EASYDESK_MEDIA_EVENT_DATA_MESSAGE = 10,
+    EASYDESK_MEDIA_EVENT_CAPTURE_GEOMETRY = 11
 } EasyDeskMediaEventType;
 
 typedef enum EasyDeskMediaConnectionState {
@@ -147,6 +148,17 @@ typedef struct EasyDeskMediaVideoRendererStats {
     uint32_t source_height;
     uint32_t reserved[4];
 } EasyDeskMediaVideoRendererStats;
+
+typedef struct EasyDeskMediaCaptureGeometry {
+    uint32_t size;
+    uint32_t valid;
+    uint64_t generation;
+    int32_t x;
+    int32_t y;
+    uint32_t width;
+    uint32_t height;
+    uint32_t reserved[2];
+} EasyDeskMediaCaptureGeometry;
 
 typedef struct EasyDeskMediaRuntimeConfig {
     uint32_t size;

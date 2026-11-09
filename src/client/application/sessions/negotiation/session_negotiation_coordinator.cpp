@@ -72,6 +72,8 @@ SessionNegotiationCoordinator::SessionNegotiationCoordinator(
             &SessionTransportState::updateIceConnectionState);
     connect(&m_eventPump, &SessionMediaEventPump::remoteDescriptionApplied,
             this, &SessionNegotiationCoordinator::handleRemoteDescriptionApplied);
+    connect(&m_eventPump, &SessionMediaEventPump::captureGeometryChanged,
+            this, &SessionNegotiationCoordinator::captureGeometryChanged);
     connect(&m_eventPump, &SessionMediaEventPump::dataChannelOpened,
             this, [this](const QByteArray &label) {
                 m_inputTransport.setChannelOpen(label, true);

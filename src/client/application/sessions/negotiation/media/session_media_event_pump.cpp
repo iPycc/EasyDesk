@@ -3,6 +3,9 @@
 #include "easydesk_media_abi.h"
 #include "media/webrtc/media_session.h"
 
+#include <cstring>
+#include <limits>
+
 namespace {
 
 constexpr int kPollIntervalMilliseconds = 10;
@@ -28,6 +31,7 @@ bool SessionMediaEventPump::start(MediaSession &session) {
         return false;
     m_session = &session;
     m_lastSequence = 0;
+    m_captureGeometryGeneration = 0;
     m_timer.start();
     return true;
 }
@@ -36,6 +40,7 @@ void SessionMediaEventPump::stop() {
     m_timer.stop();
     m_session = nullptr;
     m_lastSequence = 0;
+    m_captureGeometryGeneration = 0;
 }
 
 bool SessionMediaEventPump::isRunning() const {
@@ -146,6 +151,35 @@ bool SessionMediaEventPump::dispatchEvent() {
         if (m_session->permitsDataChannel(event.label))
             emit dataChannelMessage(event.label, event.payload);
         return true;
+    case EASYDESK_MEDIA_EVENT_CAPTURE_GEOMETRY: {
+        if (event.iceGeneration == 0 ||
+            event.payload.size() != static_cast<int>(sizeof(EasyDeskMediaCaptureGeometry))) {
+            fail(QStringLiteral("Capture geometry event is invalid."));
+            return false;
+        }
+        EasyDeskMediaCaptureGeometry geometry{};
+        std::memcpy(&geometry, event.payload.constData(), sizeof(geometry));
+        const qint64 right = static_cast<qint64>(geometry.x) + geometry.width - 1;
+        const qint64 bottom = static_cast<qint64>(geometry.y) + geometry.height - 1;
+        if (geometry.size != sizeof(geometry) || geometry.generation <= m_captureGeometryGeneration ||
+            geometry.valid > 1 || geometry.reserved[0] != 0 || geometry.reserved[1] != 0 ||
+            (geometry.valid == 0 && (geometry.x != 0 || geometry.y != 0 ||
+                                     geometry.width != 0 || geometry.height != 0)) ||
+            (geometry.valid == 1 &&
+             (geometry.width == 0 || geometry.height == 0 ||
+              geometry.width > static_cast<quint32>(std::numeric_limits<int>::max()) ||
+              geometry.height > static_cast<quint32>(std::numeric_limits<int>::max()) ||
+              right > std::numeric_limits<int>::max() || bottom > std::numeric_limits<int>::max()))) {
+            fail(QStringLiteral("Capture geometry fields are invalid."));
+            return false;
+        }
+        m_captureGeometryGeneration = geometry.generation;
+        const QRect region = geometry.valid ? QRect(geometry.x, geometry.y,
+                                                    static_cast<int>(geometry.width),
+                                                    static_cast<int>(geometry.height)) : QRect();
+        emit captureGeometryChanged(region, geometry.generation, geometry.valid != 0);
+        return true;
+    }
     case EASYDESK_MEDIA_EVENT_ERROR:
         fail(event.payload.isEmpty()
                  ? QStringLiteral("The media runtime reported an error.")

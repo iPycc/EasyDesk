@@ -76,6 +76,7 @@ class SessionNegotiationCoordinator final : public QObject {
     void sessionReady();
     void inputAvailabilityChanged();
     void inputMessageReceived(InputStream stream, const QByteArray &message);
+    void captureGeometryChanged(const QRect &region, quint64 generation, bool valid);
     void firstFramePresented(quint32 width, quint32 height);
     void remoteSessionEnded(
         easydesk::client::signaling::SessionEndReason reason,

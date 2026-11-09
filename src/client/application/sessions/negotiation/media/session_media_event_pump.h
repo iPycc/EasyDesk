@@ -2,6 +2,7 @@
 
 #include <QByteArray>
 #include <QObject>
+#include <QRect>
 #include <QString>
 #include <QTimer>
 
@@ -33,6 +34,7 @@ class SessionMediaEventPump final : public QObject {
     void dataChannelOpened(const QByteArray &label);
     void dataChannelClosed(const QByteArray &label);
     void dataChannelMessage(const QByteArray &label, const QByteArray &payload);
+    void captureGeometryChanged(const QRect &region, quint64 generation, bool valid);
     void sessionClosed();
     void failed(const QString &message);
 
@@ -44,4 +46,5 @@ class SessionMediaEventPump final : public QObject {
     QTimer m_timer;
     MediaSession *m_session = nullptr;
     quint64 m_lastSequence = 0;
+    quint64 m_captureGeometryGeneration = 0;
 };

@@ -455,7 +455,23 @@ void PeerConnectionSession::OnSignalingChange(
         if (transceiver->sender()->track())
             return;
 
-        auto source = DesktopVideoSource::create(0, 30);
+        auto source = DesktopVideoSource::create(
+            0, 30, [events = m_events, iceGeneration = m_iceGeneration](const CaptureGeometry &geometry) {
+                EasyDeskMediaCaptureGeometry native{};
+                native.size = sizeof(native);
+                native.valid = geometry.valid ? 1u : 0u;
+                native.generation = geometry.generation;
+                native.x = geometry.region.x;
+                native.y = geometry.region.y;
+                native.width = geometry.region.width;
+                native.height = geometry.region.height;
+                MediaEventRecord event;
+                event.type = EASYDESK_MEDIA_EVENT_CAPTURE_GEOMETRY;
+                event.iceGeneration = iceGeneration;
+                event.payload.resize(sizeof(native));
+                std::memcpy(event.payload.data(), &native, sizeof(native));
+                events->push(std::move(event));
+            });
         if (!source || !source->start(&failure)) {
             if (failure.empty())
                 failure = "Desktop capture initialization failed.";
