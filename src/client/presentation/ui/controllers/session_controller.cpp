@@ -91,7 +91,7 @@ void MainWindow::startSession(const QString &id, const QString &assistanceCode) 
     auto *title = dynamic_cast<Ui::TitleBar *>(session->findChild<QFrame *>("titleBar"));
     auto *signal = tool(QStringLiteral("连接信息"), "quality");
     signal->setObjectName("sessionSignal");
-    signal->setIcon(icon("quality", QColor("#19a36a")));
+    signal->setIcon(icon("quality"));
     signal->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     signal->setFixedSize(82, 32);
     title->items->insertWidget(title->items->count() - 2, signal);
@@ -115,25 +115,12 @@ void MainWindow::startSession(const QString &id, const QString &assistanceCode) 
         stats->addLayout(r);
         return v;
     };
-    auto *latency = metric(QStringLiteral("延迟"), {}, "sessionLatency");
-    auto *localIp = metric(QStringLiteral("本机 IP"), {}, "sessionLocalIp");
-    auto *peerIp = metric(QStringLiteral("对端 IP"), {}, "sessionPeerIp");
-    auto *fpsValue = metric(QStringLiteral("帧率"), {}, "sessionFps");
-    auto *loss = metric(QStringLiteral("丢包"), {}, "sessionPacketLoss");
-    auto *transport = metric(QStringLiteral("传输方式"), {}, "sessionTransport");
-    auto updateTelemetry = [signal, latency, localIp, peerIp, fpsValue, loss,
-                            transport](const SessionTelemetry &value) {
-        signal->setText(QString::number(value.latencyMs) + " ms");
-        latency->setText(QString::number(value.latencyMs) + " ms");
-        localIp->setText(value.localIp);
-        peerIp->setText(value.peerIp);
-        fpsValue->setText(QString::number(value.frameRate) + " FPS");
-        loss->setText(QString::number(value.packetLossPercent, 'f', 1) + "%");
-        transport->setText(value.transport +
-                           (value.peerToPeer ? QStringLiteral(" · P2P") : QStringLiteral(" · 中继")));
-    };
-    connect(&m_sessions, &SessionService::telemetryChanged, session, updateTelemetry);
-    updateTelemetry(m_sessions.telemetry());
+    metric(QStringLiteral("延迟"), QStringLiteral("—"), "sessionLatency");
+    metric(QStringLiteral("本机 IP"), QStringLiteral("—"), "sessionLocalIp");
+    metric(QStringLiteral("对端 IP"), QStringLiteral("—"), "sessionPeerIp");
+    metric(QStringLiteral("帧率"), QStringLiteral("—"), "sessionFps");
+    metric(QStringLiteral("丢包"), QStringLiteral("—"), "sessionPacketLoss");
+    metric(QStringLiteral("传输方式"), QStringLiteral("—"), "sessionTransport");
     auto *infoAction = new QWidgetAction(info);
     infoAction->setDefaultWidget(panel);
     info->addAction(infoAction);
@@ -147,6 +134,7 @@ void MainWindow::startSession(const QString &id, const QString &assistanceCode) 
     auto *fpsMenu = new Ui::Menu(QStringLiteral("帧率"), menu);
     fpsMenu->setObjectName("sessionFpsMenu");
     fpsMenu->setIcon(icon("monitor"));
+    fpsMenu->setEnabled(false);
     menu->addMenu(fpsMenu);
     auto *fpsGroup = new QActionGroup(fpsMenu);
     fpsGroup->setExclusive(true);
@@ -160,6 +148,7 @@ void MainWindow::startSession(const QString &id, const QString &assistanceCode) 
     }
     auto *qualityMenu = new Ui::Menu(QStringLiteral("画质"), menu);
     qualityMenu->setIcon(icon("quality"));
+    qualityMenu->setEnabled(false);
     menu->addMenu(qualityMenu);
     auto *qualityGroup = new QActionGroup(qualityMenu);
     qualityGroup->setExclusive(true);
@@ -195,6 +184,7 @@ void MainWindow::startSession(const QString &id, const QString &assistanceCode) 
     menu->addAction(icon("folder"), QStringLiteral("文件传输"), this, &MainWindow::openTransfers);
     auto *screens = new Ui::Menu(QStringLiteral("屏幕"), menu);
     screens->setIcon(icon("monitor"));
+    screens->setEnabled(false);
     menu->addMenu(screens);
     auto *screenGroup = new QActionGroup(screens);
     for (int n : {1, 2}) {
@@ -205,6 +195,7 @@ void MainWindow::startSession(const QString &id, const QString &assistanceCode) 
         connect(a, &QAction::triggered, desktop, [desktop, n] { desktop->setScreen(n); });
     }
     auto *scale = new Ui::Menu(QStringLiteral("显示比例"), menu);
+    scale->setEnabled(false);
     menu->addMenu(scale);
     scale->addAction(QStringLiteral("适应窗口"), desktop, [desktop] { desktop->setOriginalSize(false); });
     scale->addAction(QStringLiteral("原始比例"), desktop, [desktop] { desktop->setOriginalSize(true); });
