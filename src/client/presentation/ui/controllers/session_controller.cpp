@@ -2,6 +2,7 @@
 #include "ui/components/layout_helpers.h"
 #include "ui/components/desktop_view.h"
 #include "ui/components/icons.h"
+#include "ui/input/desktop_input_capture.h"
 #include <QtWidgets>
 using namespace Ui::Layout;
 
@@ -86,6 +87,9 @@ void MainWindow::startSession(const QString &id, const QString &assistanceCode) 
     requested.frameRate = initialFps;
     requested.quality = initialQuality;
     requested.mode = view->isChecked() ? SessionMode::ViewOnly : SessionMode::Control;
+    DesktopInputCapture *inputCapture = nullptr;
+    if (requested.mode == SessionMode::Control)
+        inputCapture = new DesktopInputCapture(*desktop, m_sessions, {}, session);
     session->setProperty("fps", initialFps);
     session->setProperty("quality", initialQuality);
     auto *title = dynamic_cast<Ui::TitleBar *>(session->findChild<QFrame *>("titleBar"));
@@ -96,6 +100,8 @@ void MainWindow::startSession(const QString &id, const QString &assistanceCode) 
     signal->setFixedSize(82, 32);
     title->items->insertWidget(title->items->count() - 2, signal);
     auto *info = new Ui::Menu(signal);
+    if (inputCapture)
+        connect(info, &QMenu::aboutToShow, inputCapture, &DesktopInputCapture::releaseInput);
     info->setObjectName("sessionTelemetry");
     auto *panel = new QWidget;
     panel->setObjectName("telemetryPanel");
@@ -130,6 +136,8 @@ void MainWindow::startSession(const QString &id, const QString &assistanceCode) 
     more->setObjectName("sessionMore");
     title->items->insertWidget(title->items->count() - 2, more);
     auto *menu = new Ui::Menu(more);
+    if (inputCapture)
+        connect(menu, &QMenu::aboutToShow, inputCapture, &DesktopInputCapture::releaseInput);
     menu->setObjectName("sessionMenu");
     auto *fpsMenu = new Ui::Menu(QStringLiteral("帧率"), menu);
     fpsMenu->setObjectName("sessionFpsMenu");
@@ -210,6 +218,8 @@ void MainWindow::startSession(const QString &id, const QString &assistanceCode) 
     });
     auto *stop = new QShortcut(QKeySequence("Ctrl+Alt+Shift+F11"), session);
     connect(stop, &QShortcut::activated, session, &QWidget::close);
+    if (inputCapture)
+        connect(session, &Ui::SessionWindow::closed, inputCapture, &DesktopInputCapture::releaseInput);
     connect(session, &Ui::SessionWindow::closed, this, [this] {
         m_session = nullptr;
         m_sessions.detachVideoTarget();
