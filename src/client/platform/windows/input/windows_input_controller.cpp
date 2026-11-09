@@ -143,6 +143,9 @@ InputApplyStatus WindowsInputController::apply(const InputCommand &command) {
     if (command.context.sequence == 0 || command.context.sequence <= lastSequence)
         return InputApplyStatus::ReplayRejected;
 
+    if (!m_lease.matches(command.context.leaseId))
+        return InputApplyStatus::LeaseInactive;
+
     if (std::holds_alternative<ReleaseAllInput>(command.event)) {
         lastSequence = command.context.sequence;
         m_executor.releaseAll();
@@ -154,7 +157,7 @@ InputApplyStatus WindowsInputController::apply(const InputCommand &command) {
         m_executor.releaseAll();
         m_wakeup.notify_all();
     }
-    if (!m_lease.matches(command.context.leaseId) || !m_lease.active(now))
+    if (!m_lease.active(now))
         return InputApplyStatus::LeaseInactive;
 
     lastSequence = command.context.sequence;
