@@ -38,12 +38,14 @@ SignalingSessionService::SignalingSessionService(DeviceProfileStore &profile,
             this, &SessionService::sessionCancelled);
     connect(&m_requests, &SessionRequestCoordinator::sessionRejected,
             this, [this](quint8 reason) {
+                emit sessionCancelled();
                 emit failed(reason == 1
                                 ? QStringLiteral("对方拒绝了远程请求")
                                 : QStringLiteral("对方当前无法接受远程请求"));
             });
     connect(&m_requests, &SessionRequestCoordinator::failed,
             this, [this](const QString &, const QString &message) {
+                emit sessionCancelled();
                 emit failed(message);
             });
     connect(&m_invitations, &SessionInvitationCoordinator::stateChanged,
@@ -200,6 +202,7 @@ void SignalingSessionService::start(const QString &deviceId,
                                     const QString &assistanceCode,
                                     const SessionOptions &options) {
     if (!m_requests.requestSession(deviceId, assistanceCode, options.mode)) {
+        emit sessionCancelled();
         emit failed(QStringLiteral("无法发送远程请求"));
         return;
     }

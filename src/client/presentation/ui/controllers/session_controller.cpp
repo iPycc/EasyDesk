@@ -85,7 +85,6 @@ void MainWindow::startSession(const QString &id, const QString &assistanceCode) 
     requested.frameRate = initialFps;
     requested.quality = initialQuality;
     requested.mode = view->isChecked() ? SessionMode::ViewOnly : SessionMode::Control;
-    m_sessions.start(id, code, requested);
     session->setProperty("fps", initialFps);
     session->setProperty("quality", initialQuality);
     auto *title = dynamic_cast<Ui::TitleBar *>(session->findChild<QFrame *>("titleBar"));
@@ -230,12 +229,20 @@ void MainWindow::startSession(const QString &id, const QString &assistanceCode) 
     auto *stop = new QShortcut(QKeySequence("Ctrl+Alt+Shift+F11"), session);
     connect(stop, &QShortcut::activated, session, &QWidget::close);
     connect(session, &Ui::SessionWindow::closed, this, [this] {
+        m_session = nullptr;
         m_sessions.detachVideoTarget();
         m_sessions.stop();
-        m_session = nullptr;
         notify(QStringLiteral("会话已结束"));
     });
+    connect(&m_sessions, &SessionService::sessionCancelled,
+            session, [this, session] {
+                if (m_session == session)
+                    session->close();
+            });
     session->show();
-    if (!m_sessions.attachVideoTarget(static_cast<quintptr>(desktop->winId())))
+    if (!m_sessions.attachVideoTarget(static_cast<quintptr>(desktop->winId()))) {
         session->close();
+        return;
+    }
+    m_sessions.start(id, code, requested);
 }
