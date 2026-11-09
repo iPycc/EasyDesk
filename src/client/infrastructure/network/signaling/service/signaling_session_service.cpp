@@ -3,6 +3,7 @@
 #include "data/settings/identity/device_profile_store.h"
 #include "network/signaling/client/signaling_client.h"
 #include "sessions/negotiation/session_negotiation_coordinator.h"
+#include "sessions/input/session_input_coordinator.h"
 #include "sessions/session_invitation_coordinator.h"
 #include "sessions/session_request_coordinator.h"
 
@@ -13,13 +14,27 @@ SignalingSessionService::SignalingSessionService(DeviceProfileStore &profile,
                                                  SessionRequestCoordinator &requests,
                                                  SessionInvitationCoordinator &invitations,
                                                  SessionNegotiationCoordinator &negotiation,
+                                                 SessionInputCoordinator &input,
                                                  QObject *parent)
     : SessionService(parent),
       m_profile(profile),
       m_signaling(signaling),
       m_requests(requests),
       m_invitations(invitations),
-      m_negotiation(negotiation) {
+      m_negotiation(negotiation),
+      m_input(input) {
+    connect(&m_input, &SessionInputCoordinator::leaseActiveChanged,
+            this, [this] { publishInputStatus(); });
+    connect(&m_negotiation, &SessionNegotiationCoordinator::framePresented,
+            this, [this] { publishInputStatus(); });
+    connect(&m_negotiation, &SessionNegotiationCoordinator::firstFramePresented,
+            this, [this] { publishInputStatus(); });
+    connect(&m_negotiation, &SessionNegotiationCoordinator::remoteCaptureGeometryChanged,
+            this, [this] { publishInputStatus(); });
+    connect(&m_negotiation, &SessionNegotiationCoordinator::transportStateChanged,
+            this, [this] { publishInputStatus(); });
+    connect(&m_negotiation, &SessionNegotiationCoordinator::stateChanged,
+            this, [this] { publishInputStatus(); });
     connect(&m_signaling, &SignalingClient::profileChanged,
             this, &SessionService::identityChanged);
     connect(&m_signaling, &SignalingClient::assistanceCodeChanged,
@@ -268,6 +283,38 @@ void SignalingSessionService::detachVideoTarget() {
     QString error;
     if (!m_negotiation.detachVideoRenderer(error) && !error.isEmpty())
         emit failed(error);
+}
+
+SessionInputStatus SignalingSessionService::inputStatus() const {
+    const auto geometry = m_negotiation.remoteCaptureGeometry();
+    SessionInputStatus status;
+    status.presentedFrame = m_negotiation.presentedFrameSize();
+    if (geometry.valid) {
+        status.remoteRegion = geometry.size;
+        status.displayGeneration = geometry.generation;
+    }
+    status.ready = m_negotiation.context().role == SessionRole::Controller &&
+                   m_negotiation.isSessionReady() && m_negotiation.hasPresentedFrame() &&
+                   m_input.leaseActive() && geometry.valid &&
+                   !status.presentedFrame.isEmpty() && !status.remoteRegion.isEmpty();
+    return status;
+}
+
+bool SignalingSessionService::sendInput(InputStream stream, const InputEvent &event) {
+    return inputStatus().ready && m_input.sendCommand(stream, event);
+}
+
+void SignalingSessionService::releaseInput() {
+    if (m_input.leaseActive())
+        (void)m_input.sendCommand(InputStream::Reliable, ReleaseAllInput{});
+}
+
+void SignalingSessionService::publishInputStatus() {
+    const SessionInputStatus current = inputStatus();
+    if (current == m_lastInputStatus)
+        return;
+    m_lastInputStatus = current;
+    emit inputStatusChanged(current);
 }
 
 bool SignalingSessionService::acceptIncomingSession(SessionMode grantedMode) {

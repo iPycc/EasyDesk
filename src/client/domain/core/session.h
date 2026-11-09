@@ -1,8 +1,10 @@
 #pragma once
 #include "features/sessions/model/session_access.h"
+#include "features/sessions/input/input_command.h"
 
 #include <QString>
 #include <QMetaType>
+#include <QSize>
 
 struct LocalIdentity {
     QString id, name, assistanceCode;
@@ -22,6 +24,19 @@ struct IncomingSessionRequest {
     QString fromDeviceId;
     SessionMode requestedMode = SessionMode::ViewOnly;
 };
+struct SessionInputStatus {
+    bool ready = false;
+    QSize presentedFrame;
+    QSize remoteRegion;
+    quint64 displayGeneration = 0;
+
+    bool operator==(const SessionInputStatus &other) const {
+        return ready == other.ready && presentedFrame == other.presentedFrame &&
+               remoteRegion == other.remoteRegion && displayGeneration == other.displayGeneration;
+    }
+    bool operator!=(const SessionInputStatus &other) const { return !(*this == other); }
+};
 Q_DECLARE_METATYPE(SessionTelemetry)
 Q_DECLARE_METATYPE(SessionOptions)
 Q_DECLARE_METATYPE(IncomingSessionRequest)
+Q_DECLARE_METATYPE(SessionInputStatus)

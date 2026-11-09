@@ -21,6 +21,9 @@ class SessionService : public QObject {
     virtual void setQuality(const QString &quality) = 0;
     virtual bool attachVideoTarget(quintptr nativeWindow) = 0;
     virtual void detachVideoTarget() = 0;
+    virtual SessionInputStatus inputStatus() const = 0;
+    virtual bool sendInput(InputStream stream, const InputEvent &event) = 0;
+    virtual void releaseInput() = 0;
     virtual bool acceptIncomingSession(SessionMode grantedMode) = 0;
     virtual bool rejectIncomingSession() = 0;
   signals:
@@ -28,6 +31,7 @@ class SessionService : public QObject {
     void availabilityChanged();
     void telemetryChanged(const SessionTelemetry &telemetry);
     void optionsChanged(const SessionOptions &options);
+    void inputStatusChanged(const SessionInputStatus &status);
     void requestDelivered();
     void incomingSessionRequested(const IncomingSessionRequest &request);
     void incomingSessionCancelled();

@@ -22,6 +22,7 @@ ApplicationContext::ApplicationContext() {
     qRegisterMetaType<SessionTelemetry>();
     qRegisterMetaType<SessionOptions>();
     qRegisterMetaType<IncomingSessionRequest>();
+    qRegisterMetaType<SessionInputStatus>();
     qRegisterMetaType<SessionState>();
     qRegisterMetaType<Device>();
     QString root = qEnvironmentVariable("EASYDESK_DATA_DIR");
@@ -84,7 +85,7 @@ ApplicationContext::ApplicationContext() {
     m_sessions = std::make_unique<SignalingSessionService>(
         *m_profile, *m_signaling, *m_sessionRequests,
         *m_sessionInvitations,
-        *m_sessionNegotiation);
+        *m_sessionNegotiation, *m_sessionInput);
     m_transfers = std::make_unique<LocalTransferService>();
     m_local = std::make_unique<WindowsSystemService>(*m_settings);
     QString signalingUrl = qEnvironmentVariable("EASYDESK_SIGNAL_URL").trimmed();
