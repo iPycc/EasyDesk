@@ -83,6 +83,8 @@ class SessionNegotiationCoordinator final : public QObject {
   private:
     void handleMessage(const QByteArray &message);
     void handleTurnCredentials(const QByteArray &message);
+    void handleTurnUnavailable(const QByteArray &message);
+    void startConfiguredMedia(bool hasRelay);
     void handleRemoteOffer(const QByteArray &message);
     void handleRemoteAnswer(const QByteArray &message);
     void handleSignalingStateChanged();

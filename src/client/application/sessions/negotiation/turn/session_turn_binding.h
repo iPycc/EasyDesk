@@ -20,3 +20,7 @@ bool bindSessionTurnCredentials(const QByteArray &message,
                                 qint64 now,
                                 SessionTurnConfiguration &configuration,
                                 QString &error);
+
+bool bindSessionTurnUnavailable(const QByteArray &message,
+                                const SessionNegotiationContext &context,
+                                QString &error);

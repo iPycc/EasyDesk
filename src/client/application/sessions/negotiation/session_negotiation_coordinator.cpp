@@ -313,6 +313,9 @@ void SessionNegotiationCoordinator::handleMessage(const QByteArray &message) {
     if (m_state == State::AwaitingTurnCredentials &&
         bootstrap.type == QStringLiteral("turn.credentials")) {
         handleTurnCredentials(message);
+    } else if (m_state == State::AwaitingTurnCredentials &&
+               bootstrap.type == QStringLiteral("turn.unavailable")) {
+        handleTurnUnavailable(message);
     } else if (bootstrap.type == QStringLiteral("session.candidates")) {
         m_iceReceiver.handleCandidates(message);
     } else if (bootstrap.type ==
@@ -345,8 +348,23 @@ void SessionNegotiationCoordinator::handleTurnCredentials(
         fail(QStringLiteral("E_TURN_CREDENTIALS"), error);
         return;
     }
-    m_timeout.stop();
     m_turn = std::move(configuration);
+    startConfiguredMedia(true);
+}
+
+void SessionNegotiationCoordinator::handleTurnUnavailable(const QByteArray &message) {
+    QString error;
+    if (!bindSessionTurnUnavailable(message, m_context, error)) {
+        fail(QStringLiteral("E_TURN_CONFIGURATION"), error);
+        return;
+    }
+    m_turn = {};
+    startConfiguredMedia(false);
+}
+
+void SessionNegotiationCoordinator::startConfiguredMedia(bool hasRelay) {
+    m_timeout.stop();
+    QString error;
     if (!startMediaSession(error)) {
         fail(QStringLiteral("E_MEDIA_START"), error);
         return;
@@ -354,7 +372,8 @@ void SessionNegotiationCoordinator::handleTurnCredentials(
     setState(m_context.offerer ? State::AwaitingLocalOffer
                                : State::AwaitingRemoteOffer);
     m_timeout.start(kDescriptionTimeoutMilliseconds);
-    emit relayReady();
+    if (hasRelay)
+        emit relayReady();
     emit mediaStarted();
 }
 
