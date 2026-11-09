@@ -45,7 +45,7 @@ class D3d11VideoRenderer final
 
     void renderLoop();
     bool initialize(std::string &error);
-    bool renderFrame(const webrtc::VideoFrame &frame, std::string &error);
+    bool renderFrame(const webrtc::VideoFrame &frame, std::string &error, bool &presented);
     void fail(std::string error);
 
     const HWND m_window;

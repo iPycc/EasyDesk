@@ -197,14 +197,19 @@ void D3d11VideoRenderer::renderLoop() {
             m_pendingFrame.reset();
         }
 
-        if (!renderFrame(*frame, error)) {
+        bool presented = false;
+        if (!renderFrame(*frame, error, presented)) {
             fail(std::move(error));
             break;
         }
         std::lock_guard<std::mutex> lock(m_mutex);
-        ++m_statistics.renderedFrames;
-        m_statistics.sourceWidth = frame->width();
-        m_statistics.sourceHeight = frame->height();
+        if (presented) {
+            ++m_statistics.renderedFrames;
+            m_statistics.sourceWidth = frame->width();
+            m_statistics.sourceHeight = frame->height();
+        } else {
+            ++m_statistics.droppedFrames;
+        }
     }
 }
 
@@ -289,11 +294,15 @@ bool D3d11VideoRenderer::initialize(std::string &error) {
 }
 
 bool D3d11VideoRenderer::renderFrame(const webrtc::VideoFrame &frame,
-                                     std::string &error) {
+                                     std::string &error, bool &presented) {
+    presented = false;
     if (!m_resources || !IsWindow(m_window)) {
         error = "The video rendering window is no longer available.";
         return false;
     }
+    const HWND root = GetAncestor(m_window, GA_ROOT);
+    if (!IsWindowVisible(m_window) || (root && IsIconic(root)))
+        return true;
     const auto i420 = frame.video_frame_buffer()->ToI420();
     if (!i420) {
         error = "The decoded video frame cannot be converted to I420.";
@@ -431,6 +440,7 @@ bool D3d11VideoRenderer::renderFrame(const webrtc::VideoFrame &frame,
         error = "D3D11 video presentation failed.";
         return false;
     }
+    presented = result == S_OK;
     return true;
 }
 
