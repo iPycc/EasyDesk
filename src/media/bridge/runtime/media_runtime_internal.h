@@ -28,6 +28,9 @@ class MediaRuntime final {
     std::unique_ptr<webrtc::Thread> m_signalingThread;
     webrtc::scoped_refptr<webrtc::PeerConnectionFactoryInterface> m_factory;
     bool m_sslInitialized = false;
+#if defined(_WIN32)
+    bool m_winsockInitialized = false;
+#endif
 };
 
 }  // namespace easydesk::media

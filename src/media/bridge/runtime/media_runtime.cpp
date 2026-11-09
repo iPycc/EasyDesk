@@ -1,3 +1,7 @@
+#if defined(_WIN32)
+#include <winsock2.h>
+#endif
+
 #include "runtime/media_runtime_internal.h"
 
 #include "common/media_error.h"
@@ -25,9 +29,26 @@ MediaRuntime::~MediaRuntime() {
 }
 
 bool MediaRuntime::start(EasyDeskMediaError *error) {
+#if defined(_WIN32)
+    WSADATA winsock{};
+    const int winsockStatus = WSAStartup(MAKEWORD(2, 2), &winsock);
+    if (winsockStatus != 0) {
+        setMediaError(error, EASYDESK_MEDIA_STATUS_INTERNAL_ERROR,
+                      "Windows socket initialization failed.");
+        return false;
+    }
+    m_winsockInitialized = true;
+    if (LOBYTE(winsock.wVersion) != 2 || HIBYTE(winsock.wVersion) != 2) {
+        setMediaError(error, EASYDESK_MEDIA_STATUS_INTERNAL_ERROR,
+                      "Windows sockets version 2.2 is unavailable.");
+        stop();
+        return false;
+    }
+#endif
     if (!webrtc::InitializeSSL()) {
         setMediaError(error, EASYDESK_MEDIA_STATUS_SSL_INITIALIZATION_FAILED,
                       "WebRTC SSL initialization failed.");
+        stop();
         return false;
     }
     m_sslInitialized = true;
@@ -75,6 +96,12 @@ void MediaRuntime::stop() {
         webrtc::CleanupSSL();
         m_sslInitialized = false;
     }
+#if defined(_WIN32)
+    if (m_winsockInitialized) {
+        WSACleanup();
+        m_winsockInitialized = false;
+    }
+#endif
 }
 
 bool MediaRuntime::ready() const {

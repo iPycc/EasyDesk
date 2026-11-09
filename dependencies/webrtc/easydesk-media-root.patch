@@ -13,7 +13,7 @@ diff --git a/BUILD.gn b/BUILD.gn
      if (rtc_build_examples) {
        deps += [ "examples" ]
      }
-@@ -516,8 +519,60 @@
+@@ -516,8 +519,61 @@
 +rtc_shared_library("easydesk_media") {
 +  output_name = "easydesk_media"
 +  sources = [
@@ -61,6 +61,7 @@ diff --git a/BUILD.gn b/BUILD.gn
 +      "d3dcompiler.lib",
 +      "dxgi.lib",
 +      "user32.lib",
++      "ws2_32.lib",
 +    ]
 +  }
 +}
