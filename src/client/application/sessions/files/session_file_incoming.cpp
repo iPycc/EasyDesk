@@ -32,6 +32,12 @@ SessionFileIncoming::SessionFileIncoming(SessionNegotiationCoordinator &session,
                     m_manifest = {};
                 }
             });
+    connect(&m_offer, &SessionTransferOffer::incomingCancelled, this,
+            [this](const QByteArray &id, auto) {
+                if (!m_hasOffer || id != m_manifest.transferId) return;
+                stop();
+                emit cancelled();
+            });
     connect(&m_session, &SessionNegotiationCoordinator::fileMessageReceived, this,
             [this](FileChannel channel, const QByteArray &message) {
                 if (channel != FileChannel::Data || !m_active) return;
@@ -88,6 +94,14 @@ bool SessionFileIncoming::accept(const std::shared_ptr<ReceiveDirectory> &direct
     m_batchDone = false;
     error.clear();
     return true;
+}
+
+bool SessionFileIncoming::cancel(QString &error) {
+    if (!m_hasOffer) {
+        error = QStringLiteral("No incoming transfer is active.");
+        return false;
+    }
+    return m_offer.cancelIncoming(easydesk::client::transfer::TransferCancelReason::ReceiverCancelled, error);
 }
 
 void SessionFileIncoming::stop() {

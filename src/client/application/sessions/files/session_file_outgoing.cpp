@@ -40,6 +40,12 @@ SessionFileOutgoing::SessionFileOutgoing(SessionNegotiationCoordinator &session,
         m_state = State::Sending;
         m_timeout.start(kProgressTimeoutMilliseconds);
     });
+    connect(&m_offer, &SessionTransferOffer::outgoingCancelled, this,
+            [this](const QByteArray &id, auto) {
+                if (m_state == State::Idle || id != m_transferId) return;
+                stop();
+                emit cancelled();
+            });
     connect(&m_offer, &SessionTransferOffer::failed, this, [this](const QString &error) {
         if (m_state != State::Idle) fail(error);
     });
@@ -117,6 +123,20 @@ bool SessionFileOutgoing::start(const QStringList &paths, QString &error) {
     error.clear();
     emit preparing();
     return true;
+}
+
+bool SessionFileOutgoing::cancel(QString &error) {
+    if (m_state == State::Preparing) {
+        stop();
+        error.clear();
+        emit cancelled();
+        return true;
+    }
+    if (m_state == State::Idle) {
+        error = QStringLiteral("No outgoing transfer is active.");
+        return false;
+    }
+    return m_offer.cancelOutgoing(easydesk::client::transfer::TransferCancelReason::SenderCancelled, error);
 }
 
 void SessionFileOutgoing::stop() {

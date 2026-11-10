@@ -17,6 +17,7 @@ class SessionFileOutgoing final : public QObject {
                         TrustedPeerStore &trustedPeers, QObject *parent = nullptr);
     ~SessionFileOutgoing() override;
     bool start(const QStringList &paths, QString &error);
+    bool cancel(QString &error);
     void stop();
 
   signals:
@@ -26,6 +27,7 @@ class SessionFileOutgoing final : public QObject {
     void fileCommitted(const QString &name);
     void batchCompleted();
     void declined();
+    void cancelled();
     void failed(const QString &error);
 
   private:

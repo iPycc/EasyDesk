@@ -21,11 +21,13 @@ class SessionFileIncoming final : public QObject {
                         TrustedPeerStore &trustedPeers, QObject *parent = nullptr);
     ~SessionFileIncoming() override;
     bool accept(const std::shared_ptr<ReceiveDirectory> &directory, quint32 windowBytes, QString &error);
+    bool cancel(QString &error);
     void stop();
 
   signals:
     void fileCommitted(const QString &name);
     void batchCompleted();
+    void cancelled();
     void failed(const QString &error);
 
   private:
