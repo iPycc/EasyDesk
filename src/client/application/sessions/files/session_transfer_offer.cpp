@@ -1,6 +1,7 @@
 #include "sessions/files/session_transfer_offer.h"
 
 #include "sessions/negotiation/session_negotiation_coordinator.h"
+#include "files/receive_directory.h"
 
 namespace {
 constexpr int kRetryMilliseconds = 25;
@@ -74,8 +75,18 @@ bool SessionTransferOffer::sendOffer(const easydesk::client::transfer::TransferM
     return true;
 }
 
+bool SessionTransferOffer::acceptIncoming(const std::shared_ptr<ReceiveDirectory> &directory,
+                                          quint32 windowBytes, QString &error) {
+    return respond(easydesk::client::transfer::OfferDecision::Accept, directory, windowBytes, error);
+}
+
+bool SessionTransferOffer::declineIncoming(QString &error) {
+    return respond(easydesk::client::transfer::OfferDecision::Decline, {}, 0, error);
+}
+
 bool SessionTransferOffer::respond(easydesk::client::transfer::OfferDecision decision,
-                                   const QByteArray &rootId, quint32 windowBytes, QString &error) {
+                                   const std::shared_ptr<ReceiveDirectory> &directory,
+                                   quint32 windowBytes, QString &error) {
     using namespace easydesk::client::transfer;
     if (!m_incomingPending || m_incomingResolved || !m_session.context().localMayReceiveFiles ||
         !m_session.isSessionReady() || !m_session.isFileChannelOpen(FileChannel::Data)) {
@@ -86,7 +97,7 @@ bool SessionTransferOffer::respond(easydesk::client::transfer::OfferDecision dec
     response.transferId = m_incomingId;
     response.manifestDigest = m_incomingDigest;
     response.decision = decision;
-    response.rootId = rootId;
+    response.rootId = directory ? directory->rootId() : QByteArray();
     response.windowBytes = windowBytes;
     QByteArray message;
     if (!encodeTransferDecision(response, message, error))
@@ -99,6 +110,7 @@ bool SessionTransferOffer::respond(easydesk::client::transfer::OfferDecision dec
         return false;
     }
     if (decision == OfferDecision::Accept) {
+        m_acceptedDirectory = directory;
         m_incomingResolved = true;
     } else {
         m_incomingPending = false;
@@ -121,6 +133,7 @@ void SessionTransferOffer::reset() {
     m_outgoingDigest.clear();
     m_incomingId.clear();
     m_incomingDigest.clear();
+    m_acceptedDirectory.reset();
     m_nextFrame = 0;
     m_outgoingPending = false;
     m_outgoingSent = false;
