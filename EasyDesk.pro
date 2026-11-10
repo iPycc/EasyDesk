@@ -37,6 +37,7 @@ SOURCES += \
     src/client/application/sessions/files/session_transfer_offer.cpp \
     src/client/application/sessions/files/session_file_receiver.cpp \
     src/client/application/sessions/files/session_file_receive_worker.cpp \
+    src/client/application/sessions/files/session_file_incoming.cpp \
     src/client/application/sessions/files/session_file_sender.cpp \
     src/client/application/sessions/session_invitation_coordinator.cpp \
     src/client/application/sessions/session_request_coordinator.cpp \
@@ -149,6 +150,7 @@ HEADERS += \
     src/client/application/sessions/files/session_transfer_offer.h \
     src/client/application/sessions/files/session_file_receiver.h \
     src/client/application/sessions/files/session_file_receive_worker.h \
+    src/client/application/sessions/files/session_file_incoming.h \
     src/client/application/sessions/files/session_file_sender.h \
     src/client/application/sessions/session_invitation_coordinator.h \
     src/client/application/sessions/session_request_coordinator.h \
