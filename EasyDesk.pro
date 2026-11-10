@@ -53,6 +53,7 @@ SOURCES += \
     src/client/infrastructure/data/local/local_transfer_service.cpp \
     src/client/infrastructure/data/local/settings_device_service.cpp \
     src/client/infrastructure/data/settings/identity/device_profile_store.cpp \
+    src/client/infrastructure/data/settings/identity/trusted_peer_store.cpp \
     src/client/infrastructure/network/signaling/client/signaling_client.cpp \
     src/client/infrastructure/network/input/protocol/wire/protobuf_wire.cpp \
     src/client/infrastructure/network/input/protocol/input_codec.cpp \
@@ -175,6 +176,7 @@ HEADERS += \
     src/client/infrastructure/data/local/local_transfer_service.h \
     src/client/infrastructure/data/local/settings_device_service.h \
     src/client/infrastructure/data/settings/identity/device_profile_store.h \
+    src/client/infrastructure/data/settings/identity/trusted_peer_store.h \
     src/client/infrastructure/network/signaling/client/signaling_client.h \
     src/client/infrastructure/network/input/protocol/wire/protobuf_wire.h \
     src/client/infrastructure/network/input/protocol/input_codec.h \
