@@ -16,6 +16,7 @@ class SessionNegotiationCoordinator;
 class SessionInputCoordinator;
 class SessionTransferOffer;
 class SessionFileIncoming;
+class SessionFileOutgoing;
 
 class ApplicationContext final : public QObject {
   public:
@@ -35,6 +36,7 @@ class ApplicationContext final : public QObject {
     SessionNegotiationCoordinator &sessionNegotiation() const;
     SessionTransferOffer &sessionTransferOffer() const;
     SessionFileIncoming &sessionFileIncoming() const;
+    SessionFileOutgoing &sessionFileOutgoing() const;
 
   private:
     std::unique_ptr<QSettings> m_settings;
@@ -48,6 +50,7 @@ class ApplicationContext final : public QObject {
     std::unique_ptr<SessionInputCoordinator> m_sessionInput;
     std::unique_ptr<SessionTransferOffer> m_sessionTransferOffer;
     std::unique_ptr<SessionFileIncoming> m_sessionFileIncoming;
+    std::unique_ptr<SessionFileOutgoing> m_sessionFileOutgoing;
     std::unique_ptr<DeviceService> m_devices;
     std::unique_ptr<SessionService> m_sessions;
     std::unique_ptr<TransferService> m_transfers;

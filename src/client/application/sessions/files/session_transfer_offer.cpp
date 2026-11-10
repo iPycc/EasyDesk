@@ -62,6 +62,21 @@ void SessionTransferOffer::finishIncoming(const QByteArray &transferId) {
     m_acceptedDirectory.reset();
 }
 
+void SessionTransferOffer::finishOutgoing(const QByteArray &transferId) {
+    if (!m_outgoingPending || transferId != m_outgoingId)
+        return;
+    m_sendTimer.stop();
+    m_sendTimeout.stop();
+    m_decisionTimer.stop();
+    m_frames.clear();
+    m_outgoingId.clear();
+    m_outgoingDigest.clear();
+    m_nextFrame = 0;
+    m_outgoingPending = false;
+    m_outgoingSent = false;
+    m_outgoingResolved = false;
+}
+
 bool SessionTransferOffer::sendOffer(const easydesk::client::transfer::TransferManifest &manifest,
                                      QString &error) {
     if (m_outgoingPending || !m_session.context().peerMayReceiveFiles || !m_session.isSessionReady() ||
