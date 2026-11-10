@@ -41,7 +41,9 @@ void SessionFileReceiver::cancel() {
 }
 
 SessionFileReceiver::Result SessionFileReceiver::fail(QString &error, const QString &reason) {
-    cancel();
+    m_file.reset();
+    m_directory.reset();
+    m_failed = true;
     error = reason;
     return Result::Failed;
 }
