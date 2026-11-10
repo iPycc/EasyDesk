@@ -3,6 +3,7 @@
 #include "files/receive_directory.h"
 #include "files/receive_file.h"
 #include "network/files/protocol/file_data_codec.h"
+#include "network/files/protocol/file_receipt_codec.h"
 
 #include <type_traits>
 
@@ -37,8 +38,10 @@ SessionFileReceiver::Result SessionFileReceiver::fail(QString &error, const QStr
 }
 
 SessionFileReceiver::Result SessionFileReceiver::receive(const QByteArray &message,
-                                                          QString &committedName, QString &error) {
+                                                          QString &committedName, QString &error,
+                                                          FileReceipt *receipt) {
     committedName.clear();
+    if (receipt) *receipt = {};
     FileDataMessage decoded;
     if (m_failed || !m_directory || m_completed.size() == m_manifest.files.size() ||
         !decodeFileDataMessage(message, decoded, error))
@@ -64,6 +67,7 @@ SessionFileReceiver::Result SessionFileReceiver::receive(const QByteArray &messa
             m_current = index;
             m_chunkSize = value.chunkSize;
             m_offset = 0;
+            if (receipt) { receipt->identity = id; receipt->verifiedOffset = 0; }
             error.clear();
             return Result::Began;
         } else {
@@ -75,6 +79,7 @@ SessionFileReceiver::Result SessionFileReceiver::receive(const QByteArray &messa
                     !m_file->append(value.offset, value.bytes, value.sha256, error))
                     return fail(error, QStringLiteral("File chunk failed verification."));
                 m_offset += static_cast<quint64>(value.bytes.size());
+                if (receipt) { receipt->identity = id; receipt->verifiedOffset = m_offset; }
                 error.clear();
                 return Result::ChunkAccepted;
             } else {
@@ -83,6 +88,13 @@ SessionFileReceiver::Result SessionFileReceiver::receive(const QByteArray &messa
                     !m_file->commit(committedName, error))
                     return fail(error, QStringLiteral("File commit failed verification."));
                 m_completed.insert(id.fileId);
+                if (receipt) {
+                    receipt->identity = id;
+                    receipt->verifiedOffset = m_offset;
+                    receipt->kind = ReceiptKind::Committed;
+                    receipt->durability = Durability::OsFlushed;
+                    receipt->finalName = committedName;
+                }
                 m_file.reset();
                 m_current = -1;
                 error.clear();

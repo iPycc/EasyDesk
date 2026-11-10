@@ -7,6 +7,7 @@
 
 class ReceiveDirectory;
 class ReceiveFile;
+namespace easydesk::client::transfer { struct FileReceipt; }
 
 class SessionFileReceiver final {
   public:
@@ -16,7 +17,8 @@ class SessionFileReceiver final {
         std::shared_ptr<ReceiveDirectory> directory, QString &error);
     ~SessionFileReceiver();
 
-    Result receive(const QByteArray &message, QString &committedName, QString &error);
+    Result receive(const QByteArray &message, QString &committedName, QString &error,
+                   easydesk::client::transfer::FileReceipt *receipt = nullptr);
     void cancel();
 
   private:
