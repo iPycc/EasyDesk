@@ -112,8 +112,6 @@ void MainWindow::showDeviceDetails(const QString &id) {
         field(QStringLiteral("设备 ID"), spacedId(remote->id));
         field(QStringLiteral("系统"), remote->system);
         field(QStringLiteral("状态"), remote->online ? QStringLiteral("在线") : QStringLiteral("离线"));
-        auto *note = text(QStringLiteral("此远程设备为预览数据"), "caption");
-        v->addWidget(note);
     }
     v->addStretch();
     auto *rename = button(QStringLiteral("重命名"));
