@@ -8,6 +8,8 @@ class SessionInvitationCoordinator;
 class SessionNegotiationCoordinator;
 class SessionRequestCoordinator;
 class SessionInputCoordinator;
+class WindowsIdentityStore;
+class TrustedPeerStore;
 
 class SignalingSessionService final : public SessionService {
     Q_OBJECT
@@ -19,6 +21,8 @@ class SignalingSessionService final : public SessionService {
                             SessionInvitationCoordinator &invitations,
                             SessionNegotiationCoordinator &negotiation,
                             SessionInputCoordinator &input,
+                            WindowsIdentityStore &identity,
+                            TrustedPeerStore &trustedPeers,
                             QObject *parent = nullptr);
 
     LocalIdentity localIdentity() const override;
@@ -39,7 +43,8 @@ class SignalingSessionService final : public SessionService {
     SessionInputStatus inputStatus() const override;
     bool sendInput(InputStream stream, const InputEvent &event) override;
     void releaseInput() override;
-    bool acceptIncomingSession(SessionMode grantedMode) override;
+    bool acceptIncomingSession(SessionMode grantedMode, bool rememberIdentity = false) override;
+    bool confirmPeerIdentity(bool confirmed, bool rememberIdentity = false) override;
     bool rejectIncomingSession() override;
 
   private:
@@ -50,6 +55,8 @@ class SignalingSessionService final : public SessionService {
     SessionInvitationCoordinator &m_invitations;
     SessionNegotiationCoordinator &m_negotiation;
     SessionInputCoordinator &m_input;
+    WindowsIdentityStore &m_identity;
+    TrustedPeerStore &m_trustedPeers;
     SessionOptions m_options;
     SessionTelemetry m_telemetry;
     SessionInputStatus m_lastInputStatus;

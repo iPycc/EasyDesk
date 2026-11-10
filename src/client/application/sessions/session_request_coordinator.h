@@ -21,6 +21,7 @@ class SessionRequestCoordinator final : public QObject {
     enum class State {
         Idle,
         ResolvingIdentity,
+        AwaitingIdentity,
         AwaitingDelivery,
         AwaitingDecision,
         AwaitingCancellationDelivery,
@@ -53,11 +54,13 @@ class SessionRequestCoordinator final : public QObject {
                         const QString &assistanceCode,
                         SessionMode mode, bool requestPeerFileReceive = false);
     bool cancel();
+    bool confirmIdentity(bool confirmed);
     void completeSession();
 
   signals:
     void stateChanged(SessionRequestCoordinator::State state);
     void requestDelivered();
+    void identityResolved(const QString &deviceId, const QByteArray &publicKey);
     void requestCancelled();
     void sessionAccepted();
     void sessionRejected(quint8 reason);
@@ -66,6 +69,7 @@ class SessionRequestCoordinator final : public QObject {
   private:
     void handleMessage(const QByteArray &message);
     void handleResolvedIdentity(const QByteArray &message);
+    void sendResolvedRequest();
     void handleDelivery(const QByteArray &message);
     void handleAcceptance(const QByteArray &message);
     void handleRejection(const QByteArray &message);

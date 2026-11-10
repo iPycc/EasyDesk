@@ -31,6 +31,14 @@ QWidget *MainWindow::buildStartPage() {
         QApplication::clipboard()->setText(m_sessions.localIdentity().id);
         notify(QStringLiteral("已复制设备 ID"));
     });
+    a->addWidget(text(QStringLiteral("本机指纹"), "caption"));
+    auto *fingerprint = text(m_sessions.localIdentity().fingerprint, "caption");
+    fingerprint->setObjectName("localIdentityFingerprint");
+    fingerprint->setWordWrap(true);
+    fingerprint->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+    a->addWidget(fingerprint);
+    connect(&m_sessions, &SessionService::identityChanged, fingerprint,
+            [this, fingerprint] { fingerprint->setText(m_sessions.localIdentity().fingerprint); });
     a->addSpacing(8);
     a->addWidget(divider());
     a->addSpacing(8);

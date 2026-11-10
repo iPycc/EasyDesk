@@ -64,6 +64,8 @@ MainWindow::MainWindow(DeviceService &devices, SessionService &sessions, Transfe
     });
     connect(&m_sessions, &SessionService::incomingSessionRequested,
             this, &MainWindow::showIncomingSessionRequest);
+    connect(&m_sessions, &SessionService::peerIdentityConfirmationRequested,
+            this, &MainWindow::showPeerIdentityPrompt);
     connect(&m_sessions, &SessionService::incomingSessionAccepted, this, [this] {
         auto *indicator = new QWidget(this, Qt::Tool | Qt::WindowStaysOnTopHint |
                                                     Qt::WindowTitleHint);

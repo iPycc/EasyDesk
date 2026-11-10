@@ -18,6 +18,7 @@
 namespace {
 
 constexpr int kResolveTimeoutMilliseconds = 15000;
+constexpr int kIdentityTimeoutMilliseconds = 60000;
 constexpr int kDeliveryTimeoutMilliseconds = 15000;
 constexpr int kDecisionTimeoutMilliseconds = 55000;
 constexpr qint64 kRequestLifetimeSeconds = 45;
@@ -161,7 +162,7 @@ bool SessionRequestCoordinator::requestSession(const QString &targetDeviceId,
 }
 
 bool SessionRequestCoordinator::cancel() {
-    if (m_state == State::ResolvingIdentity) {
+    if (m_state == State::ResolvingIdentity || m_state == State::AwaitingIdentity) {
         m_timeout.stop();
         clearRequest();
         setState(State::Idle);
@@ -213,6 +214,16 @@ bool SessionRequestCoordinator::cancel() {
     return true;
 }
 
+bool SessionRequestCoordinator::confirmIdentity(bool confirmed) {
+    if (m_state != State::AwaitingIdentity)
+        return false;
+    if (!confirmed)
+        return cancel();
+    m_timeout.stop();
+    sendResolvedRequest();
+    return m_state == State::AwaitingDelivery;
+}
+
 void SessionRequestCoordinator::completeSession() {
     if (m_state != State::Accepted)
         return;
@@ -260,6 +271,18 @@ void SessionRequestCoordinator::handleResolvedIdentity(const QByteArray &message
     }
 
     m_targetPublicKey = decoded.resolved.publicKey;
+    m_timeout.stop();
+    setState(State::AwaitingIdentity);
+    if (m_state != State::AwaitingIdentity)
+        return;
+    m_timeout.start(kIdentityTimeoutMilliseconds);
+    emit identityResolved(m_targetDeviceId, m_targetPublicKey);
+}
+
+void SessionRequestCoordinator::sendResolvedRequest() {
+    if (m_state != State::AwaitingIdentity || m_targetPublicKey.size() != 32)
+        return;
+    QString error;
     m_requestId = easydesk::client::windows::generateSecureRandomBytes(16, error);
     if (m_requestId.isEmpty()) {
         failRequest(QStringLiteral("E_RANDOM"), error);
@@ -479,6 +502,10 @@ void SessionRequestCoordinator::handleTimeout() {
     case State::ResolvingIdentity:
         failRequest(QStringLiteral("E_RESOLVE_TIMEOUT"),
                     QStringLiteral("Assistance identity lookup timed out."));
+        break;
+    case State::AwaitingIdentity:
+        failRequest(QStringLiteral("E_IDENTITY_TIMEOUT"),
+                    QStringLiteral("Device identity confirmation timed out."));
         break;
     case State::AwaitingDelivery:
         failRequest(QStringLiteral("E_DELIVERY_TIMEOUT"),

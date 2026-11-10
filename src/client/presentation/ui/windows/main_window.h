@@ -77,6 +77,7 @@ class MainWindow : public QWidget {
     void removeDevice();
     void startSession(const QString &id, const QString &assistanceCode = QString());
     void showIncomingSessionRequest(const IncomingSessionRequest &request);
+    void showPeerIdentityPrompt(const PeerIdentityPrompt &prompt);
     void openTransfers();
     void notify(const QString &text);
     void showAbout();

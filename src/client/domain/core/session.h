@@ -8,6 +8,7 @@
 
 struct LocalIdentity {
     QString id, name, assistanceCode;
+    QString fingerprint;
 };
 struct SessionOptions {
     int frameRate = 30;
@@ -23,6 +24,16 @@ struct SessionTelemetry {
 struct IncomingSessionRequest {
     QString fromDeviceId;
     SessionMode requestedMode = SessionMode::ViewOnly;
+    QString localFingerprint;
+    QString peerFingerprint;
+    bool canRememberIdentity = false;
+    bool identityVerified = false;
+};
+struct PeerIdentityPrompt {
+    QString deviceId;
+    QString localFingerprint;
+    QString peerFingerprint;
+    bool canRemember = false;
 };
 struct SessionInputStatus {
     bool ready = false;
@@ -40,4 +51,5 @@ struct SessionInputStatus {
 Q_DECLARE_METATYPE(SessionTelemetry)
 Q_DECLARE_METATYPE(SessionOptions)
 Q_DECLARE_METATYPE(IncomingSessionRequest)
+Q_DECLARE_METATYPE(PeerIdentityPrompt)
 Q_DECLARE_METATYPE(SessionInputStatus)

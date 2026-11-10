@@ -1,6 +1,8 @@
 #include "network/signaling/service/signaling_session_service.h"
 
 #include "data/settings/identity/device_profile_store.h"
+#include "data/settings/identity/trusted_peer_store.h"
+#include "identity/windows_identity_store.h"
 #include "network/signaling/client/signaling_client.h"
 #include "sessions/negotiation/session_negotiation_coordinator.h"
 #include "sessions/input/session_input_coordinator.h"
@@ -15,6 +17,8 @@ SignalingSessionService::SignalingSessionService(DeviceProfileStore &profile,
                                                  SessionInvitationCoordinator &invitations,
                                                  SessionNegotiationCoordinator &negotiation,
                                                  SessionInputCoordinator &input,
+                                                 WindowsIdentityStore &identity,
+                                                 TrustedPeerStore &trustedPeers,
                                                  QObject *parent)
     : SessionService(parent),
       m_profile(profile),
@@ -22,7 +26,7 @@ SignalingSessionService::SignalingSessionService(DeviceProfileStore &profile,
       m_requests(requests),
       m_invitations(invitations),
       m_negotiation(negotiation),
-      m_input(input) {
+      m_input(input), m_identity(identity), m_trustedPeers(trustedPeers) {
     connect(&m_input, &SessionInputCoordinator::leaseActiveChanged,
             this, [this] { publishInputStatus(); });
     connect(&m_negotiation, &SessionNegotiationCoordinator::framePresented,
@@ -45,6 +49,22 @@ SignalingSessionService::SignalingSessionService(DeviceProfileStore &profile,
     });
     connect(&m_requests, &SessionRequestCoordinator::stateChanged,
             this, [this] { emit availabilityChanged(); });
+    connect(&m_requests, &SessionRequestCoordinator::identityResolved, this,
+            [this](const QString &id, const QByteArray &publicKey) {
+                const auto status = m_trustedPeers.status(id, publicKey);
+                if (status == TrustedPeerStore::Status::Matched) {
+                    (void)m_requests.confirmIdentity(true);
+                    return;
+                }
+                if (status != TrustedPeerStore::Status::Unverified && status != TrustedPeerStore::Status::NotAdded) {
+                    (void)m_requests.confirmIdentity(false);
+                    emit failed(QStringLiteral("设备身份已变化或保存记录损坏，请先移除设备并重新核对"));
+                    return;
+                }
+                emit peerIdentityConfirmationRequested({id, TrustedPeerStore::fingerprint(m_identity.publicKey()),
+                                                        TrustedPeerStore::fingerprint(publicKey),
+                                                        status == TrustedPeerStore::Status::Unverified});
+            });
     connect(&m_requests, &SessionRequestCoordinator::requestDelivered,
             this, &SessionService::requestDelivered);
     connect(&m_requests, &SessionRequestCoordinator::sessionAccepted,
@@ -73,8 +93,17 @@ SignalingSessionService::SignalingSessionService(DeviceProfileStore &profile,
                     (void)m_invitations.reject();
                     return;
                 }
-                emit incomingSessionRequested(
-                    {invitation.fromDeviceId, invitation.requestedMode});
+                const auto publicKey = m_invitations.requesterPublicKey();
+                const auto status = m_trustedPeers.status(invitation.fromDeviceId, publicKey);
+                if (status != TrustedPeerStore::Status::Matched && status != TrustedPeerStore::Status::Unverified &&
+                    status != TrustedPeerStore::Status::NotAdded) {
+                    (void)m_invitations.reject();
+                    emit failed(QStringLiteral("请求方身份已变化或保存记录损坏"));
+                    return;
+                }
+                emit incomingSessionRequested({invitation.fromDeviceId, invitation.requestedMode,
+                    TrustedPeerStore::fingerprint(m_identity.publicKey()), TrustedPeerStore::fingerprint(publicKey),
+                    status == TrustedPeerStore::Status::Unverified, status == TrustedPeerStore::Status::Matched});
             });
     connect(&m_invitations, &SessionInvitationCoordinator::consentExpired,
             this, &SessionService::incomingSessionCancelled);
@@ -126,7 +155,8 @@ SignalingSessionService::SignalingSessionService(DeviceProfileStore &profile,
 
 LocalIdentity SignalingSessionService::localIdentity() const {
     const DeviceProfile &profile = m_profile.profile();
-    return {profile.deviceId, profile.displayName, m_signaling.assistanceCode()};
+    return {profile.deviceId, profile.displayName, m_signaling.assistanceCode(),
+            TrustedPeerStore::fingerprint(m_identity.publicKey())};
 }
 
 bool SignalingSessionService::isAvailable() const {
@@ -177,6 +207,8 @@ QString SignalingSessionService::statusText() const {
     switch (m_requests.state()) {
     case SessionRequestCoordinator::State::ResolvingIdentity:
         return QStringLiteral("正在验证协助码");
+    case SessionRequestCoordinator::State::AwaitingIdentity:
+        return QStringLiteral("等待核对设备身份");
     case SessionRequestCoordinator::State::AwaitingDelivery:
         return QStringLiteral("正在发送远程请求");
     case SessionRequestCoordinator::State::AwaitingDecision:
@@ -319,9 +351,45 @@ void SignalingSessionService::publishInputStatus() {
     emit inputStatusChanged(current);
 }
 
-bool SignalingSessionService::acceptIncomingSession(SessionMode grantedMode) {
+bool SignalingSessionService::confirmPeerIdentity(bool confirmed, bool rememberIdentity) {
+    if (m_requests.state() != SessionRequestCoordinator::State::AwaitingIdentity)
+        return false;
+    if (!confirmed)
+        return m_requests.confirmIdentity(false);
+    const auto id = m_requests.targetDeviceId();
+    const auto key = m_requests.targetPublicKey();
+    const auto status = m_trustedPeers.status(id, key);
+    if (status != TrustedPeerStore::Status::Matched && status != TrustedPeerStore::Status::Unverified &&
+        status != TrustedPeerStore::Status::NotAdded) {
+        (void)m_requests.confirmIdentity(false);
+        emit failed(QStringLiteral("设备身份已变化，无法继续连接"));
+        return false;
+    }
+    QString error;
+    if (rememberIdentity && !m_trustedPeers.remember(id, key, error)) {
+        (void)m_requests.confirmIdentity(false);
+        emit failed(error);
+        return false;
+    }
+    return m_requests.confirmIdentity(true);
+}
+
+bool SignalingSessionService::acceptIncomingSession(SessionMode grantedMode, bool rememberIdentity) {
     if (grantedMode != SessionMode::ViewOnly) {
         emit failed(QStringLiteral("远程控制功能尚未就绪，只能允许观看"));
+        return false;
+    }
+    const auto invitation = m_invitations.invitation();
+    const auto key = m_invitations.requesterPublicKey();
+    const auto status = m_trustedPeers.status(invitation.fromDeviceId, key);
+    if (status != TrustedPeerStore::Status::Matched && status != TrustedPeerStore::Status::Unverified &&
+        status != TrustedPeerStore::Status::NotAdded) {
+        emit failed(QStringLiteral("请求方身份已变化，无法接受"));
+        return false;
+    }
+    QString error;
+    if (rememberIdentity && !m_trustedPeers.remember(invitation.fromDeviceId, key, error)) {
+        emit failed(error);
         return false;
     }
     if (m_invitations.accept(grantedMode))

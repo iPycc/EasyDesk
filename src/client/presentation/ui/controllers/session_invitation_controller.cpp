@@ -14,13 +14,33 @@ void MainWindow::showIncomingSessionRequest(const IncomingSessionRequest &reques
 
     Ui::Dialog dialog(this, QStringLiteral("远程协助请求"));
     dialog.setObjectName("incomingSessionConsent");
-    dialog.resize(440, request.requestedMode == SessionMode::Control ? 300 : 260);
+    dialog.resize(560, request.requestedMode == SessionMode::Control ? 510 : 470);
     dialog.body->addWidget(text(spacedId(request.fromDeviceId), "h2"));
     dialog.body->addWidget(
         text(request.requestedMode == SessionMode::Control
                  ? QStringLiteral("请求查看并控制此电脑")
                  : QStringLiteral("请求查看此电脑"),
              "muted"));
+
+    auto addFingerprint = [&dialog](const QString &title, const QString &value) {
+        dialog.body->addWidget(text(title, "formLabel"));
+        auto *label = text(value, "detailValue");
+        label->setWordWrap(true);
+        label->setMinimumHeight(label->fontMetrics().lineSpacing() * 3);
+        label->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+        dialog.body->addWidget(label);
+    };
+    addFingerprint(QStringLiteral("本机指纹"), request.localFingerprint);
+    addFingerprint(QStringLiteral("对方指纹"), request.peerFingerprint);
+    dialog.body->addWidget(text(request.identityVerified ? QStringLiteral("设备身份已核对")
+                                                         : QStringLiteral("请通过其他可信方式与对方核对指纹。"),
+                                "caption"));
+    QCheckBox *remember = nullptr;
+    if (request.canRememberIdentity) {
+        remember = new QCheckBox(QStringLiteral("记住此设备身份"));
+        remember->setObjectName("rememberIncomingIdentity");
+        dialog.body->addWidget(remember);
+    }
 
     QCheckBox *allowControl = nullptr;
     if (request.requestedMode == SessionMode::Control) {
@@ -46,11 +66,11 @@ void MainWindow::showIncomingSessionRequest(const IncomingSessionRequest &reques
         }
     });
     connect(accept, &QPushButton::clicked, &dialog,
-            [this, &dialog, &decided, allowControl] {
+            [this, &dialog, &decided, allowControl, remember] {
                 const SessionMode mode = allowControl && allowControl->isChecked()
                                              ? SessionMode::Control
                                              : SessionMode::ViewOnly;
-                if (m_sessions.acceptIncomingSession(mode)) {
+                if (m_sessions.acceptIncomingSession(mode, remember && remember->isChecked())) {
                     decided = true;
                     dialog.accept();
                 }
