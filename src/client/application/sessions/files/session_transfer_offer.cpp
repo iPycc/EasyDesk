@@ -10,6 +10,7 @@ constexpr int kSendTimeoutMilliseconds = 30000;
 constexpr int kReceiveTimeoutMilliseconds = 15000;
 constexpr int kDecisionTimeoutMilliseconds = 60000;
 constexpr int kIncomingDecisionTimeoutMilliseconds = 45000;
+constexpr int kCancelTimeoutMilliseconds = 10000;
 constexpr int kMaximumCancelledOffers = 128;
 
 bool senderReason(easydesk::client::transfer::TransferCancelReason reason) {
@@ -30,6 +31,18 @@ SessionTransferOffer::SessionTransferOffer(SessionNegotiationCoordinator &sessio
     m_receiveTimer.setSingleShot(true);
     m_decisionTimer.setSingleShot(true);
     m_incomingDecisionTimer.setSingleShot(true);
+    m_outgoingCancelRetry.setSingleShot(true);
+    m_outgoingCancelTimeout.setSingleShot(true);
+    m_incomingCancelRetry.setSingleShot(true);
+    m_incomingCancelTimeout.setSingleShot(true);
+    connect(&m_outgoingCancelRetry, &QTimer::timeout, this, &SessionTransferOffer::sendOutgoingCancellation);
+    connect(&m_incomingCancelRetry, &QTimer::timeout, this, &SessionTransferOffer::sendIncomingCancellation);
+    connect(&m_outgoingCancelTimeout, &QTimer::timeout, this, [this] {
+        abort(QStringLiteral("Transfer cancellation timed out."));
+    });
+    connect(&m_incomingCancelTimeout, &QTimer::timeout, this, [this] {
+        abort(QStringLiteral("Transfer cancellation timed out."));
+    });
     connect(&m_sendTimer, &QTimer::timeout, this, &SessionTransferOffer::sendNext);
     connect(&m_sendTimeout, &QTimer::timeout, this, [this] {
         abort(QStringLiteral("Transfer offer send timed out."));
@@ -86,6 +99,9 @@ void SessionTransferOffer::finishIncoming(const QByteArray &transferId) {
 
 void SessionTransferOffer::clearIncoming() {
     m_incomingDecisionTimer.stop();
+    m_incomingCancelRetry.stop();
+    m_incomingCancelTimeout.stop();
+    m_incomingCancelRequested = false;
     m_incomingPending = false;
     m_incomingResolved = false;
     m_incomingId.clear();
@@ -99,6 +115,9 @@ void SessionTransferOffer::finishOutgoing(const QByteArray &transferId) {
     m_sendTimer.stop();
     m_sendTimeout.stop();
     m_decisionTimer.stop();
+    m_outgoingCancelRetry.stop();
+    m_outgoingCancelTimeout.stop();
+    m_outgoingCancelRequested = false;
     m_frames.clear();
     m_outgoingId.clear();
     m_outgoingDigest.clear();
@@ -146,22 +165,30 @@ bool SessionTransferOffer::declineIncoming(QString &error) {
 bool SessionTransferOffer::cancelOutgoing(easydesk::client::transfer::TransferCancelReason reason,
                                           QString &error) {
     using namespace easydesk::client::transfer;
-    if (!senderReason(reason) || !m_outgoingPending || !m_outgoingSent || !m_session.isSessionReady()) {
+    if (!senderReason(reason) || !m_outgoingPending || !m_session.isSessionReady()) {
         error = QStringLiteral("Outgoing transfer cannot be cancelled yet.");
         return false;
     }
-    const QByteArray id = m_outgoingId;
-    const QByteArray digest = m_outgoingDigest;
-    QByteArray message;
-    if (!encodeTransferCancellation({id, digest, reason}, message, error)) return false;
-    if (m_session.sendFileMessage(FileChannel::Metadata, message) != SessionFileTransport::SendResult::Sent) {
-        error = QStringLiteral("Transfer cancellation could not be sent.");
-        return false;
+    if (m_outgoingCancelRequested) {
+        error.clear();
+        return true;
     }
-    if (!m_outgoingResolved) rememberCancelledOutgoing(id, digest);
-    finishOutgoing(id);
+    if (!m_outgoingSent && m_nextFrame == 0) {
+        const QByteArray id = m_outgoingId;
+        finishOutgoing(id);
+        error.clear();
+        emit outgoingCancelled(id, reason);
+        return true;
+    }
+    m_outgoingCancelRequested = true;
+    m_outgoingCancelReason = reason;
+    m_decisionTimer.stop();
+    m_outgoingCancelTimeout.start(kCancelTimeoutMilliseconds);
+    if (m_outgoingSent)
+        m_outgoingCancelRetry.start(0);
+    else
+        m_sendTimer.start(0);
     error.clear();
-    emit outgoingCancelled(id, reason);
     return true;
 }
 
@@ -172,16 +199,14 @@ bool SessionTransferOffer::cancelIncoming(easydesk::client::transfer::TransferCa
         error = QStringLiteral("Incoming transfer cannot be cancelled.");
         return false;
     }
-    const QByteArray id = m_incomingId;
-    QByteArray message;
-    if (!encodeTransferCancellation({id, m_incomingDigest, reason}, message, error)) return false;
-    if (m_session.sendFileMessage(FileChannel::Metadata, message) != SessionFileTransport::SendResult::Sent) {
-        error = QStringLiteral("Transfer cancellation could not be sent.");
-        return false;
+    if (!m_incomingCancelRequested) {
+        m_incomingCancelRequested = true;
+        m_incomingCancelReason = reason;
+        m_incomingDecisionTimer.stop();
+        m_incomingCancelTimeout.start(kCancelTimeoutMilliseconds);
+        m_incomingCancelRetry.start(0);
     }
-    clearIncoming();
     error.clear();
-    emit incomingCancelled(id, reason);
     return true;
 }
 
@@ -189,7 +214,7 @@ bool SessionTransferOffer::respond(easydesk::client::transfer::OfferDecision dec
                                    const std::shared_ptr<ReceiveDirectory> &directory,
                                    quint32 windowBytes, QString &error) {
     using namespace easydesk::client::transfer;
-    if (!m_incomingPending || m_incomingResolved || !m_session.context().localMayReceiveFiles ||
+    if (!m_incomingPending || m_incomingResolved || m_incomingCancelRequested || !m_session.context().localMayReceiveFiles ||
         !m_session.isSessionReady() || !m_session.isFileChannelOpen(FileChannel::Data)) {
         error = QStringLiteral("Transfer offer is not awaiting a decision.");
         return false;
@@ -230,6 +255,10 @@ void SessionTransferOffer::reset() {
     m_receiveTimer.stop();
     m_decisionTimer.stop();
     m_incomingDecisionTimer.stop();
+    m_outgoingCancelRetry.stop();
+    m_outgoingCancelTimeout.stop();
+    m_incomingCancelRetry.stop();
+    m_incomingCancelTimeout.stop();
     m_decoder.reset();
     m_frames.clear();
     m_outgoingId.clear();
@@ -244,6 +273,8 @@ void SessionTransferOffer::reset() {
     m_incomingPending = false;
     m_incomingResolved = false;
     m_receiving = false;
+    m_outgoingCancelRequested = false;
+    m_incomingCancelRequested = false;
     m_cancelledOutgoing.clear();
     m_cancelledOrder.clear();
 }
@@ -271,7 +302,10 @@ void SessionTransferOffer::sendNext() {
     m_frames.clear();
     m_sendTimeout.stop();
     m_outgoingSent = true;
-    m_decisionTimer.start(kDecisionTimeoutMilliseconds);
+    if (m_outgoingCancelRequested)
+        m_outgoingCancelRetry.start(0);
+    else
+        m_decisionTimer.start(kDecisionTimeoutMilliseconds);
     const QByteArray sentId = m_outgoingId;
     emit offerSent(sentId);
 }
@@ -318,6 +352,9 @@ void SessionTransferOffer::receiveDecision(const QByteArray &message) {
     }
     if (m_cancelledOutgoing.value(response.transferId) == response.manifestDigest)
         return;
+    if (m_outgoingCancelRequested && response.transferId == m_outgoingId &&
+        response.manifestDigest == m_outgoingDigest)
+        return;
     if (!m_outgoingPending || !m_outgoingSent || m_outgoingResolved ||
         !m_session.context().peerMayReceiveFiles || !m_session.isSessionReady() ||
         response.transferId != m_outgoingId ||
@@ -335,6 +372,50 @@ void SessionTransferOffer::receiveDecision(const QByteArray &message) {
         m_outgoingDigest.clear();
     }
     emit decisionReceived(response);
+}
+
+void SessionTransferOffer::sendOutgoingCancellation() {
+    using namespace easydesk::client::transfer;
+    if (!m_outgoingCancelRequested || !m_outgoingPending || !m_outgoingSent) return;
+    const QByteArray id = m_outgoingId;
+    const QByteArray digest = m_outgoingDigest;
+    const auto reason = m_outgoingCancelReason;
+    QString error;
+    QByteArray message;
+    if (!encodeTransferCancellation({id, digest, reason}, message, error)) { abort(error); return; }
+    const auto result = m_session.sendFileMessage(FileChannel::Metadata, message);
+    if (result == SessionFileTransport::SendResult::WouldBlock) {
+        m_outgoingCancelRetry.start(kRetryMilliseconds);
+        return;
+    }
+    if (result != SessionFileTransport::SendResult::Sent) {
+        abort(QStringLiteral("Transfer cancellation could not be sent."));
+        return;
+    }
+    rememberCancelledOutgoing(id, digest);
+    finishOutgoing(id);
+    emit outgoingCancelled(id, reason);
+}
+
+void SessionTransferOffer::sendIncomingCancellation() {
+    using namespace easydesk::client::transfer;
+    if (!m_incomingCancelRequested || !m_incomingPending) return;
+    const QByteArray id = m_incomingId;
+    const auto reason = m_incomingCancelReason;
+    QString error;
+    QByteArray message;
+    if (!encodeTransferCancellation({id, m_incomingDigest, reason}, message, error)) { abort(error); return; }
+    const auto result = m_session.sendFileMessage(FileChannel::Metadata, message);
+    if (result == SessionFileTransport::SendResult::WouldBlock) {
+        m_incomingCancelRetry.start(kRetryMilliseconds);
+        return;
+    }
+    if (result != SessionFileTransport::SendResult::Sent) {
+        abort(QStringLiteral("Transfer cancellation could not be sent."));
+        return;
+    }
+    clearIncoming();
+    emit incomingCancelled(id, reason);
 }
 
 void SessionTransferOffer::rememberCancelledOutgoing(const QByteArray &id, const QByteArray &digest) {

@@ -46,5 +46,6 @@ class SessionFileIncoming final : public QObject {
     qsizetype m_receiptBytes = 0;
     bool m_hasOffer = false;
     bool m_active = false;
+    bool m_cancelling = false;
     bool m_batchDone = false;
 };

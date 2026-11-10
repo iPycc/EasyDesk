@@ -64,6 +64,7 @@ SessionFileOutgoing::SessionFileOutgoing(SessionNegotiationCoordinator &session,
             [this](FileChannel channel, const QByteArray &message) {
                 using namespace easydesk::client::transfer;
                 if (channel != FileChannel::Metadata || !isFileReceipt(message)) return;
+                if (m_state == State::Cancelling) return;
                 if (m_state != State::Sending || m_receiptsPending >= kMaximumPendingReceipts) {
                     if (m_state != State::Idle) fail(QStringLiteral("Unexpected file receipt."));
                     return;
@@ -136,7 +137,18 @@ bool SessionFileOutgoing::cancel(QString &error) {
         error = QStringLiteral("No outgoing transfer is active.");
         return false;
     }
-    return m_offer.cancelOutgoing(easydesk::client::transfer::TransferCancelReason::SenderCancelled, error);
+    if (!m_offer.cancelOutgoing(easydesk::client::transfer::TransferCancelReason::SenderCancelled, error))
+        return false;
+    if (m_state != State::Idle) {
+        m_state = State::Cancelling;
+        m_retry.stop();
+        m_timeout.stop();
+        m_session.setFileSendingEnabled(false);
+        m_worker.stop();
+        m_pendingFrame.clear();
+        m_frameRequested = false;
+    }
+    return true;
 }
 
 void SessionFileOutgoing::stop() {

@@ -31,7 +31,7 @@ class SessionFileOutgoing final : public QObject {
     void failed(const QString &error);
 
   private:
-    enum class State { Idle, Preparing, AwaitingDecision, Sending };
+    enum class State { Idle, Preparing, AwaitingDecision, Sending, Cancelling };
     void requestFrame();
     void sendFrame();
     void fail(const QString &error);

@@ -47,6 +47,8 @@ class SessionTransferOffer final : public QObject {
     void receive(const QByteArray &message);
     void receiveDecision(const QByteArray &message);
     void receiveCancellation(const QByteArray &message);
+    void sendOutgoingCancellation();
+    void sendIncomingCancellation();
     void clearIncoming();
     void rememberCancelledOutgoing(const QByteArray &id, const QByteArray &digest);
     bool respond(easydesk::client::transfer::OfferDecision decision,
@@ -61,6 +63,10 @@ class SessionTransferOffer final : public QObject {
     QTimer m_receiveTimer;
     QTimer m_decisionTimer;
     QTimer m_incomingDecisionTimer;
+    QTimer m_outgoingCancelRetry;
+    QTimer m_outgoingCancelTimeout;
+    QTimer m_incomingCancelRetry;
+    QTimer m_incomingCancelTimeout;
     QVector<QByteArray> m_frames;
     QByteArray m_outgoingId;
     QByteArray m_outgoingDigest;
@@ -74,6 +80,10 @@ class SessionTransferOffer final : public QObject {
     bool m_incomingPending = false;
     bool m_incomingResolved = false;
     bool m_receiving = false;
+    bool m_outgoingCancelRequested = false;
+    bool m_incomingCancelRequested = false;
+    easydesk::client::transfer::TransferCancelReason m_outgoingCancelReason = easydesk::client::transfer::TransferCancelReason::SenderCancelled;
+    easydesk::client::transfer::TransferCancelReason m_incomingCancelReason = easydesk::client::transfer::TransferCancelReason::ReceiverCancelled;
     QHash<QByteArray, QByteArray> m_cancelledOutgoing;
     QQueue<QByteArray> m_cancelledOrder;
 };

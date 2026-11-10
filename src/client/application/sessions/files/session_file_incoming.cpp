@@ -22,7 +22,7 @@ SessionFileIncoming::SessionFileIncoming(SessionNegotiationCoordinator &session,
     connect(&m_offer, &SessionTransferOffer::offerReceived, this,
             [this](const auto &manifest) { if (!m_active) { m_manifest = manifest; m_hasOffer = true; } });
     connect(&m_offer, &SessionTransferOffer::failed, this, [this](const QString &error) {
-        if (m_active) fail(error);
+        if (m_active || m_cancelling) fail(error);
         else { m_hasOffer = false; m_manifest = {}; }
     });
     connect(&m_offer, &SessionTransferOffer::decisionSent, this,
@@ -69,7 +69,7 @@ SessionFileIncoming::~SessionFileIncoming() { stop(); }
 
 bool SessionFileIncoming::accept(const std::shared_ptr<ReceiveDirectory> &directory,
                                  quint32 windowBytes, QString &error) {
-    if (!m_hasOffer || m_active || !m_session.isSessionReady() || !directory) {
+    if (!m_hasOffer || m_active || m_cancelling || !m_session.isSessionReady() || !directory) {
         error = QStringLiteral("File offer is not available for acceptance.");
         return false;
     }
@@ -101,12 +101,25 @@ bool SessionFileIncoming::cancel(QString &error) {
         error = QStringLiteral("No incoming transfer is active.");
         return false;
     }
-    return m_offer.cancelIncoming(easydesk::client::transfer::TransferCancelReason::ReceiverCancelled, error);
+    if (!m_offer.cancelIncoming(easydesk::client::transfer::TransferCancelReason::ReceiverCancelled, error))
+        return false;
+    if (m_hasOffer) {
+        m_cancelling = true;
+        m_active = false;
+        m_retry.stop();
+        m_timeout.stop();
+        m_receipts.clear();
+        m_receiptBytes = 0;
+        m_session.setFileReceivingEnabled(false);
+        m_worker.stop();
+    }
+    return true;
 }
 
 void SessionFileIncoming::stop() {
     const QByteArray transferId = m_manifest.transferId;
     m_active = false;
+    m_cancelling = false;
     m_hasOffer = false;
     m_batchDone = false;
     m_retry.stop();
@@ -155,7 +168,7 @@ void SessionFileIncoming::flushReceipts() {
 }
 
 void SessionFileIncoming::fail(const QString &error) {
-    if (!m_active) return;
+    if (!m_active && !m_cancelling) return;
     stop();
     emit failed(error);
 }
