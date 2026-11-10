@@ -1,12 +1,12 @@
 #pragma once
 
+#include "features/transfers/transfer_manifest.h"
+
 #include <QByteArray>
 #include <QString>
 #include <variant>
 
 namespace easydesk::client::transfer {
-
-constexpr int kMaximumChunkPayload = 16292;
 
 struct FileMessageIdentity {
     QByteArray transferId;

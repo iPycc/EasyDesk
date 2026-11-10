@@ -8,6 +8,7 @@ namespace easydesk::client::transfer {
 
 constexpr quint64 kDefaultMaximumFileBytes = quint64(10) * 1024 * 1024 * 1024;
 constexpr int kMaximumFiles = 100;
+constexpr int kMaximumChunkPayload = 16292;
 
 struct ManifestFile {
     QByteArray fileId;
