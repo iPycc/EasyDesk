@@ -35,6 +35,7 @@ SOURCES += \
     src/client/application/sessions/files/session_file_transport.cpp \
     src/client/application/sessions/files/session_file_authorization.cpp \
     src/client/application/sessions/files/session_transfer_offer.cpp \
+    src/client/application/sessions/files/session_file_receiver.cpp \
     src/client/application/sessions/session_invitation_coordinator.cpp \
     src/client/application/sessions/session_request_coordinator.cpp \
     src/client/application/sessions/termination/session_termination_receiver.cpp \
@@ -51,6 +52,7 @@ SOURCES += \
     src/client/infrastructure/network/input/protocol/wire/protobuf_wire.cpp \
     src/client/infrastructure/network/input/protocol/input_codec.cpp \
     src/client/infrastructure/network/files/protocol/transfer_offer_codec.cpp \
+    src/client/infrastructure/network/files/protocol/file_data_codec.cpp \
     src/client/infrastructure/network/files/protocol/transfer_decision_codec.cpp \
     src/client/infrastructure/network/input/protocol/lease/input_lease_codec.cpp \
     src/client/infrastructure/network/input/protocol/lease/input_enable_codec.cpp \
@@ -141,6 +143,7 @@ HEADERS += \
     src/client/application/sessions/files/session_file_transport.h \
     src/client/application/sessions/files/session_file_authorization.h \
     src/client/application/sessions/files/session_transfer_offer.h \
+    src/client/application/sessions/files/session_file_receiver.h \
     src/client/application/sessions/session_invitation_coordinator.h \
     src/client/application/sessions/session_request_coordinator.h \
     src/client/application/sessions/termination/session_termination_receiver.h \
@@ -164,6 +167,7 @@ HEADERS += \
     src/client/infrastructure/network/input/protocol/wire/protobuf_wire.h \
     src/client/infrastructure/network/input/protocol/input_codec.h \
     src/client/infrastructure/network/files/protocol/transfer_offer_codec.h \
+    src/client/infrastructure/network/files/protocol/file_data_codec.h \
     src/client/infrastructure/network/files/protocol/transfer_decision_codec.h \
     src/client/infrastructure/network/input/protocol/lease/input_lease_codec.h \
     src/client/infrastructure/network/input/protocol/lease/input_enable_codec.h \
