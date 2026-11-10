@@ -11,13 +11,14 @@
 class ReceiveDirectory;
 class SessionNegotiationCoordinator;
 class SessionTransferOffer;
+class TrustedPeerStore;
 
 class SessionFileIncoming final : public QObject {
     Q_OBJECT
 
   public:
     SessionFileIncoming(SessionNegotiationCoordinator &session, SessionTransferOffer &offer,
-                        QObject *parent = nullptr);
+                        TrustedPeerStore &trustedPeers, QObject *parent = nullptr);
     ~SessionFileIncoming() override;
     bool accept(const std::shared_ptr<ReceiveDirectory> &directory, quint32 windowBytes, QString &error);
     void stop();
@@ -34,6 +35,7 @@ class SessionFileIncoming final : public QObject {
 
     SessionNegotiationCoordinator &m_session;
     SessionTransferOffer &m_offer;
+    TrustedPeerStore &m_trustedPeers;
     SessionFileReceiveWorker m_worker;
     easydesk::client::transfer::TransferManifest m_manifest;
     QQueue<QByteArray> m_receipts;

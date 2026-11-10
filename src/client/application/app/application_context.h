@@ -9,6 +9,7 @@ class LocalSystemService;
 class MediaRuntimeLibrary;
 class WindowsIdentityStore;
 class DeviceProfileStore;
+class TrustedPeerStore;
 class SignalingClient;
 class SessionRequestCoordinator;
 class SessionInvitationCoordinator;
@@ -30,6 +31,7 @@ class ApplicationContext final : public QObject {
     MediaRuntimeLibrary &mediaRuntime() const;
     WindowsIdentityStore &identity() const;
     DeviceProfileStore &deviceProfile() const;
+    TrustedPeerStore &trustedPeers() const;
     SignalingClient &signaling() const;
     SessionRequestCoordinator &sessionRequests() const;
     SessionInvitationCoordinator &sessionInvitations() const;
@@ -40,6 +42,8 @@ class ApplicationContext final : public QObject {
 
   private:
     std::unique_ptr<QSettings> m_settings;
+    std::unique_ptr<DeviceService> m_devices;
+    std::unique_ptr<TrustedPeerStore> m_trustedPeers;
     std::unique_ptr<MediaRuntimeLibrary> m_media;
     std::unique_ptr<WindowsIdentityStore> m_identity;
     std::unique_ptr<DeviceProfileStore> m_profile;
@@ -51,7 +55,6 @@ class ApplicationContext final : public QObject {
     std::unique_ptr<SessionTransferOffer> m_sessionTransferOffer;
     std::unique_ptr<SessionFileIncoming> m_sessionFileIncoming;
     std::unique_ptr<SessionFileOutgoing> m_sessionFileOutgoing;
-    std::unique_ptr<DeviceService> m_devices;
     std::unique_ptr<SessionService> m_sessions;
     std::unique_ptr<TransferService> m_transfers;
     std::unique_ptr<LocalSystemService> m_local;

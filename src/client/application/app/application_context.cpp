@@ -4,6 +4,7 @@
 #include "data/local/settings_device_service.h"
 #include "data/local/windows_system_service.h"
 #include "data/settings/identity/device_profile_store.h"
+#include "data/settings/identity/trusted_peer_store.h"
 #include "identity/windows_identity_store.h"
 #include "media/webrtc/media_runtime_library.h"
 #include "network/signaling/client/signaling_client.h"
@@ -37,6 +38,8 @@ ApplicationContext::ApplicationContext() {
     if (!QFile::exists(settingsPath) && QFile::exists(legacyPath))
         QFile::copy(legacyPath, settingsPath);
     m_settings = std::make_unique<QSettings>(settingsPath, QSettings::IniFormat);
+    m_devices = std::make_unique<SettingsDeviceService>(*m_settings);
+    m_trustedPeers = std::make_unique<TrustedPeerStore>(*m_settings, *m_devices);
     m_media = std::make_unique<MediaRuntimeLibrary>();
     const bool mediaReady = m_media->start();
     m_identity = std::make_unique<WindowsIdentityStore>(*m_settings, *m_media);
@@ -58,8 +61,8 @@ ApplicationContext::ApplicationContext() {
         *m_media, *m_identity, *m_signaling);
     m_sessionInput = std::make_unique<SessionInputCoordinator>(*m_sessionNegotiation);
     m_sessionTransferOffer = std::make_unique<SessionTransferOffer>(*m_sessionNegotiation);
-    m_sessionFileIncoming = std::make_unique<SessionFileIncoming>(*m_sessionNegotiation, *m_sessionTransferOffer);
-    m_sessionFileOutgoing = std::make_unique<SessionFileOutgoing>(*m_sessionNegotiation, *m_sessionTransferOffer);
+    m_sessionFileIncoming = std::make_unique<SessionFileIncoming>(*m_sessionNegotiation, *m_sessionTransferOffer, *m_trustedPeers);
+    m_sessionFileOutgoing = std::make_unique<SessionFileOutgoing>(*m_sessionNegotiation, *m_sessionTransferOffer, *m_trustedPeers);
     connect(m_sessionRequests.get(), &SessionRequestCoordinator::sessionAccepted,
             this, [this] {
                 (void)m_sessionNegotiation->begin(
@@ -87,7 +90,6 @@ ApplicationContext::ApplicationContext() {
                 qWarning().noquote() << "EasyDesk session negotiation failed:"
                                      << code << message;
             });
-    m_devices = std::make_unique<SettingsDeviceService>(*m_settings);
     m_sessions = std::make_unique<SignalingSessionService>(
         *m_profile, *m_signaling, *m_sessionRequests,
         *m_sessionInvitations,
@@ -133,6 +135,10 @@ WindowsIdentityStore &ApplicationContext::identity() const {
 
 DeviceProfileStore &ApplicationContext::deviceProfile() const {
     return *m_profile;
+}
+
+TrustedPeerStore &ApplicationContext::trustedPeers() const {
+    return *m_trustedPeers;
 }
 
 SignalingClient &ApplicationContext::signaling() const {

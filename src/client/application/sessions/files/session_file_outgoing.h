@@ -7,13 +7,14 @@
 
 class SessionNegotiationCoordinator;
 class SessionTransferOffer;
+class TrustedPeerStore;
 
 class SessionFileOutgoing final : public QObject {
     Q_OBJECT
 
   public:
     SessionFileOutgoing(SessionNegotiationCoordinator &session, SessionTransferOffer &offer,
-                        QObject *parent = nullptr);
+                        TrustedPeerStore &trustedPeers, QObject *parent = nullptr);
     ~SessionFileOutgoing() override;
     bool start(const QStringList &paths, QString &error);
     void stop();
@@ -35,6 +36,7 @@ class SessionFileOutgoing final : public QObject {
 
     SessionNegotiationCoordinator &m_session;
     SessionTransferOffer &m_offer;
+    TrustedPeerStore &m_trustedPeers;
     SessionFileSendWorker m_worker;
     QTimer m_retry;
     QTimer m_timeout;

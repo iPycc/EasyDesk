@@ -1,6 +1,7 @@
 #include "sessions/files/session_file_outgoing.h"
 
 #include "sessions/files/session_transfer_offer.h"
+#include "data/settings/identity/trusted_peer_store.h"
 #include "sessions/negotiation/session_negotiation_coordinator.h"
 
 namespace {
@@ -10,8 +11,9 @@ constexpr int kMaximumPendingReceipts = 1024;
 }
 
 SessionFileOutgoing::SessionFileOutgoing(SessionNegotiationCoordinator &session,
-                                         SessionTransferOffer &offer, QObject *parent)
-    : QObject(parent), m_session(session), m_offer(offer) {
+                                         SessionTransferOffer &offer, TrustedPeerStore &trustedPeers,
+                                         QObject *parent)
+    : QObject(parent), m_session(session), m_offer(offer), m_trustedPeers(trustedPeers) {
     m_retry.setSingleShot(true);
     m_timeout.setSingleShot(true);
     connect(&m_retry, &QTimer::timeout, this, &SessionFileOutgoing::sendFrame);
@@ -103,6 +105,11 @@ bool SessionFileOutgoing::start(const QStringList &paths, QString &error) {
     if (m_state != State::Idle || !m_session.isSessionReady() || !m_session.context().peerMayReceiveFiles ||
         !m_session.isFileChannelOpen(FileChannel::Metadata) || !m_session.isFileChannelOpen(FileChannel::Data)) {
         error = QStringLiteral("File session is unavailable.");
+        return false;
+    }
+    const auto context = m_session.context();
+    if (m_trustedPeers.status(context.peerDeviceId, context.peerPublicKey) != TrustedPeerStore::Status::Matched) {
+        error = QStringLiteral("Peer identity has not been verified for this device.");
         return false;
     }
     if (!m_worker.prepare(paths, error)) return false;

@@ -1,6 +1,7 @@
 #include "sessions/files/session_file_incoming.h"
 
 #include "files/receive_directory.h"
+#include "data/settings/identity/trusted_peer_store.h"
 #include "sessions/files/session_transfer_offer.h"
 #include "sessions/negotiation/session_negotiation_coordinator.h"
 
@@ -11,8 +12,9 @@ constexpr qsizetype kMaximumReceiptBytes = 256 * 1024;
 }
 
 SessionFileIncoming::SessionFileIncoming(SessionNegotiationCoordinator &session,
-                                         SessionTransferOffer &offer, QObject *parent)
-    : QObject(parent), m_session(session), m_offer(offer) {
+                                         SessionTransferOffer &offer, TrustedPeerStore &trustedPeers,
+                                         QObject *parent)
+    : QObject(parent), m_session(session), m_offer(offer), m_trustedPeers(trustedPeers) {
     m_retry.setSingleShot(true);
     m_timeout.setSingleShot(true);
     connect(&m_retry, &QTimer::timeout, this, &SessionFileIncoming::flushReceipts);
@@ -63,6 +65,11 @@ bool SessionFileIncoming::accept(const std::shared_ptr<ReceiveDirectory> &direct
                                  quint32 windowBytes, QString &error) {
     if (!m_hasOffer || m_active || !m_session.isSessionReady() || !directory) {
         error = QStringLiteral("File offer is not available for acceptance.");
+        return false;
+    }
+    const auto context = m_session.context();
+    if (m_trustedPeers.status(context.peerDeviceId, context.peerPublicKey) != TrustedPeerStore::Status::Matched) {
+        error = QStringLiteral("Peer identity has not been verified for this device.");
         return false;
     }
     if (!m_worker.start(m_manifest, directory, error))
