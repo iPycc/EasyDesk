@@ -3,13 +3,15 @@
 #include "features/transfers/transfer_manifest.h"
 
 #include <memory>
+#include <atomic>
 
 struct SendFileSourceState;
 
 class SendFileSource final {
   public:
     // Opening hashes the selected file; call from a worker thread for large files.
-    static std::unique_ptr<SendFileSource> open(const QString &localPath, QString &error);
+    static std::unique_ptr<SendFileSource> open(const QString &localPath, QString &error,
+                                                const std::atomic_bool *cancelled = nullptr);
     ~SendFileSource();
 
     SendFileSource(const SendFileSource &) = delete;

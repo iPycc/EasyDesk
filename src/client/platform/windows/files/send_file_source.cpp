@@ -45,11 +45,12 @@ bool rewindHandle(HANDLE handle) {
     return SetFilePointerEx(handle, start, nullptr, FILE_BEGIN) != FALSE;
 }
 
-bool hashSource(SendFileSourceState &state) {
+bool hashSource(SendFileSourceState &state, const std::atomic_bool *cancelled) {
     QCryptographicHash hash(QCryptographicHash::Sha256);
     QByteArray buffer(64 * 1024, Qt::Uninitialized);
     quint64 remaining = state.file.size;
     while (remaining != 0) {
+        if (cancelled && cancelled->load(std::memory_order_acquire)) return false;
         const DWORD amount = static_cast<DWORD>(qMin<quint64>(remaining, buffer.size()));
         DWORD read = 0;
         if (!ReadFile(state.handle, buffer.data(), amount, &read, nullptr) || read == 0 || read > amount)
@@ -57,7 +58,7 @@ bool hashSource(SendFileSourceState &state) {
         hash.addData(buffer.constData(), static_cast<int>(read));
         remaining -= read;
     }
-    if (!unchanged(state) || !rewindHandle(state.handle))
+    if ((cancelled && cancelled->load(std::memory_order_acquire)) || !unchanged(state) || !rewindHandle(state.handle))
         return false;
     state.file.sha256 = hash.result();
     return true;
@@ -67,7 +68,12 @@ bool hashSource(SendFileSourceState &state) {
 SendFileSource::SendFileSource(std::unique_ptr<SendFileSourceState> state) : m_state(std::move(state)) {}
 SendFileSource::~SendFileSource() = default;
 
-std::unique_ptr<SendFileSource> SendFileSource::open(const QString &localPath, QString &error) {
+std::unique_ptr<SendFileSource> SendFileSource::open(const QString &localPath, QString &error,
+                                                      const std::atomic_bool *cancelled) {
+    if (cancelled && cancelled->load(std::memory_order_acquire)) {
+        error = QStringLiteral("File preparation was cancelled.");
+        return {};
+    }
     const QFileInfo selected(localPath);
     if (localPath.isEmpty() || !selected.isAbsolute() || !isSafeWindowsFileName(selected.fileName())) {
         error = QStringLiteral("Selected file name or path is invalid.");
@@ -98,8 +104,10 @@ std::unique_ptr<SendFileSource> SendFileSource::open(const QString &localPath, Q
         if (error.isEmpty()) error = QStringLiteral("File generation could not be created.");
         return {};
     }
-    if (!hashSource(*state)) {
-        error = QStringLiteral("Selected file changed or could not be read.");
+    if (!hashSource(*state, cancelled)) {
+        error = cancelled && cancelled->load(std::memory_order_acquire)
+                    ? QStringLiteral("File preparation was cancelled.")
+                    : QStringLiteral("Selected file changed or could not be read.");
         return {};
     }
     error.clear();
