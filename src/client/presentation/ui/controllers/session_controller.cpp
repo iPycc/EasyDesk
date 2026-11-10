@@ -12,10 +12,6 @@ void MainWindow::startSession(const QString &id, const QString &assistanceCode) 
         return;
     }
     auto *device = m_devices.find(id);
-    if (device && !device->online) {
-        notify(QStringLiteral("设备已离线"));
-        return;
-    }
     if (m_session) {
         m_session->raise();
         m_session->activateWindow();
