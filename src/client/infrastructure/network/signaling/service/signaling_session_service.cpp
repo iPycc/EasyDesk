@@ -103,7 +103,8 @@ SignalingSessionService::SignalingSessionService(DeviceProfileStore &profile,
                 }
                 emit incomingSessionRequested({invitation.fromDeviceId, invitation.requestedMode,
                     TrustedPeerStore::fingerprint(m_identity.publicKey()), TrustedPeerStore::fingerprint(publicKey),
-                    status == TrustedPeerStore::Status::Unverified, status == TrustedPeerStore::Status::Matched});
+                    status == TrustedPeerStore::Status::Unverified, status == TrustedPeerStore::Status::Matched,
+                    invitation.requestsLocalFileReceive});
             });
     connect(&m_invitations, &SessionInvitationCoordinator::consentExpired,
             this, &SessionService::incomingSessionCancelled);
@@ -258,7 +259,7 @@ QString SignalingSessionService::validateConnection(const QString &id,
 void SignalingSessionService::start(const QString &deviceId,
                                     const QString &assistanceCode,
                                     const SessionOptions &options) {
-    if (!m_requests.requestSession(deviceId, assistanceCode, options.mode)) {
+    if (!m_requests.requestSession(deviceId, assistanceCode, options.mode, options.requestPeerFileReceive)) {
         emit sessionCancelled();
         emit failed(QStringLiteral("无法发送远程请求"));
         return;
@@ -374,12 +375,17 @@ bool SignalingSessionService::confirmPeerIdentity(bool confirmed, bool rememberI
     return m_requests.confirmIdentity(true);
 }
 
-bool SignalingSessionService::acceptIncomingSession(SessionMode grantedMode, bool rememberIdentity) {
+bool SignalingSessionService::acceptIncomingSession(SessionMode grantedMode, bool rememberIdentity,
+                                                    bool grantLocalFileReceive) {
     if (grantedMode != SessionMode::ViewOnly) {
         emit failed(QStringLiteral("远程控制功能尚未就绪，只能允许观看"));
         return false;
     }
     const auto invitation = m_invitations.invitation();
+    if (grantLocalFileReceive && !invitation.requestsLocalFileReceive) {
+        emit failed(QStringLiteral("对方没有请求文件接收权限"));
+        return false;
+    }
     const auto key = m_invitations.requesterPublicKey();
     const auto status = m_trustedPeers.status(invitation.fromDeviceId, key);
     if (status != TrustedPeerStore::Status::Matched && status != TrustedPeerStore::Status::Unverified &&
@@ -392,7 +398,7 @@ bool SignalingSessionService::acceptIncomingSession(SessionMode grantedMode, boo
         emit failed(error);
         return false;
     }
-    if (m_invitations.accept(grantedMode))
+    if (m_invitations.accept(grantedMode, grantLocalFileReceive))
         return true;
     emit failed(QStringLiteral("无法接受远程协助请求"));
     return false;

@@ -14,6 +14,7 @@ struct SessionOptions {
     int frameRate = 30;
     QString quality = QStringLiteral("清晰");
     SessionMode mode = SessionMode::ViewOnly;
+    bool requestPeerFileReceive = false;
 };
 struct SessionTelemetry {
     int latencyMs = 0, frameRate = 0;
@@ -28,6 +29,7 @@ struct IncomingSessionRequest {
     QString peerFingerprint;
     bool canRememberIdentity = false;
     bool identityVerified = false;
+    bool requestsLocalFileReceive = false;
 };
 struct PeerIdentityPrompt {
     QString deviceId;

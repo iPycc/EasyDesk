@@ -24,7 +24,8 @@ class SessionService : public QObject {
     virtual SessionInputStatus inputStatus() const = 0;
     virtual bool sendInput(InputStream stream, const InputEvent &event) = 0;
     virtual void releaseInput() = 0;
-    virtual bool acceptIncomingSession(SessionMode grantedMode, bool rememberIdentity = false) = 0;
+    virtual bool acceptIncomingSession(SessionMode grantedMode, bool rememberIdentity = false,
+                                       bool grantLocalFileReceive = false) = 0;
     virtual bool confirmPeerIdentity(bool confirmed, bool rememberIdentity = false) = 0;
     virtual bool rejectIncomingSession() = 0;
   signals:
