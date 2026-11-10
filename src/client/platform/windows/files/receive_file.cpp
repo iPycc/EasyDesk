@@ -34,7 +34,11 @@ bool setDeleteOnClose(HANDLE handle, bool enabled) {
     return SetFileInformationByHandle(handle, FileDispositionInfo, &disposition, sizeof(disposition));
 }
 
-bool verifyStoredFile(const ReceiveFileState &state) {
+bool isCancelled(const std::atomic_bool *cancelled) {
+    return cancelled && cancelled->load(std::memory_order_acquire);
+}
+
+bool verifyStoredFile(const ReceiveFileState &state, const std::atomic_bool *cancelled) {
     LARGE_INTEGER size{};
     LARGE_INTEGER start{};
     if (!GetFileSizeEx(state.handle, &size) || size.QuadPart < 0 ||
@@ -45,6 +49,7 @@ bool verifyStoredFile(const ReceiveFileState &state) {
     QByteArray buffer(64 * 1024, Qt::Uninitialized);
     quint64 remaining = state.expectedSize;
     while (remaining != 0) {
+        if (isCancelled(cancelled)) return false;
         const DWORD request = static_cast<DWORD>(qMin<quint64>(remaining, static_cast<quint64>(buffer.size())));
         DWORD read = 0;
         if (!ReadFile(state.handle, buffer.data(), request, &read, nullptr) || read == 0 || read > request)
@@ -52,7 +57,7 @@ bool verifyStoredFile(const ReceiveFileState &state) {
         digest.addData(buffer.constData(), static_cast<int>(read));
         remaining -= read;
     }
-    return digest.result() == state.expectedDigest;
+    return !isCancelled(cancelled) && digest.result() == state.expectedDigest;
 }
 } // namespace
 
@@ -68,8 +73,8 @@ ReceiveFile::ReceiveFile(std::unique_ptr<ReceiveFileState> state) : m_state(std:
 ReceiveFile::~ReceiveFile() = default;
 
 bool ReceiveFile::append(quint64 offset, const QByteArray &bytes, const QByteArray &chunkSha256,
-                         QString &error) {
-    if (!m_state || m_state->committed || m_state->failed || offset != m_state->received ||
+                         QString &error, const std::atomic_bool *cancelled) {
+    if (isCancelled(cancelled) || !m_state || m_state->committed || m_state->failed || offset != m_state->received ||
         bytes.isEmpty() || bytes.size() > kMaximumChunkBytes || chunkSha256.size() != 32 ||
         static_cast<quint64>(bytes.size()) > m_state->expectedSize - m_state->received ||
         QCryptographicHash::hash(bytes, QCryptographicHash::Sha256) != chunkSha256 ||
@@ -79,7 +84,7 @@ bool ReceiveFile::append(quint64 offset, const QByteArray &bytes, const QByteArr
     }
     DWORD written = 0;
     if (!WriteFile(m_state->handle, bytes.constData(), static_cast<DWORD>(bytes.size()), &written, nullptr) ||
-        written != static_cast<DWORD>(bytes.size())) {
+        written != static_cast<DWORD>(bytes.size()) || isCancelled(cancelled)) {
         m_state->failed = true;
         error = QStringLiteral("File chunk could not be written.");
         return false;
@@ -90,15 +95,15 @@ bool ReceiveFile::append(quint64 offset, const QByteArray &bytes, const QByteArr
     return true;
 }
 
-bool ReceiveFile::commit(QString &finalName, QString &error) {
+bool ReceiveFile::commit(QString &finalName, QString &error, const std::atomic_bool *cancelled) {
     finalName.clear();
-    if (!m_state || m_state->committed || m_state->failed || m_state->received != m_state->expectedSize ||
+    if (isCancelled(cancelled) || !m_state || m_state->committed || m_state->failed || m_state->received != m_state->expectedSize ||
         m_state->digest.result() != m_state->expectedDigest || !receivePathStillContained(*m_state)) {
         error = QStringLiteral("Received file is incomplete or failed verification.");
         return false;
     }
     FILE_BASIC_INFO attributes{};
-    if (!FlushFileBuffers(m_state->handle) || !verifyStoredFile(*m_state) ||
+    if (!FlushFileBuffers(m_state->handle) || !verifyStoredFile(*m_state, cancelled) ||
         !GetFileInformationByHandleEx(m_state->handle, FileBasicInfo, &attributes, sizeof(attributes))) {
         error = QStringLiteral("Received file could not be committed.");
         return false;
@@ -121,7 +126,7 @@ bool ReceiveFile::commit(QString &finalName, QString &error) {
     }
     ULONG renameError = kStatusObjectNameCollision;
     for (int index = 0; index < kMaximumCollisionAttempts; ++index) {
-        if (!receivePathStillContained(*m_state)) {
+        if (isCancelled(cancelled) || !receivePathStillContained(*m_state)) {
             (void)setDeleteOnClose(m_state->handle, true);
             m_state->failed = true;
             error = QStringLiteral("Receive directory changed before commit.");
@@ -143,7 +148,7 @@ bool ReceiveFile::commit(QString &finalName, QString &error) {
                                            static_cast<FILE_INFORMATION_CLASS>(10));
         if (result >= 0) {
             m_state->temporaryName = name;
-            if (!receivePathStillContained(*m_state)) {
+            if (isCancelled(cancelled) || !receivePathStillContained(*m_state)) {
                 (void)setDeleteOnClose(m_state->handle, true);
                 m_state->failed = true;
                 error = QStringLiteral("Renamed file is outside the selected directory.");

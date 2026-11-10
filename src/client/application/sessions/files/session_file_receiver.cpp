@@ -10,22 +10,31 @@
 using namespace easydesk::client::transfer;
 
 SessionFileReceiver::SessionFileReceiver(const TransferManifest &manifest,
-                                         std::shared_ptr<ReceiveDirectory> directory)
-    : m_manifest(manifest), m_directory(std::move(directory)) {}
+                                         std::shared_ptr<ReceiveDirectory> directory,
+                                         std::shared_ptr<std::atomic_bool> cancellation)
+    : m_manifest(manifest), m_directory(std::move(directory)), m_cancellation(std::move(cancellation)) {}
 SessionFileReceiver::~SessionFileReceiver() = default;
 
 std::unique_ptr<SessionFileReceiver> SessionFileReceiver::create(
-    const TransferManifest &manifest, std::shared_ptr<ReceiveDirectory> directory, QString &error) {
+    const TransferManifest &manifest, std::shared_ptr<ReceiveDirectory> directory, QString &error,
+    std::shared_ptr<std::atomic_bool> cancellation) {
     quint64 total = 0;
     if (!directory || !validateManifest(manifest, kDefaultMaximumFileBytes, total, error)) {
         if (error.isEmpty()) error = QStringLiteral("Receive directory is unavailable.");
         return {};
     }
     error.clear();
-    return std::unique_ptr<SessionFileReceiver>(new SessionFileReceiver(manifest, std::move(directory)));
+    if (!cancellation) cancellation = std::make_shared<std::atomic_bool>(false);
+    if (cancellation->load(std::memory_order_acquire)) {
+        error = QStringLiteral("File transfer was cancelled.");
+        return {};
+    }
+    return std::unique_ptr<SessionFileReceiver>(new SessionFileReceiver(
+        manifest, std::move(directory), std::move(cancellation)));
 }
 
 void SessionFileReceiver::cancel() {
+    if (m_cancellation) m_cancellation->store(true, std::memory_order_release);
     m_file.reset();
     m_directory.reset();
     m_failed = true;
@@ -43,7 +52,8 @@ SessionFileReceiver::Result SessionFileReceiver::receive(const QByteArray &messa
     committedName.clear();
     if (receipt) *receipt = {};
     FileDataMessage decoded;
-    if (m_failed || !m_directory || m_completed.size() == m_manifest.files.size() ||
+    if (m_failed || !m_directory || m_cancellation->load(std::memory_order_acquire) ||
+        m_completed.size() == m_manifest.files.size() ||
         !decodeFileDataMessage(message, decoded, error))
         return fail(error, QStringLiteral("Invalid or interrupted file transfer."));
 
@@ -76,7 +86,7 @@ SessionFileReceiver::Result SessionFileReceiver::receive(const QByteArray &messa
                 return fail(error, QStringLiteral("File message does not match the active file."));
             if constexpr (std::is_same_v<T, FileChunk>) {
                 if (value.offset != m_offset || value.bytes.size() > m_chunkSize ||
-                    !m_file->append(value.offset, value.bytes, value.sha256, error))
+                    !m_file->append(value.offset, value.bytes, value.sha256, error, m_cancellation.get()))
                     return fail(error, QStringLiteral("File chunk failed verification."));
                 m_offset += static_cast<quint64>(value.bytes.size());
                 if (receipt) { receipt->identity = id; receipt->verifiedOffset = m_offset; }
@@ -85,7 +95,7 @@ SessionFileReceiver::Result SessionFileReceiver::receive(const QByteArray &messa
             } else {
                 const auto &file = m_manifest.files[m_current];
                 if (value.size != file.size || value.sha256 != file.sha256 || m_offset != file.size ||
-                    !m_file->commit(committedName, error))
+                    !m_file->commit(committedName, error, m_cancellation.get()))
                     return fail(error, QStringLiteral("File commit failed verification."));
                 m_completed.insert(id.fileId);
                 if (receipt) {

@@ -4,6 +4,7 @@
 #include <QString>
 
 #include <memory>
+#include <atomic>
 
 struct ReceiveFileState;
 
@@ -13,8 +14,9 @@ class ReceiveFile final {
     ReceiveFile(const ReceiveFile &) = delete;
     ReceiveFile &operator=(const ReceiveFile &) = delete;
 
-    bool append(quint64 offset, const QByteArray &bytes, const QByteArray &chunkSha256, QString &error);
-    bool commit(QString &finalName, QString &error);
+    bool append(quint64 offset, const QByteArray &bytes, const QByteArray &chunkSha256, QString &error,
+                const std::atomic_bool *cancelled = nullptr);
+    bool commit(QString &finalName, QString &error, const std::atomic_bool *cancelled = nullptr);
     void cancel();
 
   private:
