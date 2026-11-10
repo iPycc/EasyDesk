@@ -10,6 +10,17 @@ constexpr int kSendTimeoutMilliseconds = 30000;
 constexpr int kReceiveTimeoutMilliseconds = 15000;
 constexpr int kDecisionTimeoutMilliseconds = 60000;
 constexpr int kIncomingDecisionTimeoutMilliseconds = 45000;
+constexpr int kMaximumCancelledOffers = 128;
+
+bool senderReason(easydesk::client::transfer::TransferCancelReason reason) {
+    using easydesk::client::transfer::TransferCancelReason;
+    return reason == TransferCancelReason::SenderCancelled || reason == TransferCancelReason::SenderFailed;
+}
+
+bool receiverReason(easydesk::client::transfer::TransferCancelReason reason) {
+    using easydesk::client::transfer::TransferCancelReason;
+    return reason == TransferCancelReason::ReceiverCancelled || reason == TransferCancelReason::ReceiverFailed;
+}
 }
 
 SessionTransferOffer::SessionTransferOffer(SessionNegotiationCoordinator &session, QObject *parent)
@@ -45,7 +56,9 @@ SessionTransferOffer::SessionTransferOffer(SessionNegotiationCoordinator &sessio
                 if (channel == FileChannel::Metadata) {
                     if (easydesk::client::transfer::isFileReceipt(message))
                         return;
-                    if (easydesk::client::transfer::isTransferDecision(message))
+                    if (easydesk::client::transfer::isTransferCancellation(message))
+                        receiveCancellation(message);
+                    else if (easydesk::client::transfer::isTransferDecision(message))
                         receiveDecision(message);
                     else
                         receive(message);
@@ -68,6 +81,11 @@ SessionTransferOffer::SessionTransferOffer(SessionNegotiationCoordinator &sessio
 void SessionTransferOffer::finishIncoming(const QByteArray &transferId) {
     if (!m_incomingPending || !m_incomingResolved || transferId != m_incomingId)
         return;
+    clearIncoming();
+}
+
+void SessionTransferOffer::clearIncoming() {
+    m_incomingDecisionTimer.stop();
     m_incomingPending = false;
     m_incomingResolved = false;
     m_incomingId.clear();
@@ -123,6 +141,48 @@ bool SessionTransferOffer::acceptIncoming(const std::shared_ptr<ReceiveDirectory
 
 bool SessionTransferOffer::declineIncoming(QString &error) {
     return respond(easydesk::client::transfer::OfferDecision::Decline, {}, 0, error);
+}
+
+bool SessionTransferOffer::cancelOutgoing(easydesk::client::transfer::TransferCancelReason reason,
+                                          QString &error) {
+    using namespace easydesk::client::transfer;
+    if (!senderReason(reason) || !m_outgoingPending || !m_outgoingSent || !m_session.isSessionReady()) {
+        error = QStringLiteral("Outgoing transfer cannot be cancelled yet.");
+        return false;
+    }
+    const QByteArray id = m_outgoingId;
+    const QByteArray digest = m_outgoingDigest;
+    QByteArray message;
+    if (!encodeTransferCancellation({id, digest, reason}, message, error)) return false;
+    if (m_session.sendFileMessage(FileChannel::Metadata, message) != SessionFileTransport::SendResult::Sent) {
+        error = QStringLiteral("Transfer cancellation could not be sent.");
+        return false;
+    }
+    if (!m_outgoingResolved) rememberCancelledOutgoing(id, digest);
+    finishOutgoing(id);
+    error.clear();
+    emit outgoingCancelled(id, reason);
+    return true;
+}
+
+bool SessionTransferOffer::cancelIncoming(easydesk::client::transfer::TransferCancelReason reason,
+                                          QString &error) {
+    using namespace easydesk::client::transfer;
+    if (!receiverReason(reason) || !m_incomingPending || !m_session.isSessionReady()) {
+        error = QStringLiteral("Incoming transfer cannot be cancelled.");
+        return false;
+    }
+    const QByteArray id = m_incomingId;
+    QByteArray message;
+    if (!encodeTransferCancellation({id, m_incomingDigest, reason}, message, error)) return false;
+    if (m_session.sendFileMessage(FileChannel::Metadata, message) != SessionFileTransport::SendResult::Sent) {
+        error = QStringLiteral("Transfer cancellation could not be sent.");
+        return false;
+    }
+    clearIncoming();
+    error.clear();
+    emit incomingCancelled(id, reason);
+    return true;
 }
 
 bool SessionTransferOffer::respond(easydesk::client::transfer::OfferDecision decision,
@@ -184,6 +244,8 @@ void SessionTransferOffer::reset() {
     m_incomingPending = false;
     m_incomingResolved = false;
     m_receiving = false;
+    m_cancelledOutgoing.clear();
+    m_cancelledOrder.clear();
 }
 
 void SessionTransferOffer::sendNext() {
@@ -210,7 +272,8 @@ void SessionTransferOffer::sendNext() {
     m_sendTimeout.stop();
     m_outgoingSent = true;
     m_decisionTimer.start(kDecisionTimeoutMilliseconds);
-    emit offerSent(m_outgoingId);
+    const QByteArray sentId = m_outgoingId;
+    emit offerSent(sentId);
 }
 
 void SessionTransferOffer::receive(const QByteArray &message) {
@@ -249,9 +312,15 @@ void SessionTransferOffer::receiveDecision(const QByteArray &message) {
     using namespace easydesk::client::transfer;
     TransferDecision response;
     QString error;
+    if (!decodeTransferDecision(message, response, error)) {
+        abort(QStringLiteral("Transfer decision is invalid."));
+        return;
+    }
+    if (m_cancelledOutgoing.value(response.transferId) == response.manifestDigest)
+        return;
     if (!m_outgoingPending || !m_outgoingSent || m_outgoingResolved ||
         !m_session.context().peerMayReceiveFiles || !m_session.isSessionReady() ||
-        !decodeTransferDecision(message, response, error) || response.transferId != m_outgoingId ||
+        response.transferId != m_outgoingId ||
         response.manifestDigest != m_outgoingDigest) {
         abort(QStringLiteral("Transfer decision does not match the pending offer."));
         return;
@@ -266,6 +335,35 @@ void SessionTransferOffer::receiveDecision(const QByteArray &message) {
         m_outgoingDigest.clear();
     }
     emit decisionReceived(response);
+}
+
+void SessionTransferOffer::rememberCancelledOutgoing(const QByteArray &id, const QByteArray &digest) {
+    if (!m_cancelledOutgoing.contains(id)) {
+        if (m_cancelledOrder.size() >= kMaximumCancelledOffers)
+            m_cancelledOutgoing.remove(m_cancelledOrder.dequeue());
+        m_cancelledOrder.enqueue(id);
+    }
+    m_cancelledOutgoing.insert(id, digest);
+}
+
+void SessionTransferOffer::receiveCancellation(const QByteArray &message) {
+    using namespace easydesk::client::transfer;
+    TransferCancellation cancel;
+    QString error;
+    if (!decodeTransferCancellation(message, cancel, error)) {
+        abort(error);
+        return;
+    }
+    if (senderReason(cancel.reason) && m_incomingPending && cancel.transferId == m_incomingId &&
+        cancel.manifestDigest == m_incomingDigest) {
+        clearIncoming();
+        emit incomingCancelled(cancel.transferId, cancel.reason);
+    } else if (receiverReason(cancel.reason) && m_outgoingPending && cancel.transferId == m_outgoingId &&
+               cancel.manifestDigest == m_outgoingDigest) {
+        if (!m_outgoingResolved) rememberCancelledOutgoing(m_outgoingId, m_outgoingDigest);
+        finishOutgoing(cancel.transferId);
+        emit outgoingCancelled(cancel.transferId, cancel.reason);
+    }
 }
 
 void SessionTransferOffer::abort(const QString &error) {

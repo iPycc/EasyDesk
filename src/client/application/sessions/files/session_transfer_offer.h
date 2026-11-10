@@ -2,9 +2,12 @@
 
 #include "network/files/protocol/transfer_offer_codec.h"
 #include "network/files/protocol/transfer_decision_codec.h"
+#include "network/files/protocol/transfer_cancel_codec.h"
 
 #include <QObject>
 #include <QTimer>
+#include <QHash>
+#include <QQueue>
 #include <memory>
 
 class ReceiveDirectory;
@@ -21,12 +24,16 @@ class SessionTransferOffer final : public QObject {
     bool acceptIncoming(const std::shared_ptr<ReceiveDirectory> &directory, quint32 windowBytes,
                         QString &error);
     bool declineIncoming(QString &error);
+    bool cancelOutgoing(easydesk::client::transfer::TransferCancelReason reason, QString &error);
+    bool cancelIncoming(easydesk::client::transfer::TransferCancelReason reason, QString &error);
     void reset();
 
   signals:
     void offerSent(const QByteArray &transferId);
     void offerReceived(const easydesk::client::transfer::TransferManifest &manifest);
     void incomingOfferExpired(const QByteArray &transferId);
+    void incomingCancelled(const QByteArray &transferId, easydesk::client::transfer::TransferCancelReason reason);
+    void outgoingCancelled(const QByteArray &transferId, easydesk::client::transfer::TransferCancelReason reason);
     void decisionSent(easydesk::client::transfer::OfferDecision decision);
     void decisionReceived(const easydesk::client::transfer::TransferDecision &decision);
     void failed(const QString &error);
@@ -39,6 +46,9 @@ class SessionTransferOffer final : public QObject {
     void sendNext();
     void receive(const QByteArray &message);
     void receiveDecision(const QByteArray &message);
+    void receiveCancellation(const QByteArray &message);
+    void clearIncoming();
+    void rememberCancelledOutgoing(const QByteArray &id, const QByteArray &digest);
     bool respond(easydesk::client::transfer::OfferDecision decision,
                  const std::shared_ptr<ReceiveDirectory> &directory, quint32 windowBytes,
                  QString &error);
@@ -64,4 +74,6 @@ class SessionTransferOffer final : public QObject {
     bool m_incomingPending = false;
     bool m_incomingResolved = false;
     bool m_receiving = false;
+    QHash<QByteArray, QByteArray> m_cancelledOutgoing;
+    QQueue<QByteArray> m_cancelledOrder;
 };
