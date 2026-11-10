@@ -36,6 +36,7 @@ SOURCES += \
     src/client/application/sessions/files/session_file_authorization.cpp \
     src/client/application/sessions/files/session_transfer_offer.cpp \
     src/client/application/sessions/files/session_file_receiver.cpp \
+    src/client/application/sessions/files/session_file_sender.cpp \
     src/client/application/sessions/session_invitation_coordinator.cpp \
     src/client/application/sessions/session_request_coordinator.cpp \
     src/client/application/sessions/termination/session_termination_receiver.cpp \
@@ -86,6 +87,7 @@ SOURCES += \
     src/client/platform/windows/input/input_ownership.cpp \
     src/client/platform/windows/files/receive_directory.cpp \
     src/client/platform/windows/files/receive_file.cpp \
+    src/client/platform/windows/files/send_file_source.cpp \
     src/client/platform/windows/identity/windows_identity_store.cpp \
     src/client/platform/windows/network/winhttp/winhttp_websocket_connection.cpp \
     src/client/platform/windows/network/winhttp/winhttp_websocket_transport.cpp \
@@ -144,6 +146,7 @@ HEADERS += \
     src/client/application/sessions/files/session_file_authorization.h \
     src/client/application/sessions/files/session_transfer_offer.h \
     src/client/application/sessions/files/session_file_receiver.h \
+    src/client/application/sessions/files/session_file_sender.h \
     src/client/application/sessions/session_invitation_coordinator.h \
     src/client/application/sessions/session_request_coordinator.h \
     src/client/application/sessions/termination/session_termination_receiver.h \
@@ -201,6 +204,7 @@ HEADERS += \
     src/client/platform/windows/input/input_ownership.h \
     src/client/platform/windows/files/receive_directory.h \
     src/client/platform/windows/files/receive_file.h \
+    src/client/platform/windows/files/send_file_source.h \
     src/client/platform/windows/files/receive_state.h \
     src/client/platform/windows/identity/windows_identity_store.h \
     src/client/platform/windows/network/winhttp/winhttp_websocket_connection.h \
