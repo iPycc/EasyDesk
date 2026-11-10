@@ -82,6 +82,8 @@ SOURCES += \
     src/client/platform/windows/input/windows_input_controller.cpp \
     src/client/platform/windows/input/coordinate_mapping.cpp \
     src/client/platform/windows/input/input_ownership.cpp \
+    src/client/platform/windows/files/receive_directory.cpp \
+    src/client/platform/windows/files/receive_file.cpp \
     src/client/platform/windows/identity/windows_identity_store.cpp \
     src/client/platform/windows/network/winhttp/winhttp_websocket_connection.cpp \
     src/client/platform/windows/network/winhttp/winhttp_websocket_transport.cpp \
@@ -193,6 +195,9 @@ HEADERS += \
     src/client/platform/windows/input/windows_input_controller.h \
     src/client/platform/windows/input/coordinate_mapping.h \
     src/client/platform/windows/input/input_ownership.h \
+    src/client/platform/windows/files/receive_directory.h \
+    src/client/platform/windows/files/receive_file.h \
+    src/client/platform/windows/files/receive_state.h \
     src/client/platform/windows/identity/windows_identity_store.h \
     src/client/platform/windows/network/winhttp/winhttp_websocket_connection.h \
     src/client/platform/windows/network/winhttp/winhttp_websocket_transport.h \
