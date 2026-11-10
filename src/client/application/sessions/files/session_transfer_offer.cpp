@@ -9,6 +9,7 @@ constexpr int kRetryMilliseconds = 25;
 constexpr int kSendTimeoutMilliseconds = 30000;
 constexpr int kReceiveTimeoutMilliseconds = 15000;
 constexpr int kDecisionTimeoutMilliseconds = 60000;
+constexpr int kIncomingDecisionTimeoutMilliseconds = 45000;
 }
 
 SessionTransferOffer::SessionTransferOffer(SessionNegotiationCoordinator &session, QObject *parent)
@@ -17,6 +18,7 @@ SessionTransferOffer::SessionTransferOffer(SessionNegotiationCoordinator &sessio
     m_sendTimeout.setSingleShot(true);
     m_receiveTimer.setSingleShot(true);
     m_decisionTimer.setSingleShot(true);
+    m_incomingDecisionTimer.setSingleShot(true);
     connect(&m_sendTimer, &QTimer::timeout, this, &SessionTransferOffer::sendNext);
     connect(&m_sendTimeout, &QTimer::timeout, this, [this] {
         abort(QStringLiteral("Transfer offer send timed out."));
@@ -26,6 +28,17 @@ SessionTransferOffer::SessionTransferOffer(SessionNegotiationCoordinator &sessio
     });
     connect(&m_decisionTimer, &QTimer::timeout, this, [this] {
         abort(QStringLiteral("Transfer decision timed out."));
+    });
+    connect(&m_incomingDecisionTimer, &QTimer::timeout, this, [this] {
+        if (!m_incomingPending || m_incomingResolved)
+            return;
+        const QByteArray expiredId = m_incomingId;
+        QString error;
+        if (!declineIncoming(error)) {
+            abort(error);
+            return;
+        }
+        emit incomingOfferExpired(expiredId);
     });
     connect(&m_session, &SessionNegotiationCoordinator::fileMessageReceived, this,
             [this](FileChannel channel, const QByteArray &message) {
@@ -145,6 +158,7 @@ bool SessionTransferOffer::respond(easydesk::client::transfer::OfferDecision dec
         m_incomingId.clear();
         m_incomingDigest.clear();
     }
+    m_incomingDecisionTimer.stop();
     error.clear();
     emit decisionSent(decision);
     return true;
@@ -155,6 +169,7 @@ void SessionTransferOffer::reset() {
     m_sendTimeout.stop();
     m_receiveTimer.stop();
     m_decisionTimer.stop();
+    m_incomingDecisionTimer.stop();
     m_decoder.reset();
     m_frames.clear();
     m_outgoingId.clear();
@@ -226,6 +241,7 @@ void SessionTransferOffer::receive(const QByteArray &message) {
         abort(QStringLiteral("Transfer offer digest could not be calculated."));
         return;
     }
+    m_incomingDecisionTimer.start(kIncomingDecisionTimeoutMilliseconds);
     emit offerReceived(manifest);
 }
 

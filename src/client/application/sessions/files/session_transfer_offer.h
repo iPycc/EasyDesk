@@ -26,6 +26,7 @@ class SessionTransferOffer final : public QObject {
   signals:
     void offerSent(const QByteArray &transferId);
     void offerReceived(const easydesk::client::transfer::TransferManifest &manifest);
+    void incomingOfferExpired(const QByteArray &transferId);
     void decisionSent(easydesk::client::transfer::OfferDecision decision);
     void decisionReceived(const easydesk::client::transfer::TransferDecision &decision);
     void failed(const QString &error);
@@ -49,6 +50,7 @@ class SessionTransferOffer final : public QObject {
     QTimer m_sendTimeout;
     QTimer m_receiveTimer;
     QTimer m_decisionTimer;
+    QTimer m_incomingDecisionTimer;
     QVector<QByteArray> m_frames;
     QByteArray m_outgoingId;
     QByteArray m_outgoingDigest;
