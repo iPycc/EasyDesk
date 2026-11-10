@@ -61,6 +61,7 @@ SOURCES += \
     src/client/infrastructure/network/files/protocol/file_data_codec.cpp \
     src/client/infrastructure/network/files/protocol/file_receipt_codec.cpp \
     src/client/infrastructure/network/files/protocol/transfer_decision_codec.cpp \
+    src/client/infrastructure/network/files/protocol/transfer_cancel_codec.cpp \
     src/client/infrastructure/network/input/protocol/lease/input_lease_codec.cpp \
     src/client/infrastructure/network/input/protocol/lease/input_enable_codec.cpp \
     src/client/infrastructure/network/signaling/protocol/bootstrap/bootstrap_message_codec.cpp \
@@ -185,6 +186,7 @@ HEADERS += \
     src/client/infrastructure/network/files/protocol/file_data_codec.h \
     src/client/infrastructure/network/files/protocol/file_receipt_codec.h \
     src/client/infrastructure/network/files/protocol/transfer_decision_codec.h \
+    src/client/infrastructure/network/files/protocol/transfer_cancel_codec.h \
     src/client/infrastructure/network/input/protocol/lease/input_lease_codec.h \
     src/client/infrastructure/network/input/protocol/lease/input_enable_codec.h \
     src/client/infrastructure/network/signaling/protocol/bootstrap/bootstrap_message_codec.h \
