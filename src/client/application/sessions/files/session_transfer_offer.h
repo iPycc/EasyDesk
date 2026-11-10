@@ -9,6 +9,7 @@
 
 class ReceiveDirectory;
 class SessionNegotiationCoordinator;
+class SessionFileIncoming;
 
 class SessionTransferOffer final : public QObject {
     Q_OBJECT
@@ -29,6 +30,8 @@ class SessionTransferOffer final : public QObject {
     void failed(const QString &error);
 
   private:
+    friend class SessionFileIncoming;
+    void finishIncoming(const QByteArray &transferId);
     void sendNext();
     void receive(const QByteArray &message);
     void receiveDecision(const QByteArray &message);

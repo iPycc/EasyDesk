@@ -20,6 +20,8 @@ class SessionFileTransport final : public QObject {
     void stop();
     void setSessionReady(bool ready);
     void setChannelOpen(const QByteArray &label, bool open);
+    bool setReceivingEnabled(bool enabled);
+    bool setSendingEnabled(bool enabled);
     void receive(const QByteArray &label, const QByteArray &message);
     bool isOpen(FileChannel channel) const;
     SendResult send(FileChannel channel, const QByteArray &message);
@@ -36,4 +38,6 @@ class SessionFileTransport final : public QObject {
     bool m_dataOpen = false;
     bool m_localMayReceive = false;
     bool m_peerMayReceive = false;
+    bool m_receivingEnabled = false;
+    bool m_sendingEnabled = false;
 };

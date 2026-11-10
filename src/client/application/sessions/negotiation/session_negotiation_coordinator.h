@@ -22,6 +22,8 @@
 
 class MediaRuntimeLibrary;
 class MediaSession;
+class SessionFileIncoming;
+class SessionFileOutgoing;
 class SignalingClient;
 class WindowsIdentityStore;
 
@@ -101,6 +103,10 @@ class SessionNegotiationCoordinator final : public QObject {
     void failed(const QString &code, const QString &message);
 
   private:
+    friend class SessionFileIncoming;
+    friend class SessionFileOutgoing;
+    bool setFileReceivingEnabled(bool enabled);
+    bool setFileSendingEnabled(bool enabled);
     void handleMessage(const QByteArray &message);
     void handleTurnCredentials(const QByteArray &message);
     void handleTurnUnavailable(const QByteArray &message);

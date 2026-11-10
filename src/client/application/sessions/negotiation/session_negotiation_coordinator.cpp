@@ -295,6 +295,14 @@ bool SessionNegotiationCoordinator::isFileChannelOpen(FileChannel channel) const
     return m_fileTransport.isOpen(channel);
 }
 
+bool SessionNegotiationCoordinator::setFileReceivingEnabled(bool enabled) {
+    return m_fileTransport.setReceivingEnabled(enabled);
+}
+
+bool SessionNegotiationCoordinator::setFileSendingEnabled(bool enabled) {
+    return m_fileTransport.setSendingEnabled(enabled);
+}
+
 SessionFileTransport::SendResult SessionNegotiationCoordinator::sendFileMessage(
     FileChannel channel, const QByteArray &message) {
     return m_fileTransport.send(channel, message);

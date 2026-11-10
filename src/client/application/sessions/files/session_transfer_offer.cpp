@@ -2,6 +2,7 @@
 
 #include "sessions/negotiation/session_negotiation_coordinator.h"
 #include "files/receive_directory.h"
+#include "network/files/protocol/file_receipt_codec.h"
 
 namespace {
 constexpr int kRetryMilliseconds = 25;
@@ -29,6 +30,8 @@ SessionTransferOffer::SessionTransferOffer(SessionNegotiationCoordinator &sessio
     connect(&m_session, &SessionNegotiationCoordinator::fileMessageReceived, this,
             [this](FileChannel channel, const QByteArray &message) {
                 if (channel == FileChannel::Metadata) {
+                    if (easydesk::client::transfer::isFileReceipt(message))
+                        return;
                     if (easydesk::client::transfer::isTransferDecision(message))
                         receiveDecision(message);
                     else
@@ -47,6 +50,16 @@ SessionTransferOffer::SessionTransferOffer(SessionNegotiationCoordinator &sessio
                     state == SessionNegotiationCoordinator::State::Ending)
                     reset();
             });
+}
+
+void SessionTransferOffer::finishIncoming(const QByteArray &transferId) {
+    if (!m_incomingPending || !m_incomingResolved || transferId != m_incomingId)
+        return;
+    m_incomingPending = false;
+    m_incomingResolved = false;
+    m_incomingId.clear();
+    m_incomingDigest.clear();
+    m_acceptedDirectory.reset();
 }
 
 bool SessionTransferOffer::sendOffer(const easydesk::client::transfer::TransferManifest &manifest,
