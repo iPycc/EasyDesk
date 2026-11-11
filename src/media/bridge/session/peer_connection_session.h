@@ -27,7 +27,8 @@ class PeerConnectionSession final : public webrtc::PeerConnectionObserver {
                               EasyDeskMediaError *error);
     EasyDeskMediaStatus createOffer(EasyDeskMediaError *error);
     EasyDeskMediaStatus createAnswer(EasyDeskMediaError *error);
-    EasyDeskMediaStatus setRemoteDescription(uint32_t iceGeneration,
+    EasyDeskMediaStatus setRemoteDescription(uint
+    32_t iceGeneration,
                                              EasyDeskMediaSdpType type,
                                              const uint8_t *sdp,
                                              uint32_t size,

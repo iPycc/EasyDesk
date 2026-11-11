@@ -7,3 +7,5 @@ artifacts/
 /data/
 /deploy/.env
 /deploy/secrets/
+.vscode/settings.json
+docs/
